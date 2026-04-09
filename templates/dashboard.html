@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h1>欢迎使用仓库管理系统</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>物料总数</h3>
+            <div class="stat-value" id="material-count">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>库存预警</h3>
+            <div class="stat-value warning" id="low-stock-count">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>待审核入库单</h3>
+            <div class="stat-value" id="pending-in-count">-</div>
+        </div>
+        <div class="stat-card">
+            <h3>待审核出库单</h3>
+            <div class="stat-value" id="pending-out-count">-</div>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <h2>快捷操作</h2>
+        <div class="action-buttons">
+            <a href="/in-orders/new" class="btn btn-primary">新建入库单</a>
+            <a href="/out-orders/new" class="btn btn-primary">新建出库单</a>
+            <a href="/materials/new" class="btn btn-secondary">新增物料</a>
+            <a href="/suppliers/new" class="btn btn-secondary">新增供应商</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStats() {
+    const [materials, summary, inOrders, outOrders] = await Promise.all([
+        apiRequest('/materials?per_page=1'),
+        apiRequest('/reports/summary'),
+        apiRequest('/in-orders?status=pending&per_page=1'),
+        apiRequest('/out-orders?status=pending&per_page=1')
+    ]);
+
+    if (materials) document.getElementById('material-count').textContent = materials.total;
+    if (summary) document.getElementById('low-stock-count').textContent = summary.low_stock_count || 0;
+    if (inOrders) document.getElementById('pending-in-count').textContent = inOrders.total;
+    if (outOrders) document.getElementById('pending-out-count').textContent = outOrders.total;
+}
+
+loadStats();
+</script>
+{% endblock %}

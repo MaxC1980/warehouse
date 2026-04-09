@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}仓库管理系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=2">
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=3"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% if session.user_id %}
+    <nav class="navbar">
+        <div class="nav-brand">仓库管理系统</div>
+        <div class="nav-links">
+            <a href="/dashboard" class="nav-link">首页</a>
+            <div class="nav-dropdown">
+                <span class="nav-link">基本资料 ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/category-major">大类管理</a>
+                    <a href="/category-minor">小类管理</a>
+                    <a href="/materials">物料管理</a>
+                    <a href="/suppliers">供应商</a>
+                    <a href="/employees">员工管理</a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <span class="nav-link">入库单 ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/in-orders/new">入库单新增</a>
+                    <a href="/in-orders">入库单管理</a>
+                    <a href="/in-order-details">入库台账</a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <span class="nav-link">出库单 ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/out-orders/new">出库单新增</a>
+                    <a href="/out-orders">出库单管理</a>
+                    <a href="/out-order-details">出库台账</a>
+                </div>
+            </div>
+            <div class="nav-dropdown">
+                <span class="nav-link">退库单 ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/return-orders/new">退库单新增</a>
+                    <a href="/return-orders">退库单管理</a>
+                    <a href="/return-order-details">退库台账</a>
+                    <a href="/weight-records">称重记录</a>
+                </div>
+            </div>
+            <a href="/inventory" class="nav-link">库存查询</a>
+            <a href="/reports/inventory" class="nav-link">报表</a>
+            <div class="nav-dropdown">
+                <span class="nav-user" style="cursor:pointer;">{{ session.username }} ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="#" onclick="openChangePasswordModal(); return false;">修改密码</a>
+                    <a href="#" onclick="logout(); return false;">退出</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+
+    <style>
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+    .modal-content {
+        background: white;
+        padding: 24px;
+        border-radius: 8px;
+        max-width: 900px;
+        width: 90%;
+    }
+    </style>
+
+    <!-- 修改密码弹窗 -->
+    <div id="change-password-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:400px;">
+            <h3>修改密码</h3>
+            <form id="change-password-form" onsubmit="handleChangePassword(event)">
+                <div class="form-group">
+                    <label>旧密码</label>
+                    <input type="password" id="old-password" required>
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" id="new-password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>确认新密码</label>
+                    <input type="password" id="confirm-password" required minlength="6">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">确定</button>
+                    <button type="button" onclick="closeChangePasswordModal()" class="btn btn-secondary">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function openChangePasswordModal() {
+        document.getElementById('change-password-modal').style.display = 'flex';
+        document.getElementById('old-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+    }
+
+    function closeChangePasswordModal() {
+        document.getElementById('change-password-modal').style.display = 'none';
+    }
+
+    async function handleChangePassword(e) {
+        e.preventDefault();
+        const oldPwd = document.getElementById('old-password').value;
+        const newPwd = document.getElementById('new-password').value;
+        const confirmPwd = document.getElementById('confirm-password').value;
+
+        if (newPwd !== confirmPwd) {
+            alert('两次输入的新密码不一致');
+            return;
+        }
+
+        const result = await apiRequest('/auth/change_password', {
+            method: 'POST',
+            body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+        });
+
+        if (result && result.message) {
+            alert('密码修改成功');
+            closeChangePasswordModal();
+        }
+    }
+    </script>
+</body>
+</html>

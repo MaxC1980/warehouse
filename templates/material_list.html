@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}物料管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>物料管理</h1>
+    <div class="page-actions">
+        <a href="/materials/new" class="btn btn-primary">新增物料</a>
+        <button onclick="showImportModal()" class="btn btn-secondary">导入Excel</button>
+    </div>
+</div>
+
+<div id="import-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h2>导入物料</h2>
+        <p>请上传Excel文件，文件应包含以下列：编码、货品名称、规格型号、单位、厂商、保存条件、保质期、备注</p>
+        <form id="import-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="file" accept=".xlsx,.xls" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <button type="button" onclick="hideImportModal()" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="major-category" onchange="onMajorCategoryChange()">
+        <option value="">全部大类</option>
+    </select>
+    <select id="minor-category" onchange="loadMaterials()">
+        <option value="">全部小类</option>
+    </select>
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、规格">
+    <select id="per-page" onchange="loadMaterials()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadMaterials()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格型号</th>
+                <th>分类</th>
+                <th>单位</th>
+                <th>厂商</th>
+                <th>保存条件</th>
+                <th>保质期(天)</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="materials-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let categoriesData = [];
+let initialLoad = true; // 标记是否为首次加载
+
+async function loadCategories() {
+    const data = await apiRequest('/categories');
+    const majorSelect = document.getElementById('major-category');
+    if (data) {
+        categoriesData = data;
+        data.filter(c => c.level === 1).forEach(cat => {
+            majorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+        });
+    }
+    initialLoad = false; // 关闭首次加载标记，之后可以保存状态
+    restoreFilterState();
+}
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        majorCategory: document.getElementById('major-category').value,
+        minorCategory: document.getElementById('minor-category').value,
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('materialFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('materialFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('major-category').value = state.majorCategory || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+    document.getElementById('search-keyword').value = state.keyword || '';
+
+    // Restore minor category options first
+    if (state.majorCategory && categoriesData.length > 0) {
+        const majorCode = state.majorCategory;
+        const minorSelect = document.getElementById('minor-category');
+        minorSelect.innerHTML = '<option value="">全部小类</option>';
+        categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
+            minorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+        });
+        minorSelect.value = state.minorCategory || '';
+    }
+
+    currentPage = state.currentPage || 1;
+    loadMaterials(currentPage);
+    initialLoad = false;
+}
+
+function onMajorCategoryChange() {
+    const majorCode = document.getElementById('major-category').value;
+    const minorSelect = document.getElementById('minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+    if (majorCode) {
+        categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
+            minorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+        });
+    }
+    currentPage = 1;
+    loadMaterials();
+}
+
+async function loadMaterials(page = 1) {
+    currentPage = page;
+    const majorCategory = document.getElementById('major-category').value;
+    const minorCategory = document.getElementById('minor-category').value;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    const categoryCode = minorCategory || majorCategory || '';
+    if (categoryCode) params.append('category_code', categoryCode);
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/materials?${params}`);
+    if (data) {
+        renderMaterials(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadMaterials');
+    }
+}
+
+function renderMaterials(materials) {
+    const tbody = document.getElementById('materials-tbody');
+    if (materials.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = materials.map(m => `
+        <tr>
+            <td>${m.code}</td>
+            <td>${m.name}</td>
+            <td>${m.spec || ''}</td>
+            <td>${m.category_name || ''}</td>
+            <td>${m.unit}</td>
+            <td>${m.manufacturer || ''}</td>
+            <td>${m.storage_condition || '常温'}</td>
+            <td>${m.shelf_life || '-'}</td>
+            <td>${m.remark || ''}</td>
+            <td>
+                <a href="/materials/${m.id}/edit" class="btn btn-sm">编辑</a>
+                <button onclick="deleteMaterial(${m.id})" class="btn btn-sm btn-danger">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function deleteMaterial(id) {
+    if (!confirm('确定要删除该物料吗？')) return;
+    const result = await apiRequest(`/materials/${id}`, { method: 'DELETE' });
+    if (result) {
+        loadMaterials(currentPage);
+    }
+}
+
+function showImportModal() {
+    document.getElementById('import-modal').style.display = 'block';
+}
+
+function hideImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('import-form').reset();
+}
+
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+
+    const response = await fetch('/api/import/materials', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await response.json();
+    if (result) {
+        alert(result.error || result.message);
+        if (!result.error) {
+            hideImportModal();
+            loadMaterials();
+        }
+    }
+});
+
+loadCategories();
+loadMaterials();
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-content h2 {
+    margin-bottom: 16px;
+}
+
+.modal-content p {
+    margin-bottom: 16px;
+    color: #666;
+}
+</style>
+{% endblock %}

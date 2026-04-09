@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if employee_id else '新增' }}员工 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ '编辑' if employee_id else '新增' }}员工</h1>
+</div>
+
+<form id="employee-form" onsubmit="handleSubmit(event)">
+    <div class="form-grid">
+        <div class="form-group">
+            <label>姓名 *</label>
+            <input type="text" name="name" required>
+        </div>
+        <div class="form-group">
+            <label>部门</label>
+            <input type="text" name="department">
+        </div>
+        <div class="form-group">
+            <label>电话</label>
+            <input type="text" name="phone">
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <input type="text" name="remark">
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/employees" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const employeeId = {{ employee_id if employee_id else 'null' }};
+
+async function loadEmployee() {
+    if (!employeeId) return;
+    const employee = await apiRequest(`/employees/${employeeId}`);
+    if (employee) {
+        const form = document.getElementById('employee-form');
+        form.name.value = employee.name;
+        form.department.value = employee.department || '';
+        form.phone.value = employee.phone || '';
+        form.remark.value = employee.remark || '';
+    }
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        name: form.name.value,
+        department: form.department.value || null,
+        phone: form.phone.value || null,
+        remark: form.remark.value || null
+    };
+
+    const url = employeeId ? `/employees/${employeeId}` : '/employees';
+    const method = employeeId ? 'PUT' : 'POST';
+
+    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
+    if (result) {
+        window.location.href = '/employees';
+    }
+}
+
+loadEmployee();
+</script>
+{% endblock %}

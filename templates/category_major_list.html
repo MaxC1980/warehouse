@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}物料大类管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>物料大类管理</h1>
+    <div class="page-actions">
+        <button onclick="showAddRow()" class="btn btn-primary">新增大类</button>
+        <button onclick="showImportModal()" class="btn btn-secondary">Excel导入</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="per-page" onchange="loadCategories()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+</div>
+
+<div id="import-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h2>导入大类</h2>
+        <p>Excel文件格式：第一列代码（2位），第二列名称</p>
+        <form id="import-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="file" accept=".xlsx,.xls" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <button type="button" onclick="hideImportModal()" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>分类代码</th>
+                <th>分类名称</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="categories-tbody">
+            <tr id="add-row" style="display:none;">
+                <td><input type="text" id="new-code" maxlength="2" placeholder="2位代码" onblur="checkCodeUnique(this.value, 'new')"></td>
+                <td><input type="text" id="new-name" placeholder="分类名称"></td>
+                <td>
+                    <button onclick="saveNew()" class="btn btn-sm btn-primary">保存</button>
+                    <button onclick="hideAddRow()" class="btn btn-sm btn-secondary">取消</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let categories = [];
+let editingId = null;
+let currentPage = 1;
+let perPage = 15;
+
+async function loadCategories(page = 1) {
+    currentPage = page;
+    perPage = parseInt(document.getElementById('per-page').value);
+    const data = await apiRequest('/categories');
+    if (data) {
+        categories = data.filter(c => c.level === 1);
+        renderCategories();
+        renderPagination('pagination', categories.length, currentPage, perPage, 'loadCategories');
+    }
+}
+
+function checkCodeUnique(code, mode) {
+    if (!code || code.length !== 2) return true;
+    const duplicates = categories.filter(c => {
+        if (mode === 'edit' && c.id === editingId) return false;
+        return c.code === code;
+    });
+    if (duplicates.length > 0) {
+        alert('该大类代码已存在，请使用其他代码');
+        return false;
+    }
+    return true;
+}
+
+function renderCategories() {
+    const tbody = document.getElementById('categories-tbody');
+    const addRow = document.getElementById('add-row');
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const pageData = categories.slice(start, end);
+    let html = '';
+    pageData.forEach(c => {
+        if (editingId === c.id) {
+            html += `
+                <tr>
+                    <td><input type="text" id="edit-code" value="${c.code}" maxlength="2" onblur="checkEditCodeUnique()"></td>
+                    <td><input type="text" id="edit-name" value="${c.name}"></td>
+                    <td>
+                        <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                        <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                    </td>
+                </tr>
+            `;
+        } else {
+            html += `
+                <tr>
+                    <td>${c.code}</td>
+                    <td>${c.name}</td>
+                    <td>
+                        <button onclick="startEdit(${c.id})" class="btn btn-sm">编辑</button>
+                        <button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">删除</button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+    tbody.innerHTML = html + addRow.outerHTML;
+}
+
+function checkEditCodeUnique() {
+    const code = document.getElementById('edit-code').value;
+    return checkCodeUnique(code, 'edit');
+}
+
+function showAddRow() {
+    document.getElementById('add-row').style.display = 'table-row';
+    document.getElementById('new-code').focus();
+}
+
+function hideAddRow() {
+    document.getElementById('add-row').style.display = 'none';
+    document.getElementById('new-code').value = '';
+    document.getElementById('new-name').value = '';
+}
+
+async function saveNew() {
+    const code = document.getElementById('new-code').value.trim();
+    const name = document.getElementById('new-name').value.trim();
+    if (!code || !name) { alert('请填写完整的分类代码和名称'); return; }
+    if (code.length !== 2) { alert('分类代码必须为2位'); return; }
+    if (!checkCodeUnique(code, 'new')) return;
+
+    const result = await apiRequest('/categories', {
+        method: 'POST',
+        body: JSON.stringify({ code, name, level: 1, parent_code: null })
+    });
+    if (result) {
+        hideAddRow();
+        loadCategories();
+    }
+}
+
+function startEdit(id) {
+    editingId = id;
+    renderCategories();
+}
+
+function cancelEdit() {
+    editingId = null;
+    renderCategories();
+}
+
+async function saveEdit(id) {
+    const code = document.getElementById('edit-code').value.trim();
+    const name = document.getElementById('edit-name').value.trim();
+    if (!code || !name) { alert('请填写完整的分类代码和名称'); return; }
+    if (code.length !== 2) { alert('分类代码必须为2位'); return; }
+    if (!checkEditCodeUnique()) return;
+
+    const result = await apiRequest(`/categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ code, name })
+    });
+    if (result) {
+        editingId = null;
+        loadCategories();
+    }
+}
+
+async function deleteCategory(id) {
+    if (!confirm('确定要删除该大类吗？')) return;
+    const result = await apiRequest(`/categories/${id}`, { method: 'DELETE' });
+    if (result) {
+        loadCategories();
+    }
+}
+
+function showImportModal() {
+    document.getElementById('import-modal').style.display = 'block';
+}
+
+function hideImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('import-form').reset();
+}
+
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const response = await fetch('/api/import/categories', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result) {
+        if (result.error) {
+            alert(result.error);
+        } else {
+            alert(result.message);
+            hideImportModal();
+            loadCategories();
+        }
+    }
+});
+
+loadCategories();
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+.modal-content h2 { margin-bottom: 16px; }
+.modal-content p { margin-bottom: 16px; color: #666; }
+</style>
+{% endblock %}

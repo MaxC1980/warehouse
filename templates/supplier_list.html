@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}供应商管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>供应商管理</h1>
+    <div class="page-actions">
+        <a href="/suppliers/new" class="btn btn-primary">新增供应商</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="search-keyword" placeholder="搜索供应商名称、联系人、电话">
+    <select id="per-page" onchange="loadSuppliers()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadSuppliers()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>供应商名称</th>
+                <th>联系人</th>
+                <th>电话</th>
+                <th>地址</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="suppliers-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadSuppliers(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/suppliers?${params}`);
+    if (data) {
+        renderSuppliers(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadSuppliers');
+    }
+}
+
+function renderSuppliers(suppliers) {
+    const tbody = document.getElementById('suppliers-tbody');
+    if (suppliers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = suppliers.map(s => `
+        <tr>
+            <td>${s.name}</td>
+            <td>${s.contact || ''}</td>
+            <td>${s.phone || ''}</td>
+            <td>${s.address || ''}</td>
+            <td>
+                <a href="/suppliers/${s.id}/edit" class="btn btn-sm">编辑</a>
+                <button onclick="deleteSupplier(${s.id})" class="btn btn-sm btn-danger">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function deleteSupplier(id) {
+    if (!confirm('确定要删除该供应商吗？')) return;
+    const result = await apiRequest(`/suppliers/${id}`, { method: 'DELETE' });
+    if (result) {
+        loadSuppliers(currentPage);
+    }
+}
+
+loadSuppliers();
+</script>
+{% endblock %}

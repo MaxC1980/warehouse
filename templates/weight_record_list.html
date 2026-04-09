@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}称重记录 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>称重记录</h1>
+</div>
+
+<div class="filter-bar">
+    <select id="status-filter" onchange="loadData()">
+        <option value="">全部状态</option>
+        <option value="checked_out">已领用</option>
+        <option value="returned">已退回</option>
+    </select>
+    <input type="text" id="material-code" placeholder="物料编码" onkeyup="if(event.key==='Enter')loadData()">
+    <input type="text" id="material-name" placeholder="物料名称" onkeyup="if(event.key==='Enter')loadData()">
+    <select id="per-page" onchange="loadData()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadData()" class="btn btn-primary">搜索</button>
+    <button onclick="resetFilters()" class="btn btn-secondary">重置</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>出库单号</th>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格</th>
+                <th>单位</th>
+                <th>批次</th>
+                <th>领用毛重</th>
+                <th>退回毛重</th>
+                <th>实际净用量</th>
+                <th>状态</th>
+                <th>领用时间</th>
+                <th>退回时间</th>
+                <th>领用人</th>
+                <th>退回人</th>
+            </tr>
+        </thead>
+        <tbody id="data-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadData() {
+    const status = document.getElementById('status-filter').value;
+    const materialCode = document.getElementById('material-code').value.trim();
+    const materialName = document.getElementById('material-name').value.trim();
+    const perPage = document.getElementById('per-page').value;
+
+    const params = new URLSearchParams({
+        page: currentPage,
+        per_page: perPage
+    });
+    if (status) params.append('status', status);
+    if (materialCode) params.append('material_code', materialCode);
+    if (materialName) params.append('material_name', materialName);
+
+    const data = await apiRequest('/weight-records?' + params.toString());
+    if (!data) return;
+
+    renderTable(data.items);
+    renderPagination(data.total, data.page, perPage);
+}
+
+function renderTable(items) {
+    const tbody = document.getElementById('data-tbody');
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="15">暂无数据</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = items.map(item => {
+        const statusMap = {
+            'checked_out': '<span style="color:#faad14;">已领用</span>',
+            'returned': '<span style="color:#52c41a;">已退回</span>'
+        };
+        return `<tr>
+            <td>${item.id}</td>
+            <td><a href="/out-orders/${item.order_id}/detail">${item.out_order_no || '-'}</a></td>
+            <td>${item.material_code || ''}</td>
+            <td>${item.material_name || ''}</td>
+            <td>${item.spec || ''}</td>
+            <td>${item.unit || ''}</td>
+            <td>${item.batch_no || ''}</td>
+            <td>${item.initial_gross_weight || '-'}</td>
+            <td>${item.return_gross_weight || '-'}</td>
+            <td>${item.actual_net_weight || '-'}</td>
+            <td>${statusMap[item.status] || item.status || '-'}</td>
+            <td>${item.initial_weight_time ? item.initial_weight_time.substring(0, 16) : '-'}</td>
+            <td>${item.return_weight_time ? item.return_weight_time.substring(0, 16) : '-'}</td>
+            <td>${item.initial_operator_name || '-'}</td>
+            <td>${item.return_operator_name || '-'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPagination(total, page, perPage) {
+    const totalPages = Math.ceil(total / perPage);
+    const pagination = document.getElementById('pagination');
+
+    if (totalPages <= 1) {
+        pagination.innerHTML = `<span>共 ${total} 条记录</span>`;
+        return;
+    }
+
+    let html = '';
+    if (page > 1) {
+        html += `<button onclick="goToPage(${page - 1})">上一页</button>`;
+    }
+    html += `<span>第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    if (page < totalPages) {
+        html += `<button onclick="goToPage(${page + 1})">下一页</button>`;
+    }
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadData();
+}
+
+function resetFilters() {
+    document.getElementById('status-filter').value = '';
+    document.getElementById('material-code').value = '';
+    document.getElementById('material-name').value = '';
+    currentPage = 1;
+    loadData();
+}
+
+loadData();
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+.filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-bar select, .filter-bar input {
+    padding: 6px 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+}
+.filter-bar input[type="text"] {
+    width: 120px;
+}
+.data-table {
+    background: white;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.data-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.data-table th, .data-table td {
+    border: 1px solid #ddd;
+    padding: 10px 8px;
+    text-align: left;
+    font-size: 13px;
+}
+.data-table th {
+    background: #f5f5f5;
+    font-weight: bold;
+}
+.data-table tbody tr:hover {
+    background: #fafafa;
+}
+.data-table a {
+    color: #1890ff;
+    text-decoration: none;
+}
+.data-table a:hover {
+    text-decoration: underline;
+}
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+.pagination button {
+    padding: 6px 12px;
+    border: 1px solid #d9d9d9;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.pagination button:hover {
+    color: #1890ff;
+    border-color: #1890ff;
+}
+.pagination span {
+    font-size: 14px;
+    color: #666;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if order_id else '新建' }}出库单 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 id="page-title">{{ '编辑' if order_id else '新建' }}出库单</h1>
+</div>
+
+<form id="order-form" onsubmit="handleSubmit(event)" onchange="markModified()">
+    <div class="form-grid">
+        <div class="form-group">
+            <label>部门 *</label>
+            <input type="text" name="department" id="department" value="工程部" required>
+        </div>
+        <div class="form-group">
+            <label>领用人 *</label>
+            <select name="receiver" id="receiver-select" required>
+                <option value="">请选择</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>领用日期</label>
+            <input type="date" name="receiver_date" id="receiver_date">
+        </div>
+        <div class="form-group">
+            <label>用途 *</label>
+            <input type="text" name="purpose" id="purpose" required>
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <input type="text" name="remark">
+        </div>
+    </div>
+
+    <div class="items-table">
+        <h3>出库明细</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>物料编码</th>
+                    <th>物料名称</th>
+                    <th>规格</th>
+                    <th>单位</th>
+                    <th>批次号</th>
+                    <th>可用数量</th>
+                    <th>申请用量</th>
+                    <th>实际用量</th>
+                    <th>领用毛重</th>
+                    <th>实发信息</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="items-tbody"></tbody>
+        </table>
+        <button type="button" onclick="openInventoryModal()" class="btn btn-secondary">添加明细（从库存选择）</button>
+    </div>
+
+    <div class="form-actions" id="form-actions">
+        <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+        <button type="button" id="approve-btn" class="btn btn-success" onclick="approveOrder()" style="display:none;">审核</button>
+        <a href="/out-orders" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+
+<!-- 库存选择弹窗 -->
+<div id="inventory-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="width:900px; max-height:85vh; overflow:auto;">
+        <div class="modal-header">
+            <h3>从库存选择物料</h3>
+            <button type="button" onclick="closeInventoryModal()" class="btn btn-sm">关闭</button>
+        </div>
+        <div class="filter-bar" style="flex-wrap:nowrap; gap:6px;">
+            <select id="modal-major-category" onchange="onMajorCategoryChange(); modalPage=1; loadInventoryModal()" style="width:120px; flex:none;">
+                <option value="">全部大类</option>
+            </select>
+            <select id="modal-minor-category" onchange="modalPage=1; loadInventoryModal()" style="width:120px; flex:none;">
+                <option value="">全部小类</option>
+            </select>
+            <input type="text" id="modal-material-code" placeholder="物料编码" style="width:120px; flex:none; min-width:0;">
+            <input type="text" id="modal-material-name" placeholder="物料名称" style="width:120px; flex:none; min-width:0;">
+            <input type="text" id="modal-material-spec" placeholder="物料规格" style="width:120px; flex:none; min-width:0;">
+            <select id="modal-per-page" onchange="modalPage=1; loadInventoryModal()" style="width:80px; flex:none;">
+                <option value="15">15</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+            </select>
+            <button type="button" onclick="modalPage=1; loadInventoryModal()" class="btn btn-secondary" style="flex:none;">搜索</button>
+            <div id="modal-pagination" style="display:flex; align-items:center; gap:4px; margin-left:auto; flex:none;"></div>
+        </div>
+        <div style="max-height:400px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
+            <table id="modal-inventory-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                        <th>批次号</th>
+                        <th>可用数量</th>
+                        <th>可回用</th>
+                    </tr>
+                </thead>
+                <tbody id="modal-inventory-tbody"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="confirmInventorySelection()" class="btn btn-primary">确认添加</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const orderId = {{ order_id if order_id else 'null' }};
+let isModified = false;
+
+function markModified() { isModified = true; }
+
+async function loadOrder() {
+    if (!orderId) return;
+    const order = await apiRequest('/out-orders/' + orderId);
+    if (order) {
+        document.getElementById('page-title').textContent = '编辑出库单 - ' + order.order_no;
+        document.getElementById('department').value = order.department || '';
+        document.getElementById('receiver-select').value = order.receiver || '';
+        document.getElementById('receiver_date').value = order.receiver_date || '';
+        document.querySelector('input[name="remark"]').value = order.remark || '';
+        document.getElementById('purpose').value = order.purpose || '';
+
+        if (order.items && order.items.length > 0) {
+            const tbody = document.getElementById('items-tbody');
+            tbody.innerHTML = '';
+            const isEditable = order.status === 'pending';
+
+            // Fetch weight records for each item (only for reusable materials)
+            const weightMap = {};
+            for (const item of order.items) {
+                if (item.material_is_reusable == 1) {  // == instead of === to handle both string and number
+                    try {
+                        const weight = await apiRequest(`/out-orders/${orderId}/items/${item.id}/weight`);
+                        if (weight) {
+                            weightMap[item.id] = weight;
+                        }
+                    } catch (e) {
+                        // No weight record yet - that's ok
+                    }
+                }
+            }
+
+            order.items.forEach(item => {
+                const weight = weightMap[item.id] || {};
+                addItemRow({
+                    item_id: item.id,
+                    material_id: item.material_id,
+                    material_code: item.material_code,
+                    material_name: item.material_name,
+                    material_spec: item.spec,
+                    unit: item.unit,
+                    batch_no: item.batch_no,
+                    available_qty: 0,
+                    requested_quantity: item.requested_quantity || 0,
+                    actual_quantity: item.actual_quantity || 0,
+                    material_is_reusable: item.material_is_reusable,
+                    initial_gross_weight: weight.initial_gross_weight || item.initial_gross_weight,
+                    shipment_info: item.shipment_info,
+                    editable: isEditable
+                });
+            });
+        }
+
+        if (order.status !== 'pending') {
+            disableForm();
+        } else {
+            document.getElementById('approve-btn').style.display = 'inline-block';
+        }
+    }
+}
+
+async function approveOrder() {
+    if (isModified) {
+        alert('请先保存后再审核');
+        return;
+    }
+    const currentUser = await apiRequest('/auth/current_user');
+    if (!currentUser || !currentUser.can_approve) {
+        alert('无审核权限');
+        return;
+    }
+    if (!confirm('确定要审核通过该出库单吗？')) return;
+
+    const result = await apiRequest('/out-orders/' + orderId + '/approve', { method: 'POST' });
+    if (result) {
+        alert('审核成功');
+        window.location.href = '/out-orders';
+    } else {
+        alert('审核失败，库存可能不足');
+    }
+}
+
+function disableForm() {
+    const form = document.getElementById('order-form');
+    form.querySelectorAll('input, select').forEach(el => el.disabled = true);
+    form.querySelector('button[type="submit"]').style.display = 'none';
+    document.querySelector('.items-table .btn').style.display = 'none';
+    document.querySelectorAll('#items-tbody tr td:last-child').forEach(td => td.innerHTML = '');
+}
+
+function addItemRow(data) {
+    const tbody = document.getElementById('items-tbody');
+    const tr = document.createElement('tr');
+    const canEdit = data.editable !== false;
+    const disabledAttr = canEdit ? '' : 'disabled';
+    const isReusable = data.material_is_reusable == 1;
+
+    tr.dataset.itemId = data.item_id || '';
+    tr.dataset.materialId = data.material_id;
+    tr.dataset.batchNo = data.batch_no;
+    tr.dataset.reusable = isReusable ? '1' : '0';
+
+    let col7, col8, col9, col10;
+    if (isReusable) {
+        // 可回用物料：申请用量和实际用量显示"-"
+        col7 = '<span style="color:#999;">-</span><input type="hidden" class="requested-quantity" value="0">';
+        col8 = '<span style="color:#999;">-</span><input type="hidden" class="actual-quantity" value="0">';
+        col9 = canEdit
+            ? `<input type="number" class="initial-weight" step="0.01" value="${data.initial_gross_weight || ''}" placeholder="毛重" style="width:80px;">`
+            : (data.initial_gross_weight ? data.initial_gross_weight : '-');
+        col10 = canEdit
+            ? `<input type="text" class="shipment-info" value="${data.shipment_info || ''}" placeholder="实发信息" style="width:100px;">`
+            : (data.shipment_info || '-');
+    } else {
+        // 普通物料：毛重和实发信息显示"-"
+        col7 = `<input type="number" class="requested-quantity" step="0.01" value="${data.requested_quantity || 0}" ${disabledAttr} style="width:80px;">`;
+        col8 = `<input type="number" class="actual-quantity" step="0.01" value="${data.actual_quantity || 0}" ${disabledAttr} style="width:80px;">`;
+        col9 = '<span style="color:#999;">-</span><input type="hidden" class="initial-weight" value="">';
+        col10 = '<span style="color:#999;">-</span><input type="hidden" class="shipment-info" value="">';
+    }
+
+    tr.innerHTML = `
+        <td>${data.material_code}</td>
+        <td>${data.material_name}</td>
+        <td>${data.material_spec || ''}</td>
+        <td>${data.unit || ''}</td>
+        <td>${data.batch_no || ''}</td>
+        <td>${data.available_qty || 0}</td>
+        <td>${col7}</td>
+        <td>${col8}</td>
+        <td>${col9}</td>
+        <td>${col10}</td>
+        <td>${canEdit ? '<button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : ''}</td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function removeRow(btn) {
+    const tr = btn.closest('tr');
+    tr.remove();
+}
+
+// ---- 库存选择弹窗 ----
+let modalSelected = new Set();
+let modalPage = 1;
+
+async function openInventoryModal() {
+    document.getElementById('inventory-modal').style.display = 'flex';
+    modalSelected.clear();
+    modalPage = 1;
+    await loadCategories();
+    await loadInventoryModal();
+}
+
+function closeInventoryModal() {
+    document.getElementById('inventory-modal').style.display = 'none';
+}
+
+let modalCategoriesData = [];
+
+async function loadCategories() {
+    const data = await apiRequest('/categories?per_page=200');
+    const majorSelect = document.getElementById('modal-major-category');
+    majorSelect.innerHTML = '<option value="">全部大类</option>';
+    if (data && Array.isArray(data)) {
+        modalCategoriesData = data;
+        data.filter(c => c.level === 1).forEach(c => {
+            majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        });
+    }
+}
+
+function onMajorCategoryChange() {
+    const majorCode = document.getElementById('modal-major-category').value;
+    const minorSelect = document.getElementById('modal-minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+    if (majorCode) {
+        modalCategoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
+            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        });
+    }
+}
+
+async function loadInventoryModal() {
+    const majorCategory = document.getElementById('modal-major-category').value;
+    const minorCategory = document.getElementById('modal-minor-category').value;
+    const materialCode = document.getElementById('modal-material-code').value.trim();
+    const materialName = document.getElementById('modal-material-name').value.trim();
+    const materialSpec = document.getElementById('modal-material-spec').value.trim();
+    const perPage = document.getElementById('modal-per-page').value;
+
+    const params = new URLSearchParams({ page: modalPage, per_page: perPage });
+    const categoryCode = minorCategory || majorCategory || '';
+    if (categoryCode) params.append('category_code', categoryCode);
+    if (materialCode) params.append('material_code', materialCode);
+    if (materialName) params.append('material_name', materialName);
+    if (materialSpec) params.append('material_spec', materialSpec);
+
+    const data = await apiRequest(`/inventory/select?${params}`);
+    const tbody = document.getElementById('modal-inventory-tbody');
+    if (!data || !data.items || data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8">暂无数据</td></tr>';
+        document.getElementById('modal-pagination').innerHTML = '';
+        return;
+    }
+
+    // Restore checked state
+    tbody.innerHTML = data.items.map(item => {
+        const key = `${item.material_id}-${item.batch_no}`;
+        const checked = modalSelected.has(key) ? 'checked' : '';
+        const isReusable = item.material_is_reusable == 1 ? '1' : '0';
+        return `<tr>
+            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onchange="toggleSelect(this)" ${checked}></td>
+            <td>${item.material_code}</td>
+            <td>${item.material_name}</td>
+            <td>${item.material_spec || ''}</td>
+            <td>${item.unit || ''}</td>
+            <td>${item.batch_no || ''}</td>
+            <td>${item.available_qty}</td>
+            <td>${isReusable === '1' ? '✓' : ''}</td>
+        </tr>`;
+    }).join('');
+
+    // Render pagination
+    renderModalPagination(data.total, modalPage, perPage);
+}
+
+function renderModalPagination(total, page, perPage) {
+    const totalPages = Math.ceil(total / perPage);
+    const div = document.getElementById('modal-pagination');
+    if (totalPages <= 1) {
+        div.innerHTML = '';
+        return;
+    }
+    let html = '';
+    if (page > 1) html += `<button type="button" class="btn btn-sm" onclick="modalPage--; loadInventoryModal()">上一页</button>`;
+    html += `<span style="padding:4px 8px;">第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    if (page < totalPages) html += `<button type="button" class="btn btn-sm" onclick="modalPage++; loadInventoryModal()">下一页</button>`;
+    div.innerHTML = html;
+}
+
+function toggleSelect(cb) {
+    const key = cb.dataset.key;
+    if (cb.checked) {
+        modalSelected.add(key);
+    } else {
+        modalSelected.delete(key);
+    }
+}
+
+function confirmInventorySelection() {
+    const existingMaterialBatches = new Set();
+    document.querySelectorAll('#items-tbody tr').forEach(tr => {
+        existingMaterialBatches.add(`${tr.dataset.materialId}-${tr.dataset.batchNo}`);
+    });
+
+    document.querySelectorAll('#modal-inventory-tbody input[type="checkbox"]:checked').forEach(cb => {
+        const key = cb.dataset.key;
+        if (existingMaterialBatches.has(key)) return;
+
+        addItemRow({
+            material_id: parseInt(cb.dataset.materialId),
+            material_code: cb.dataset.materialCode,
+            material_name: cb.dataset.materialName,
+            material_spec: cb.dataset.materialSpec,
+            unit: cb.dataset.unit,
+            batch_no: cb.dataset.batchNo,
+            available_qty: parseFloat(cb.dataset.availableQty),
+            material_is_reusable: cb.dataset.reusable === '1' ? 1 : 0
+        });
+        existingMaterialBatches.add(key);
+    });
+
+    closeInventoryModal();
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const items = [];
+    const materialBatchKeys = new Set();
+    const rows = document.querySelectorAll('#items-tbody tr');
+
+    for (let row of rows) {
+        const materialId = row.dataset.materialId;
+        const batchNo = row.dataset.batchNo || '';
+        const key = `${materialId}-${batchNo}`;
+        if (materialBatchKeys.has(key)) {
+            alert('明细中物料编码+批次号不能重复，请检查');
+            return;
+        }
+        materialBatchKeys.add(key);
+
+        const isReusable = row.dataset.reusable === '1';
+        let item;
+
+        if (isReusable) {
+            // 可回用物料：填毛重和实发信息
+            const initialWeight = parseFloat(row.querySelector('.initial-weight')?.value) || 0;
+            const shipmentInfo = row.querySelector('.shipment-info')?.value || '';
+            if (initialWeight <= 0) {
+                alert('可回用物料必须填写领用毛重');
+                row.querySelector('.initial-weight')?.focus();
+                return;
+            }
+            item = {
+                material_id: parseInt(materialId),
+                batch_no: batchNo || null,
+                initial_gross_weight: initialWeight,
+                shipment_info: shipmentInfo || null
+            };
+        } else {
+            // 普通物料：填申请用量和实际用量
+            const reqQty = parseFloat(row.querySelector('.requested-quantity').value) || 0;
+            const actQty = parseFloat(row.querySelector('.actual-quantity').value) || 0;
+            if (reqQty <= 0 || actQty <= 0) {
+                alert('普通物料必须填写申请用量和实际用量');
+                row.querySelector('.requested-quantity')?.focus();
+                return;
+            }
+            item = {
+                material_id: parseInt(materialId),
+                batch_no: batchNo || null,
+                requested_quantity: reqQty,
+                actual_quantity: actQty
+            };
+        }
+        items.push(item);
+    }
+
+    if (items.length === 0) {
+        alert('请至少添加一条明细');
+        return;
+    }
+
+    const data = {
+        department: document.getElementById('department').value || null,
+        receiver: document.getElementById('receiver-select').value || null,
+        receiver_date: document.getElementById('receiver_date').value || null,
+        remark: document.querySelector('input[name="remark"]').value || null,
+        purpose: document.getElementById('purpose').value || null,
+        items: items
+    };
+
+    const url = orderId ? '/out-orders/' + orderId : '/out-orders';
+    const method = orderId ? 'PUT' : 'POST';
+
+    const result = await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    if (result) {
+        isModified = false;
+        window.location.href = '/out-orders';
+    }
+}
+
+async function loadEmployees() {
+    const data = await apiRequest('/employees');
+    if (data) {
+        const select = document.getElementById('receiver-select');
+        data.items.forEach(e => {
+            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+        });
+    }
+}
+
+(async function() {
+    await loadEmployees();
+    if (!orderId) {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('receiver_date').value = today;
+    }
+    if (orderId) await loadOrder();
+})();
+</script>
+
+<style>
+.modal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+}
+.modal-content { background: white; border-radius: 4px; padding: 16px; width: 600px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.modal-header h3 { margin: 0; }
+.modal-footer { text-align: right; margin-top: 10px; }
+#modal-inventory-table td, #modal-inventory-table th { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
+#modal-inventory-table tbody tr:hover { background-color: #f5f5f5; }
+.items-table { background: white; padding: 16px; border-radius: 4px; margin-top: 16px; }
+.items-table table { margin-bottom: 12px; width: 100%; border-collapse: collapse; }
+.items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+.items-table input { padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px; }
+.items-table input[readonly] { background: #f5f5f5; }
+</style>
+{% endblock %}

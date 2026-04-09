@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}库存报表 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>库存报表</h1>
+    <div class="page-actions">
+        <button onclick="exportExcel()" class="btn btn-secondary">导出Excel</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="search-major-category" onchange="onMajorChange(); loadReport()" style="width:120px;">
+        <option value="">全部大类</option>
+    </select>
+    <select id="search-minor-category" onchange="loadReport()" style="width:120px;">
+        <option value="">全部小类</option>
+    </select>
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称">
+    <select id="per-page-select" onchange="loadReport()" style="width:80px;">
+        <option value="20">20条</option>
+        <option value="50" selected>50条</option>
+        <option value="100">100条</option>
+    </select>
+    <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th>当前库存</th>
+                <th>安全库存</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody id="report-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let categoriesData = [];
+
+async function loadCategories() {
+    const data = await apiRequest('/categories?per_page=200');
+    categoriesData = data || [];
+    const majorSelect = document.getElementById('search-major-category');
+    categoriesData.filter(c => c.level === 1).forEach(c => {
+        majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+    });
+}
+
+function onMajorChange() {
+    const majorCode = document.getElementById('search-major-category').value;
+    const minorSelect = document.getElementById('search-minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+    if (majorCode) {
+        categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
+            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        });
+    }
+}
+
+async function loadReport(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const majorCategory = document.getElementById('search-major-category').value;
+    const minorCategory = document.getElementById('search-minor-category').value;
+    const perPage = document.getElementById('per-page-select').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+    if (majorCategory) params.append('major_category', majorCategory);
+    if (minorCategory) params.append('minor_category', minorCategory);
+
+    const data = await apiRequest(`/reports/inventory?${params}`);
+    if (data) {
+        renderReport(data.items);
+        renderPagination(data.total, data.page, perPage);
+    }
+}
+
+function renderReport(items) {
+    const tbody = document.getElementById('report-tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(item => `
+        <tr class="${item.status === '低于安全库存' ? 'warning-row' : ''}">
+            <td>${item.material_code}</td>
+            <td>${item.material_name}</td>
+            <td>${item.spec || ''}</td>
+            <td>${item.unit}</td>
+            <td>${item.quantity}</td>
+            <td>${item.safety_stock}</td>
+            <td><span class="status ${item.status === '低于安全库存' ? 'warning' : ''}">${item.status}</span></td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(total, page, perPage) {
+    const totalPages = Math.ceil(total / perPage);
+    const div = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        div.innerHTML = '';
+        return;
+    }
+    let html = '';
+    if (page > 1) html += `<button onclick="loadReport(${page - 1})" class="btn btn-sm">上一页</button>`;
+    html += `<span style="padding:4px 8px;">第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    if (page < totalPages) html += `<button onclick="loadReport(${page + 1})" class="btn btn-sm">下一页</button>`;
+    div.innerHTML = html;
+}
+
+function exportExcel() {
+    const keyword = document.getElementById('search-keyword').value;
+    const majorCategory = document.getElementById('search-major-category').value;
+    const minorCategory = document.getElementById('search-minor-category').value;
+    const params = new URLSearchParams();
+    if (keyword) params.append('keyword', keyword);
+    if (majorCategory) params.append('major_category', majorCategory);
+    if (minorCategory) params.append('minor_category', minorCategory);
+    window.location.href = '/api/reports/inventory/export?' + params.toString();
+}
+
+(async function() {
+    await loadCategories();
+    await loadReport();
+})();
+</script>
+{% endblock %}

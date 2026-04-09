@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if material_id else '新增' }}物料 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ '编辑' if material_id else '新增' }}物料</h1>
+</div>
+
+<form id="material-form" onsubmit="handleSubmit(event)">
+    <div class="form-grid">
+        {% if material_id %}
+        <div class="form-group">
+            <label>物料编码</label>
+            <input type="text" id="material-code" readonly>
+        </div>
+        {% endif %}
+        <div class="form-group">
+            <label>物料名称 *</label>
+            <input type="text" name="name" required>
+        </div>
+        <div class="form-group">
+            <label>大类</label>
+            <select name="category_code" id="category-select">
+                <option value="">请选择</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>小类</label>
+            <select name="minor_category_code" id="minor-category-select">
+                <option value="">请选择</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>规格型号</label>
+            <input type="text" name="spec">
+        </div>
+        <div class="form-group">
+            <label>单位 *</label>
+            <input type="text" name="unit" value="个" required>
+        </div>
+        <div class="form-group">
+            <label>厂商</label>
+            <input type="text" name="manufacturer" placeholder="厂商/供应商">
+        </div>
+        <div class="form-group">
+            <label>保存条件</label>
+            <select name="storage_condition">
+                <option value="常温">常温</option>
+                <option value="冷藏">冷藏</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>保质期（天）</label>
+            <input type="number" name="shelf_life" min="0" placeholder="天数">
+        </div>
+        <div class="form-group">
+            <label>安全库存</label>
+            <input type="number" name="safety_stock" min="0" value="0" placeholder="0表示不启用预警">
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>备注</label>
+            <input type="text" name="remark" placeholder="备注信息">
+        </div>
+        <div class="form-group">
+            <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" name="is_reusable" id="is_reusable" style="width:auto;">
+                可回用物料（需称重退库）
+            </label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/materials" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const materialId = {{ material_id if material_id else 'null' }};
+let allCategories = [];
+
+async function loadCategories() {
+    const categories = await apiRequest('/categories');
+    if (categories) {
+        allCategories = categories;
+        const select = document.getElementById('category-select');
+        // 只显示大类 (level=1)
+        categories.filter(c => c.level === 1).forEach(cat => {
+            select.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        });
+        select.addEventListener('change', loadMinorCategories);
+    }
+}
+
+function loadMinorCategories() {
+    const majorCode = document.getElementById('category-select').value;
+    const minorSelect = document.getElementById('minor-category-select');
+    minorSelect.innerHTML = '<option value="">请选择</option>';
+
+    if (!majorCode) return;
+
+    // 只显示小类 (level=2) 且 parent_code 匹配
+    allCategories.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
+        minorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+    });
+}
+
+async function loadMaterial() {
+    if (!materialId) return;
+    const material = await apiRequest(`/materials/${materialId}`);
+    if (material) {
+        const form = document.getElementById('material-form');
+        document.getElementById('material-code').value = material.code || '';
+        form.name.value = material.name;
+        form.spec.value = material.spec || '';
+        form.unit.value = material.unit;
+        form.manufacturer.value = material.manufacturer || '';
+        form.storage_condition.value = material.storage_condition || '常温';
+        form.shelf_life.value = material.shelf_life || '';
+        form.safety_stock.value = material.safety_stock || 0;
+        form.remark.value = material.remark || '';
+        document.getElementById('is_reusable').checked = material.is_reusable === 1;
+
+        // 如果有分类，回填大类和小类
+        if (material.category_code) {
+            const category = allCategories.find(c => c.code === material.category_code);
+            if (category) {
+                if (category.level === 1) {
+                    form.category_code.value = category.code;
+                    loadMinorCategories();
+                } else if (category.level === 2) {
+                    form.category_code.value = category.parent_code;
+                    loadMinorCategories();
+                    form.minor_category_code.value = category.code;
+                }
+            }
+        }
+    }
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        name: form.name.value,
+        category_code: form.minor_category_code.value || form.category_code.value || null,
+        spec: form.spec.value || null,
+        unit: form.unit.value,
+        manufacturer: form.manufacturer.value || null,
+        storage_condition: form.storage_condition.value,
+        shelf_life: form.shelf_life.value ? parseInt(form.shelf_life.value) : null,
+        remark: form.remark.value || null,
+        is_reusable: document.getElementById('is_reusable').checked ? 1 : 0,
+        safety_stock: form.safety_stock.value ? parseFloat(form.safety_stock.value) : 0
+    };
+
+    const url = materialId ? `/materials/${materialId}` : '/materials';
+    const method = materialId ? 'PUT' : 'POST';
+
+    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
+    if (result) {
+        window.location.href = '/materials';
+    }
+}
+
+(async () => {
+    await loadCategories();
+    await loadMaterial();
+})();
+</script>
+<style>
+#material-code[readonly] {
+    background: #f5f5f5;
+    color: #666;
+    cursor: not-allowed;
+}
+</style>
+{% endblock %}

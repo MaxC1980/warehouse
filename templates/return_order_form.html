@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if order_id else '新建' }}退库单 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 id="page-title">{{ '编辑' if order_id else '新建' }}退库单</h1>
+</div>
+
+<form id="order-form" onsubmit="handleSubmit(event)" onchange="markModified()">
+    <div class="form-grid">
+        <div class="form-group">
+            <label>关联出库单 *</label>
+            <select id="related-out-order" required onchange="loadOutOrderItems()">
+                <option value="">请选择出库单</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>部门 *</label>
+            <input type="text" id="department" required>
+        </div>
+        <div class="form-group">
+            <label>退库人 *</label>
+            <select id="receiver-select" required>
+                <option value="">请选择</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>退库日期</label>
+            <input type="date" id="receiver_date">
+        </div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px;">
+        <label>备注</label>
+        <input type="text" name="remark" style="width:100%;">
+    </div>
+
+    <div class="items-table">
+        <h3>退库明细（仅显示可回用物料）</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>物料编码</th>
+                    <th>物料名称</th>
+                    <th>规格</th>
+                    <th>单位</th>
+                    <th>批次号</th>
+                    <th>领用毛重</th>
+                    <th>退回毛重</th>
+                    <th>实际用量</th>
+                </tr>
+            </thead>
+            <tbody id="items-tbody"></tbody>
+        </table>
+        <button type="button" onclick="loadOutOrderItems()" class="btn btn-secondary">刷新明细</button>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+        <button type="button" id="approve-btn" class="btn btn-success" onclick="approveOrder()" style="display:none;">审核</button>
+        <a href="/return-orders" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const orderId = {{ order_id if order_id else 'null' }};
+let isModified = false;
+
+function markModified() { isModified = true; }
+
+async function loadOrder() {
+    if (!orderId) return;
+    const data = await apiRequest('/return-orders/' + orderId);
+    if (data) {
+        document.getElementById('page-title').textContent = '编辑退库单 - ' + data.order_no;
+        document.getElementById('related-out-order').value = data.related_out_order_id || '';
+        document.getElementById('department').value = data.department || '';
+        document.getElementById('receiver-select').value = data.receiver || '';
+        document.getElementById('receiver_date').value = data.receiver_date || '';
+        document.querySelector('input[name="remark"]').value = data.remark || '';
+
+        if (data.items && data.items.length > 0) {
+            renderItems(data.items, data.items);
+        } else if (data.related_out_order_id) {
+            await loadOutOrderItems();
+        }
+
+        if (data.status === 'pending') {
+            document.getElementById('approve-btn').style.display = 'inline-block';
+        } else {
+            disableForm();
+        }
+    }
+}
+
+function disableForm() {
+    const form = document.getElementById('order-form');
+    form.querySelectorAll('input, select').forEach(el => el.disabled = true);
+    form.querySelector('button[type="submit"]').style.display = 'none';
+    document.querySelector('.items-table .btn').style.display = 'none';
+}
+
+async function loadOutOrders() {
+    // 只加载有可回用物料的出库单
+    const data = await apiRequest('/out-orders/detail?has_reusable=true&per_page=1000');
+    const select = document.getElementById('related-out-order');
+    select.innerHTML = '<option value="">请选择出库单</option>';
+    if (data && data.items) {
+        // Only filter out orders with existing approved returns when creating NEW return order
+        const returnedOutOrderIds = new Set();
+        if (!orderId) {
+            const returnData = await apiRequest('/return-orders?per_page=1000');
+            if (returnData && returnData.items) {
+                returnData.items.filter(r => r.status === 'approved').forEach(r => {
+                    if (r.related_out_order_id) returnedOutOrderIds.add(r.related_out_order_id);
+                });
+            }
+        }
+
+        const orders = data.items.filter(o =>
+            o.status === 'approved' && !returnedOutOrderIds.has(o.order_id)
+        );
+        orders.forEach(o => {
+            const option = document.createElement('option');
+            option.value = o.order_id;
+            option.textContent = `${o.order_no} - ${o.receiver || ''} (${getStatusText(o.status)})`;
+            option.dataset.status = o.status;
+            select.appendChild(option);
+        });
+    }
+}
+
+async function loadOutOrderItems() {
+    const select = document.getElementById('related-out-order');
+    const outOrderId = select.value;
+
+    if (!outOrderId || outOrderId === 'undefined') {
+        document.getElementById('items-tbody').innerHTML = '';
+        return;
+    }
+
+    const data = await apiRequest('/out-orders/' + outOrderId);
+    if (data && data.items) {
+        // Fetch weight records for reusable materials only
+        const weightMap = {};
+        for (const item of data.items) {
+            if (item.material_is_reusable === 1) {
+                try {
+                    const weightRecord = await apiRequest('/out-orders/' + outOrderId + '/items/' + item.id + '/weight');
+                    if (weightRecord) {
+                        weightMap[item.id] = weightRecord;
+                    }
+                } catch (e) {
+                    // No weight record yet
+                }
+            }
+        }
+
+        // Filter to only reusable materials and attach weight info
+        const reusableItems = data.items.filter(item => {
+            if (weightMap[item.id]) {
+                item.initial_gross_weight = weightMap[item.id].initial_gross_weight;
+                return true;
+            }
+            return item.material_is_reusable === 1;
+        });
+
+        renderItems(reusableItems, null);
+    }
+}
+
+function renderItems(items, existingItems) {
+    const tbody = document.getElementById('items-tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8">请选择关联出库单（无可回用物料）</td></tr>';
+        return;
+    }
+
+    let html = '';
+    items.forEach(item => {
+        let returnGrossWeight = 0;
+        let actualNetWeight = 0;
+
+        // For existing return orders, items have out_order_item_id
+        // For new orders from loadOutOrderItems, items have id as out_order_item_id
+        const outOrderItemId = item.out_order_item_id || item.id;
+
+        if (existingItems) {
+            const existing = existingItems.find(e => e.out_order_item_id === outOrderItemId);
+            if (existing) {
+                returnGrossWeight = existing.return_gross_weight || 0;
+                actualNetWeight = existing.actual_net_weight || 0;
+            }
+        }
+
+        const initialWeight = item.initial_gross_weight || 0;
+        const editable = !orderId || (existingItems === null);
+
+        html += `<tr data-out-order-item-id="${outOrderItemId}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no || ''}" data-initial-weight="${initialWeight}">
+            <td>${item.material_code || ''}</td>
+            <td>${item.material_name || ''}</td>
+            <td>${item.spec || ''}</td>
+            <td>${item.unit || ''}</td>
+            <td>${item.batch_no || ''}</td>
+            <td>${initialWeight > 0 ? initialWeight : '-'}</td>
+            <td>
+                ${editable && initialWeight > 0
+                    ? `<input type="number" class="return-gross-weight" step="0.01" value="${returnGrossWeight}" min="0" max="${initialWeight}" style="width:80px;" oninput="calculateNetWeight(this)">`
+                    : (returnGrossWeight > 0 ? returnGrossWeight : '-')}
+            </td>
+            <td>
+                <span class="actual-net-weight">${actualNetWeight > 0 ? actualNetWeight : '-'}</span>
+                ${editable && initialWeight > 0 ? `<input type="hidden" class="actual-net-weight-input" value="${actualNetWeight}">` : ''}
+            </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function calculateNetWeight(input) {
+    const row = input.closest('tr');
+    const initialWeight = parseFloat(row.dataset.initialWeight) || 0;
+    const returnWeight = parseFloat(input.value) || 0;
+    const netWeight = initialWeight - returnWeight;
+
+    const netWeightSpan = row.querySelector('.actual-net-weight');
+    const netWeightInput = row.querySelector('.actual-net-weight-input');
+
+    if (netWeight >= 0) {
+        netWeightSpan.textContent = netWeight.toFixed(2);
+        if (netWeightInput) netWeightInput.value = netWeight.toFixed(2);
+    } else {
+        netWeightSpan.textContent = '超重';
+        if (netWeightInput) netWeightInput.value = 0;
+    }
+}
+
+function getStatusText(status) {
+    const map = {
+        pending: '待审核',
+        approved: '已审核',
+        cancelled: '已取消'
+    };
+    return map[status] || status;
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const items = [];
+
+    document.querySelectorAll('#items-tbody tr').forEach(row => {
+        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+
+        if (returnGrossWeight > 0) {
+            items.push({
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                material_id: parseInt(row.dataset.materialId),
+                batch_no: row.dataset.batchNo || null,
+                return_gross_weight: returnGrossWeight,
+                actual_net_weight: actualNetWeight
+            });
+        }
+    });
+
+    if (items.length === 0) {
+        alert('请输入退回毛重');
+        return;
+    }
+
+    const data = {
+        related_out_order_id: document.getElementById('related-out-order').value || null,
+        department: document.getElementById('department').value || null,
+        receiver: document.getElementById('receiver-select').value || null,
+        receiver_date: document.getElementById('receiver_date').value || null,
+        remark: document.querySelector('input[name="remark"]').value || null,
+        items: items
+    };
+
+    const url = orderId ? '/return-orders/' + orderId : '/return-orders';
+    const method = orderId ? 'PUT' : 'POST';
+
+    const result = await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    if (result) {
+        isModified = false;
+        alert('保存成功');
+        window.location.href = '/return-orders';
+    }
+}
+
+async function approveOrder() {
+    if (isModified) {
+        alert('请先保存后再审核');
+        return;
+    }
+    const currentUser = await apiRequest('/auth/current_user');
+    if (!currentUser || !currentUser.can_approve) {
+        alert('无审核权限');
+        return;
+    }
+    if (!confirm('确定要审核通过该退库单吗？')) return;
+
+    const items = [];
+    const weightData = [];
+
+    document.querySelectorAll('#items-tbody tr').forEach(row => {
+        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+
+        if (returnGrossWeight > 0) {
+            items.push({
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                material_id: parseInt(row.dataset.materialId),
+                batch_no: row.dataset.batchNo || null,
+                return_gross_weight: returnGrossWeight,
+                actual_net_weight: actualNetWeight
+            });
+
+            weightData.push({
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                return_gross_weight: returnGrossWeight
+            });
+        }
+    });
+
+    if (items.length === 0) {
+        alert('请输入退回毛重');
+        return;
+    }
+
+    // First save the return order
+    const data = {
+        related_out_order_id: document.getElementById('related-out-order').value || null,
+        department: document.getElementById('department').value || null,
+        receiver: document.getElementById('receiver-select').value || null,
+        receiver_date: document.getElementById('receiver_date').value || null,
+        remark: document.querySelector('input[name="remark"]').value || null,
+        items: items
+    };
+
+    const url = orderId ? '/return-orders/' + orderId : '/return-orders';
+    const method = orderId ? 'PUT' : 'POST';
+
+    const saveResult = await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    if (!saveResult) {
+        alert('保存失败');
+        return;
+    }
+
+    // Then approve with weight data
+    const approveResult = await apiRequest('/return-orders/' + saveResult.id + '/approve', {
+        method: 'POST',
+        body: JSON.stringify({ weight_data: weightData })
+    });
+
+    if (approveResult) {
+        alert('审核成功');
+        window.location.href = '/return-orders';
+    } else {
+        alert('审核失败');
+    }
+}
+
+async function loadEmployees() {
+    const data = await apiRequest('/employees');
+    if (data) {
+        const select = document.getElementById('receiver-select');
+        data.items.forEach(e => {
+            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+        });
+    }
+}
+
+(async function() {
+    await loadEmployees();
+    if (!orderId) {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('receiver_date').value = today;
+    }
+    await loadOutOrders();
+    if (orderId) await loadOrder();
+})();
+</script>
+
+<style>
+.items-table { background: white; padding: 16px; border-radius: 4px; margin-top: 16px; }
+.items-table table { margin-bottom: 12px; width: 100%; border-collapse: collapse; }
+.items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+.items-table input { padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px; }
+.items-table input[readonly] { background: #f5f5f5; }
+</style>
+{% endblock %}

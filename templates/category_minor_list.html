@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}物料小类管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>物料小类管理</h1>
+    <div class="page-actions">
+        <button onclick="showAddRow()" class="btn btn-primary">新增小类</button>
+        <button onclick="showImportModal()" class="btn btn-secondary">Excel导入</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="major-category-filter" onchange="loadCategories()">
+        <option value="">全部大类</option>
+    </select>
+    <select id="per-page" onchange="loadCategories()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+</div>
+
+<div id="import-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h2>导入小类</h2>
+        <p>Excel文件格式：第一行表头（不导入），第一列代码（前2位自动匹配大类），第二列名称</p>
+        <form id="import-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="file" accept=".xlsx,.xls" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <button type="button" onclick="hideImportModal()" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>所属大类</th>
+                <th>小类代码</th>
+                <th>小类名称</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="categories-tbody">
+            <tr id="add-row" style="display:none;">
+                <td>
+                    <select id="new-parent-code" onchange="generateNewCode()">
+                        <option value="">请选择大类</option>
+                    </select>
+                </td>
+                <td><input type="text" id="new-code" maxlength="4" placeholder="4位代码"></td>
+                <td><input type="text" id="new-name" placeholder="小类名称"></td>
+                <td>
+                    <button onclick="saveNew()" class="btn btn-sm btn-primary">保存</button>
+                    <button onclick="hideAddRow()" class="btn btn-sm btn-secondary">取消</button>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allCategories = [];
+let minorCategories = [];
+let editingId = null;
+let currentPage = 1;
+let perPage = 15;
+
+async function loadMajorCategories() {
+    const data = await apiRequest('/categories');
+    if (data) {
+        allCategories = data;
+        const majorCategories = data.filter(c => c.level === 1);
+        const filterSelect = document.getElementById('major-category-filter');
+        const newParentSelect = document.getElementById('new-parent-code');
+
+        majorCategories.forEach(cat => {
+            filterSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            newParentSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        });
+
+        loadCategories();
+    }
+}
+
+function loadCategories(page = 1) {
+    currentPage = page;
+    const majorCode = document.getElementById('major-category-filter').value;
+    perPage = parseInt(document.getElementById('per-page').value);
+
+    if (majorCode) {
+        minorCategories = allCategories.filter(c => c.level === 2 && c.parent_code === majorCode);
+    } else {
+        minorCategories = allCategories.filter(c => c.level === 2);
+    }
+    renderCategories();
+    renderPagination('pagination', minorCategories.length, currentPage, perPage, 'loadCategories');
+}
+
+function generateNewCode() {
+    const parentCode = document.getElementById('new-parent-code').value;
+    if (!parentCode) {
+        document.getElementById('new-code').value = '';
+        return;
+    }
+    const siblings = allCategories.filter(c => c.level === 2 && c.parent_code === parentCode);
+    if (siblings.length === 0) {
+        document.getElementById('new-code').value = parentCode + '01';
+    } else {
+        const maxCode = siblings.reduce((max, c) => c.code > max ? c.code : max, siblings[0].code);
+        const nextSeq = parseInt(maxCode.substring(2)) + 1;
+        document.getElementById('new-code').value = parentCode + String(nextSeq).padStart(2, '0');
+    }
+}
+
+function checkCodeUnique(code, mode) {
+    if (!code || code.length !== 4) return true;
+    const siblings = allCategories.filter(c => c.level === 2 && c.parent_code === code.substring(0, 2));
+    const duplicates = siblings.filter(c => {
+        if (mode === 'edit' && c.id === editingId) return false;
+        return c.code === code;
+    });
+    if (duplicates.length > 0) {
+        alert('该小类代码已存在，请使用其他代码');
+        return false;
+    }
+    return true;
+}
+
+function renderCategories() {
+    const tbody = document.getElementById('categories-tbody');
+    const addRow = document.getElementById('add-row');
+    const start = (currentPage - 1) * perPage;
+    const end = start + perPage;
+    const pageData = minorCategories.slice(start, end);
+    let html = '';
+    pageData.forEach(c => {
+        const major = allCategories.find(m => m.code === c.parent_code);
+        if (editingId === c.id) {
+            html += `
+                <tr>
+                    <td>
+                        <select id="edit-parent-code" onchange="generateEditCode()">
+                            ${allCategories.filter(m => m.level === 1).map(m =>
+                                `<option value="${m.code}" ${m.code === c.parent_code ? 'selected' : ''}>${m.name}</option>`
+                            ).join('')}
+                        </select>
+                    </td>
+                    <td><input type="text" id="edit-code" value="${c.code}" maxlength="4"></td>
+                    <td><input type="text" id="edit-name" value="${c.name}"></td>
+                    <td>
+                        <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                        <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                    </td>
+                </tr>
+            `;
+        } else {
+            html += `
+                <tr>
+                    <td>${major ? major.name : ''}</td>
+                    <td>${c.code}</td>
+                    <td>${c.name}</td>
+                    <td>
+                        <button onclick="startEdit(${c.id})" class="btn btn-sm">编辑</button>
+                        <button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">删除</button>
+                    </td>
+                </tr>
+            `;
+        }
+    });
+    tbody.innerHTML = html + addRow.outerHTML;
+}
+
+function generateEditCode() {
+    const parentCode = document.getElementById('edit-parent-code').value;
+    const siblings = allCategories.filter(c => c.level === 2 && c.parent_code === parentCode && c.id !== editingId);
+    if (siblings.length === 0) {
+        document.getElementById('edit-code').value = parentCode + '01';
+    } else {
+        const maxCode = siblings.reduce((max, c) => c.code > max ? c.code : max, siblings[0].code);
+        const nextSeq = parseInt(maxCode.substring(2)) + 1;
+        document.getElementById('edit-code').value = parentCode + String(nextSeq).padStart(2, '0');
+    }
+}
+
+function showAddRow() {
+    document.getElementById('add-row').style.display = 'table-row';
+}
+
+function hideAddRow() {
+    document.getElementById('add-row').style.display = 'none';
+    document.getElementById('new-parent-code').value = '';
+    document.getElementById('new-code').value = '';
+    document.getElementById('new-name').value = '';
+}
+
+async function saveNew() {
+    const parent_code = document.getElementById('new-parent-code').value;
+    const code = document.getElementById('new-code').value.trim();
+    const name = document.getElementById('new-name').value.trim();
+    if (!parent_code || !code || !name) { alert('请填写完整的小类信息'); return; }
+    if (code.length !== 4) { alert('小类代码必须为4位'); return; }
+    if (!code.startsWith(parent_code)) { alert('小类代码必须以大类代码开头'); return; }
+    if (!checkCodeUnique(code, 'new')) return;
+
+    const result = await apiRequest('/categories', {
+        method: 'POST',
+        body: JSON.stringify({ code, name, level: 2, parent_code })
+    });
+    if (result) {
+        hideAddRow();
+        await loadMajorCategories();
+    }
+}
+
+function startEdit(id) {
+    editingId = id;
+    renderCategories();
+}
+
+function cancelEdit() {
+    editingId = null;
+    renderCategories();
+}
+
+async function saveEdit(id) {
+    const parent_code = document.getElementById('edit-parent-code').value;
+    const code = document.getElementById('edit-code').value.trim();
+    const name = document.getElementById('edit-name').value.trim();
+    if (!parent_code || !code || !name) { alert('请填写完整的小类信息'); return; }
+    if (code.length !== 4) { alert('小类代码必须为4位'); return; }
+    if (!code.startsWith(parent_code)) { alert('小类代码必须以大类代码开头'); return; }
+    if (!checkCodeUnique(code, 'edit')) return;
+
+    const result = await apiRequest(`/categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ code, name, parent_code })
+    });
+    if (result) {
+        editingId = null;
+        await loadMajorCategories();
+    }
+}
+
+async function deleteCategory(id) {
+    if (!confirm('确定要删除该小类吗？')) return;
+    const result = await apiRequest(`/categories/${id}`, { method: 'DELETE' });
+    if (result) {
+        await loadMajorCategories();
+    }
+}
+
+function showImportModal() {
+    document.getElementById('import-modal').style.display = 'block';
+}
+
+function hideImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+    document.getElementById('import-form').reset();
+}
+
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const response = await fetch('/api/import/minor-categories', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result) {
+        if (result.error) {
+            alert(result.error);
+        } else {
+            alert(result.message);
+            hideImportModal();
+            await loadMajorCategories();
+        }
+    }
+});
+
+loadMajorCategories();
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+.modal-content h2 { margin-bottom: 16px; }
+.modal-content p { margin-bottom: 16px; color: #666; }
+</style>
+{% endblock %}

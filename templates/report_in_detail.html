@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}入库明细报表 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>入库明细报表</h1>
+    <div class="page-actions">
+        <button onclick="exportExcel()" class="btn btn-secondary">导出Excel</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="date" id="date-from">
+    <input type="date" id="date-to">
+    <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>入库单号</th>
+                <th>入库日期</th>
+                <th>供应商</th>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>批次号</th>
+                <th>数量</th>
+                <th>单价</th>
+                <th>金额</th>
+                <th>操作员</th>
+            </tr>
+        </thead>
+        <tbody id="report-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadReport(page = 1) {
+    currentPage = page;
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+
+    const params = new URLSearchParams({ page, per_page: 100 });
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+
+    const data = await apiRequest(`/reports/in-detail?${params}`);
+    if (data) {
+        renderReport(data.items);
+    }
+}
+
+function renderReport(items) {
+    const tbody = document.getElementById('report-tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(item => `
+        <tr>
+            <td>${item.order_no}</td>
+            <td>${item.created_at}</td>
+            <td>${item.supplier_name || ''}</td>
+            <td>${item.material_code}</td>
+            <td>${item.material_name}</td>
+            <td>${item.batch_no || ''}</td>
+            <td>${item.quantity}</td>
+            <td>${item.unit_price}</td>
+            <td>${item.amount}</td>
+            <td>${item.operator || ''}</td>
+        </tr>
+    `).join('');
+}
+
+function exportExcel() {
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    let url = '/api/reports/in-detail/export?';
+    if (dateFrom) url += 'date_from=' + dateFrom + '&';
+    if (dateTo) url += 'date_to=' + dateTo;
+    window.location.href = url;
+}
+
+loadReport();
+</script>
+{% endblock %}

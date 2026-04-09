@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}退库单明细 - {{ order.order_no }} - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>退库单明细 - {{ order.order_no }}</h1>
+</div>
+
+<form id="order-form" onchange="markModified()">
+    <div class="order-info">
+        <div class="info-grid">
+            <div class="info-item">
+                <label>单据编号：</label>
+                <span>{{ order.order_no }}</span>
+            </div>
+            <div class="info-item">
+                <label>关联出库单：</label>
+                <span>{{ order.out_order_no or '' }}</span>
+            </div>
+            <div class="info-item">
+                <label>部门：</label>
+                <input type="text" id="department" value="{{ order.department or '' }}" {% if order.status != 'pending' %}readonly{% endif %}>
+            </div>
+            <div class="info-item">
+                <label>退库人：</label>
+                <input type="text" id="receiver" value="{{ order.receiver or '' }}" {% if order.status != 'pending' %}readonly{% endif %}>
+            </div>
+            <div class="info-item">
+                <label>退库日期：</label>
+                <input type="date" id="receiver_date" value="{{ order.receiver_date or '' }}" {% if order.status != 'pending' %}readonly{% endif %}>
+            </div>
+            <div class="info-item">
+                <label>状态：</label>
+                <span class="status {{ order.status }}">{{ '待审核' if order.status == 'pending' else '已审核' if order.status == 'approved' else '已取消' }}</span>
+            </div>
+            <div class="info-item">
+                <label>操作员：</label>
+                <span>{{ order.operator_name or '' }}</span>
+            </div>
+            <div class="info-item">
+                <label>创建时间：</label>
+                <span>{{ order.created_at }}</span>
+            </div>
+            <div class="info-item">
+                <label>备注：</label>
+                <input type="text" name="remark" value="{{ order.remark or '' }}" {% if order.status != 'pending' %}readonly{% endif %}>
+            </div>
+        </div>
+    </div>
+
+    <div class="items-table">
+        <h3>退库明细</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>物料编码</th>
+                    <th>物料名称</th>
+                    <th>规格</th>
+                    <th>单位</th>
+                    <th>批次号</th>
+                    <th>领用毛重</th>
+                    <th>退回毛重</th>
+                    <th>实际用量</th>
+                </tr>
+            </thead>
+            <tbody id="items-tbody">
+                {% for item in order['items'] %}
+                <tr data-id="{{ item.id }}" data-out-order-item-id="{{ item.out_order_item_id }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-initial-weight="{{ item.initial_gross_weight or 0 }}">
+                    <td>{{ item.material_code }}</td>
+                    <td>{{ item.material_name }}</td>
+                    <td>{{ item.spec or '' }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td>{{ item.batch_no or '' }}</td>
+                    <td>{{ item.initial_gross_weight if item.initial_gross_weight else '-' }}</td>
+                    <td>
+                        {% if order.status == 'pending' %}
+                        <input type="number" class="return-gross-weight" step="0.01" value="{{ item.return_gross_weight or '' }}" min="0" style="width:80px;" oninput="calculateNetWeight(this)">
+                        {% else %}
+                        {{ item.return_gross_weight if item.return_gross_weight else '-' }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="actual-net-weight">{{ item.actual_net_weight if item.actual_net_weight else '-' }}</span>
+                        {% if order.status == 'pending' %}
+                        <input type="hidden" class="actual-net-weight-input" value="{{ item.actual_net_weight or 0 }}">
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-actions">
+        {% if order.status == 'pending' %}
+        <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+        <button type="button" onclick="approveOrder()" class="btn btn-success">审核</button>
+        {% endif %}
+        <a href="/return-orders" class="btn btn-secondary">返回列表</a>
+    </div>
+</form>
+
+<style>
+.order-info {
+    background: white;
+    padding: 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.info-item {
+    display: flex;
+    align-items: center;
+}
+.info-item label {
+    font-weight: bold;
+    min-width: 80px;
+}
+.info-item input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+}
+.info-item input[readonly] {
+    background: #f5f5f5;
+    border-color: #d9d9d9;
+}
+.items-table {
+    background: white;
+    padding: 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+.items-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.items-table th,
+.items-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+.items-table th { background: #f5f5f5; }
+.items-table input { padding: 4px 6px; border: 1px solid #d9d9d9; border-radius: 4px; }
+.status.pending { color: #faad14; }
+.status.approved { color: #52c41a; }
+.status.cancelled { color: #ff4d4f; }
+.form-actions { margin-top: 16px; }
+.form-actions .btn { margin-right: 8px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const orderId = {{ order.id }};
+const orderStatus = '{{ order.status }}';
+let isModified = false;
+
+function markModified() { isModified = true; }
+
+function calculateNetWeight(input) {
+    const row = input.closest('tr');
+    const initialWeight = parseFloat(row.dataset.initialWeight) || 0;
+    const returnWeight = parseFloat(input.value) || 0;
+    const netWeight = initialWeight - returnWeight;
+
+    const netWeightSpan = row.querySelector('.actual-net-weight');
+    const netWeightInput = row.querySelector('.actual-net-weight-input');
+
+    if (netWeight >= 0) {
+        netWeightSpan.textContent = netWeight.toFixed(2);
+        if (netWeightInput) netWeightInput.value = netWeight.toFixed(2);
+    } else {
+        netWeightSpan.textContent = '超重';
+        if (netWeightInput) netWeightInput.value = 0;
+    }
+}
+
+document.getElementById('order-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (orderStatus !== 'pending') return;
+
+    const items = [];
+    document.querySelectorAll('#items-tbody tr').forEach(row => {
+        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+        items.push({
+            id: parseInt(row.dataset.id),
+            out_order_item_id: parseInt(row.dataset.outOrderItemId),
+            material_id: parseInt(row.dataset.materialId),
+            batch_no: row.dataset.batchNo || null,
+            return_gross_weight: returnGrossWeight,
+            actual_net_weight: actualNetWeight
+        });
+    });
+
+    const data = {
+        department: document.getElementById('department').value || null,
+        receiver: document.getElementById('receiver').value || null,
+        receiver_date: document.getElementById('receiver_date').value || null,
+        remark: document.querySelector('input[name="remark"]').value || null,
+        items: items
+    };
+
+    const result = await apiRequest(`/return-orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
+    if (result) {
+        alert('保存成功');
+        location.reload();
+    }
+});
+
+async function approveOrder() {
+    if (isModified) {
+        alert('请先保存后再审核');
+        return;
+    }
+    if (!confirm('确定要审核通过该退库单吗？')) return;
+
+    const items = [];
+    const weightData = [];
+
+    document.querySelectorAll('#items-tbody tr').forEach(row => {
+        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+
+        if (returnGrossWeight > 0) {
+            items.push({
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                material_id: parseInt(row.dataset.materialId),
+                batch_no: row.dataset.batchNo || null,
+                return_gross_weight: returnGrossWeight,
+                actual_net_weight: actualNetWeight
+            });
+
+            weightData.push({
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                return_gross_weight: returnGrossWeight
+            });
+        }
+    });
+
+    // First save
+    const data = {
+        department: document.getElementById('department').value || null,
+        receiver: document.getElementById('receiver').value || null,
+        receiver_date: document.getElementById('receiver_date').value || null,
+        remark: document.querySelector('input[name="remark"]').value || null,
+        items: items
+    };
+
+    const saveResult = await apiRequest(`/return-orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
+    if (!saveResult) {
+        alert('保存失败');
+        return;
+    }
+
+    // Then approve
+    const approveResult = await apiRequest(`/return-orders/${orderId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ weight_data: weightData })
+    });
+
+    if (approveResult) {
+        alert('审核成功');
+        location.reload();
+    } else {
+        alert('审核失败');
+    }
+}
+</script>
+{% endblock %}

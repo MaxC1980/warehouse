@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}入库台账 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>入库台账</h1>
+</div>
+
+<div class="filter-bar">
+    <select id="status-filter">
+        <option value="">全部状态</option>
+        <option value="pending">待审核</option>
+        <option value="approved">已审核</option>
+    </select>
+    <span>入库日期</span>
+    <input type="date" id="start-date" placeholder="开始日期">
+    <input type="date" id="end-date" placeholder="结束日期">
+    <input type="text" id="material-code" placeholder="物料编码">
+    <input type="text" id="material-name" placeholder="物料名称">
+    <input type="text" id="material-spec" placeholder="物料规格">
+    <select id="per-page" onchange="loadOrders()">
+        <option value="15" selected>15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadOrders()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>入库单号</th>
+                <th>经手人</th>
+                <th>入库日期</th>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th>数量</th>
+                <th>批次</th>
+                <th>生产日期</th>
+                <th>有效日期</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody id="orders-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadOrders(page = 1) {
+    currentPage = page;
+    const status = document.getElementById('status-filter').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const materialCode = document.getElementById('material-code').value.trim();
+    const materialName = document.getElementById('material-name').value.trim();
+    const materialSpec = document.getElementById('material-spec').value.trim();
+    const perPage = document.getElementById('per-page').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (status) params.append('status', status);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (materialCode) params.append('material_code', materialCode);
+    if (materialName) params.append('material_name', materialName);
+    if (materialSpec) params.append('material_spec', materialSpec);
+
+    const data = await apiRequest(`/in-orders/detail?${params}`);
+    if (data) {
+        renderOrders(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+    }
+}
+
+function renderOrders(orders) {
+    const tbody = document.getElementById('orders-tbody');
+    if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12">暂无数据</td></tr>';
+        return;
+    }
+
+    let html = '';
+    orders.forEach(o => {
+        if (!o.items || o.items.length === 0) {
+            // 无明细的订单，显示一行
+            html += `<tr>
+                <td>${o.order_no}</td>
+                <td>${o.receiver || ''}</td>
+                <td>${o.receiver_date || ''}</td>
+                <td colspan="6"></td>
+                <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+            </tr>`;
+        } else {
+            o.items.forEach((item, idx) => {
+                if (idx === 0) {
+                    // 主表字段只在第一行显示，用rowspan
+                    html += `<tr>
+                        <td rowspan="${o.items.length}">${o.order_no}</td>
+                        <td rowspan="${o.items.length}">${o.receiver || ''}</td>
+                        <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
+                        <td>${item.material_code || ''}</td>
+                        <td>${item.material_name || ''}</td>
+                        <td>${item.spec || ''}</td>
+                        <td>${item.unit || ''}</td>
+                        <td>${item.quantity || 0}</td>
+                        <td>${item.batch_no || ''}</td>
+                        <td>${item.production_date || ''}</td>
+                        <td>${item.expiry_date || ''}</td>
+                        <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+                    </tr>`;
+                } else {
+                    html += `<tr>
+                        <td>${item.material_code || ''}</td>
+                        <td>${item.material_name || ''}</td>
+                        <td>${item.spec || ''}</td>
+                        <td>${item.unit || ''}</td>
+                        <td>${item.quantity || 0}</td>
+                        <td>${item.batch_no || ''}</td>
+                        <td>${item.production_date || ''}</td>
+                        <td>${item.expiry_date || ''}</td>
+                    </tr>`;
+                }
+            });
+        }
+    });
+    tbody.innerHTML = html;
+}
+
+function getStatusText(status) {
+    const map = { pending: '待审核', approved: '已审核', rejected: '已拒绝', cancelled: '已取消' };
+    return map[status] || status;
+}
+
+loadOrders();
+</script>
+{% endblock %}

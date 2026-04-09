@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}员工管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>员工管理</h1>
+    <div class="page-actions">
+        <a href="/employees/new" class="btn btn-primary">新增员工</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="search-keyword" placeholder="搜索员工姓名、部门、电话">
+    <select id="per-page" onchange="loadEmployees()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadEmployees()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>姓名</th>
+                <th>部门</th>
+                <th>电话</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="employees-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadEmployees(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/employees?${params}`);
+    if (data) {
+        renderEmployees(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadEmployees');
+    }
+}
+
+function renderEmployees(employees) {
+    const tbody = document.getElementById('employees-tbody');
+    if (employees.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = employees.map(e => `
+        <tr>
+            <td>${e.name}</td>
+            <td>${e.department || ''}</td>
+            <td>${e.phone || ''}</td>
+            <td>${e.remark || ''}</td>
+            <td>
+                <a href="/employees/${e.id}/edit" class="btn btn-sm">编辑</a>
+                <button onclick="deleteEmployee(${e.id})" class="btn btn-sm btn-danger">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function deleteEmployee(id) {
+    if (!confirm('确定要删除该员工吗？')) return;
+    const result = await apiRequest(`/employees/${id}`, { method: 'DELETE' });
+    if (result) {
+        loadEmployees(currentPage);
+    }
+}
+
+loadEmployees();
+</script>
+{% endblock %}

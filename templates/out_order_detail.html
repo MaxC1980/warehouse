@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}出库单明细 - {{ order.order_no }} - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>出库单明细</h1>
+    <div class="page-actions">
+        <a href="/out-orders" class="btn btn-secondary">返回列表</a>
+        <a href="/out-orders/{{ order.id }}/print" target="_blank" class="btn btn-secondary">打印</a>
+    </div>
+</div>
+
+<div class="order-info">
+    <div class="info-grid">
+        <div class="info-item">
+            <label>单据编号：</label>
+            <span>{{ order.order_no }}</span>
+        </div>
+        <div class="info-item">
+            <label>部门：</label>
+            <span>{{ order.department or '' }}</span>
+        </div>
+        <div class="info-item">
+            <label>领用人：</label>
+            <span>{{ order.receiver or '' }}</span>
+        </div>
+        <div class="info-item">
+            <label>领用日期：</label>
+            <span>{{ order.receiver_date or '' }}</span>
+        </div>
+        <div class="info-item">
+            <label>操作员：</label>
+            <span>{{ order.operator_name or '' }}</span>
+        </div>
+        <div class="info-item">
+            <label>状态：</label>
+            <span class="status {{ order.status }}">{{ '待审核' if order.status == 'pending' else '已审核' if order.status == 'approved' else '已完成' if order.status == 'completed' else order.status }}</span>
+        </div>
+        <div class="info-item">
+            <label>创建时间：</label>
+            <span>{{ order.created_at }}</span>
+        </div>
+        <div class="info-item">
+            <label>审核时间：</label>
+            <span>{{ order.approved_at or '' }}</span>
+        </div>
+        <div class="info-item">
+            <label>备注：</label>
+            <span>{{ order.remark or '' }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="items-table">
+    <h3>出库明细</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格</th>
+                <th>单位</th>
+                <th>批次号</th>
+                <th>申请用量</th>
+                <th>实际用量</th>
+                <th>领用毛重</th>
+                <th>实发信息</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order['items'] %}
+            <tr data-item-id="{{ item.id }}">
+                <td>{{ item.material_code }}</td>
+                <td>{{ item.material_name }}</td>
+                <td>{{ item.spec or '' }}</td>
+                <td>{{ item.unit }}</td>
+                <td>{{ item.batch_no or '' }}</td>
+                <td>{{ item.requested_quantity or 0 }}</td>
+                <td>{{ item.actual_quantity or 0 }}</td>
+                <td>{{ item.initial_gross_weight or '' }}</td>
+                <td>{{ item.shipment_info or '' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9">暂无明细数据</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if related_returns %}
+<div class="related-orders">
+    <h3>关联退库单</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>退库单号</th>
+                <th>退库人</th>
+                <th>退库日期</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in related_returns %}
+            <tr>
+                <td><a href="/return-orders/{{ r.id }}/detail">{{ r.order_no }}</a></td>
+                <td>{{ r.receiver }}</td>
+                <td>{{ r.receiver_date }}</td>
+                <td class="status {{ r.status }}">{{ '待审核' if r.status == 'pending' else '已审核' if r.status == 'approved' else '已取消' }}</td>
+                <td><a href="/return-orders/{{ r.id }}/detail" class="btn btn-small">查看</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<style>
+.order-info {
+    background: white;
+    padding: 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.info-item {
+    display: flex;
+    align-items: center;
+}
+.info-item label {
+    font-weight: bold;
+    min-width: 80px;
+}
+.items-table, .related-orders table {
+    background: white;
+    padding: 16px;
+    border-radius: 4px;
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+}
+.items-table th, .items-table td,
+.related-orders th, .related-orders td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+.items-table th, .related-orders th { background: #f5f5f5; }
+.status.pending { color: #faad14; }
+.status.approved { color: #52c41a; }
+.status.completed { color: #52c41a; }
+.modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    width: 600px;
+    max-height: 80vh;
+    overflow: auto;
+}
+.modal-footer {
+    margin-top: 16px;
+    text-align: right;
+}
+.modal-footer button { margin-left: 8px; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const orderId = {{ order.id }};
+const orderStatus = '{{ order.status }}';
+
+async function pickup() {
+    if (!confirm('确认该出库单已领取？')) return;
+
+    const result = await apiRequest(`/out-orders/${orderId}/pickup`, { method: 'POST' });
+    if (result) {
+        alert('已确认领用');
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

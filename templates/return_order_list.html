@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}退库单管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>退库单管理</h1>
+    <div class="page-actions">
+        <a href="/return-orders/new" class="btn btn-primary">新建退库单</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="status-filter">
+        <option value="">全部状态</option>
+        <option value="pending">待审核</option>
+        <option value="approved">已审核</option>
+        <option value="cancelled">已取消</option>
+    </select>
+    <input type="text" id="out-order-no" placeholder="关联出库单号">
+    <button onclick="loadOrders()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>退库单号</th>
+                <th>关联出库单</th>
+                <th>部门</th>
+                <th>退库人</th>
+                <th>退库日期</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="orders-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadOrders(page = 1) {
+    currentPage = page;
+    const status = document.getElementById('status-filter').value;
+    const outOrderNo = document.getElementById('out-order-no').value.trim();
+
+    const params = new URLSearchParams({ page, per_page: 20 });
+    if (status) params.append('status', status);
+    if (outOrderNo) params.append('out_order_no', outOrderNo);
+
+    const data = await apiRequest(`/return-orders?${params}`);
+    if (data) {
+        renderOrders(data.items);
+        renderPagination('pagination', data.total, data.page, 20, 'loadOrders');
+    }
+}
+
+function renderOrders(orders) {
+    const tbody = document.getElementById('orders-tbody');
+    if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        return;
+    }
+
+    let html = '';
+    orders.forEach(o => {
+        html += `<tr>
+            <td><a href="/return-orders/${o.id}/detail">${o.order_no}</a></td>
+            <td>${o.out_order_no || ''}</td>
+            <td>${o.department || ''}</td>
+            <td>${o.receiver || ''}</td>
+            <td>${o.receiver_date || ''}</td>
+            <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+            <td>
+                ${o.status === 'pending' ? `
+                    <a href="/return-orders/${o.id}/edit" class="btn btn-sm">编辑</a>
+                    <button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>
+                    <button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>
+                ` : `
+                    <a href="/return-orders/${o.id}/detail" class="btn btn-sm">查看</a>
+                `}
+            </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+}
+
+function getStatusText(status) {
+    const map = {
+        pending: '待审核',
+        approved: '已审核',
+        cancelled: '已取消'
+    };
+    return map[status] || status;
+}
+
+async function deleteOrder(id) {
+    if (!confirm('确定要删除该退库单吗？')) return;
+
+    const result = await apiRequest(`/return-orders/${id}`, { method: 'DELETE' });
+    if (result) {
+        alert('删除成功');
+        loadOrders();
+    }
+}
+
+async function approveOrder(id) {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (!currentUser || !currentUser.can_approve) {
+        alert('无审核权限');
+        return;
+    }
+    if (!confirm('确定要审核通过该退库单吗？')) return;
+    const result = await apiRequest(`/return-orders/${id}/approve`, { method: 'POST' });
+    if (result) {
+        alert('审核成功');
+        loadOrders(currentPage);
+    } else {
+        alert('审核失败');
+    }
+}
+
+
+loadOrders();
+
+// Hide approve buttons for non-admin users
+(async () => {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (currentUser && !currentUser.can_approve) {
+        document.querySelectorAll('.approve-btn').forEach(b => b.style.display = 'none');
+    }
+})();
+</script>
+{% endblock %}

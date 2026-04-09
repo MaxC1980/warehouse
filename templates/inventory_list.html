@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}库存查询 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>库存查询</h1>
+    <div class="page-actions">
+        <button onclick="showImportModal()" class="btn btn-secondary">导入初始库存</button>
+    </div>
+</div>
+
+<div id="import-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h2>导入初始库存</h2>
+        <p>请上传Excel文件，文件应包含以下列：物料编码、数量、批次（批次留空则自动生成）</p>
+        <form id="import-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <input type="file" name="file" accept=".xlsx,.xls" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">导入</button>
+                <button type="button" onclick="hideImportModal()" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="major-category" onchange="onMajorCategoryChange()">
+        <option value="">全部大类</option>
+    </select>
+    <select id="minor-category" onchange="loadInventory()">
+        <option value="">全部小类</option>
+    </select>
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、规格">
+    <select id="per-page" onchange="loadInventory()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadInventory()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="page-actions" style="margin-bottom: 16px;">
+    <button id="btn-detail" onclick="setViewMode('detail')" class="btn btn-primary">查询详情</button>
+    <button id="btn-summary" onclick="setViewMode('summary')" class="btn btn-secondary">查询汇总</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr id="table-header">
+                <!-- dynamic -->
+            </tr>
+        </thead>
+        <tbody id="inventory-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let currentMode = 'detail'; // 'detail' or 'summary'
+let categories = []; // all categories for filtering
+
+async function loadCategories() {
+    categories = await apiRequest('/categories');
+    if (categories) {
+        const majorSelect = document.getElementById('major-category');
+        // Filter majors (level=1)
+        categories.filter(c => c.level === 1).forEach(cat => {
+            majorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        });
+    }
+}
+
+function onMajorCategoryChange() {
+    const majorCode = document.getElementById('major-category').value;
+    const minorSelect = document.getElementById('minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+
+    if (majorCode) {
+        // Filter minors by parent_code
+        categories.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
+            minorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        });
+    }
+    loadInventory();
+}
+
+const detailHeaders = [
+    '物料编码', '物料名称', '规格型号', '单位', '批次号', '生产日期', '有效日期', '当前库存', '待审入库', '待审出库', '状态'
+];
+const summaryHeaders = [
+    '物料编码', '物料名称', '规格型号', '单位', '当前库存', '状态'
+];
+
+function setViewMode(mode) {
+    currentMode = mode;
+    document.getElementById('btn-detail').className = mode === 'detail' ? 'btn btn-primary' : 'btn btn-secondary';
+    document.getElementById('btn-summary').className = mode === 'summary' ? 'btn btn-primary' : 'btn btn-secondary';
+    currentPage = 1;
+    loadInventory(1);
+}
+
+async function loadInventory(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+    const minorCategory = document.getElementById('minor-category').value;
+    const majorCategory = document.getElementById('major-category').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+    // If minor selected, use it; otherwise use major (will match prefix)
+    const categoryCode = minorCategory || majorCategory || '';
+    if (categoryCode) params.append('category_code', categoryCode);
+    if (currentMode === 'summary') params.append('summary', 'true');
+
+    const data = await apiRequest(`/inventory?${params}`);
+    if (data) {
+        renderTableHeader();
+        renderInventory(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadInventory');
+    }
+}
+
+function renderTableHeader() {
+    const headers = currentMode === 'detail' ? detailHeaders : summaryHeaders;
+    document.getElementById('table-header').innerHTML = headers.map(h => `<th>${h}</th>`).join('');
+}
+
+function renderInventory(inventory) {
+    const tbody = document.getElementById('inventory-tbody');
+    if (inventory.length === 0) {
+        const colCount = currentMode === 'detail' ? 11 : 6;
+        tbody.innerHTML = `<tr><td colspan="${colCount}">暂无数据</td></tr>`;
+        return;
+    }
+    if (currentMode === 'detail') {
+        tbody.innerHTML = inventory.map(item => `
+            <tr>
+                <td>${item.material_code}</td>
+                <td>${item.material_name}</td>
+                <td>${item.spec || ''}</td>
+                <td>${item.unit}</td>
+                <td>${item.batch_no || '-'}</td>
+                <td>${item.production_date || '-'}</td>
+                <td>${item.expiry_date || '-'}</td>
+                <td>${item.quantity}</td>
+                <td>${item.pending_in || 0}</td>
+                <td>${item.pending_out || 0}</td>
+                <td><span class="status">${item.status}</span></td>
+            </tr>
+        `).join('');
+    } else {
+        tbody.innerHTML = inventory.map(item => `
+            <tr>
+                <td>${item.material_code}</td>
+                <td>${item.material_name}</td>
+                <td>${item.spec || ''}</td>
+                <td>${item.unit}</td>
+                <td>${item.quantity}</td>
+                <td><span class="status">${item.status}</span></td>
+            </tr>
+        `).join('');
+    }
+}
+
+loadInventory();
+
+(async () => {
+    await loadCategories();
+})();
+
+function showImportModal() {
+    document.getElementById('import-modal').style.display = 'block';
+}
+
+function hideImportModal() {
+    document.getElementById('import-modal').style.display = 'none';
+}
+
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+
+    const response = await fetch('/api/import/inventory', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await response.json();
+    if (result) {
+        alert(result.error || result.message);
+        if (!result.error) {
+            hideImportModal();
+            loadInventory();
+        }
+    }
+});
+</script>
+
+<style>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+}
+
+.modal-content h2 {
+    margin-bottom: 16px;
+}
+
+.modal-content p {
+    margin-bottom: 16px;
+    color: #666;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}汇总统计 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>汇总统计</h1>
+</div>
+
+<div class="filter-bar">
+    <input type="date" id="date-from">
+    <input type="date" id="date-to">
+    <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="stats-grid" id="stats-grid">
+    <div class="stat-card">
+        <h3>入库总数量</h3>
+        <div class="stat-value" id="in-count">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>入库总金额</h3>
+        <div class="stat-value" id="in-amount">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>出库总数量</h3>
+        <div class="stat-value" id="out-count">-</div>
+    </div>
+    <div class="stat-card">
+        <h3>出库总金额</h3>
+        <div class="stat-value" id="out-amount">-</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadReport() {
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+
+    const data = await apiRequest(`/reports/summary?${params}`);
+    if (data) {
+        document.getElementById('in-count').textContent = data.in_count || 0;
+        document.getElementById('in-amount').textContent = (data.in_amount || 0).toFixed(2);
+        document.getElementById('out-count').textContent = data.out_count || 0;
+        document.getElementById('out-amount').textContent = (data.out_amount || 0).toFixed(2);
+    }
+}
+
+loadReport();
+</script>
+{% endblock %}

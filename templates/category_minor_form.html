@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if category_id else '新增' }}物料小类 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ '编辑' if category_id else '新增' }}物料小类</h1>
+</div>
+
+<form id="category-form" onsubmit="handleSubmit(event)">
+    <div class="form-grid">
+        <div class="form-group">
+            <label>所属大类 *</label>
+            <select name="parent_code" id="parent-select" required>
+                <option value="">请选择</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>小类代码 *</label>
+            <input type="text" name="code" required maxlength="4" placeholder="4位数字，如：0101">
+        </div>
+        <div class="form-group">
+            <label>小类名称 *</label>
+            <input type="text" name="name" required placeholder="如：金属材料">
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/category-minor" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const categoryId = {{ category_id if category_id else 'null' }};
+
+async function loadMajorCategories() {
+    const categories = await apiRequest('/categories');
+    if (categories) {
+        const majorCategories = categories.filter(c => c.level === 1);
+        const select = document.getElementById('parent-select');
+        majorCategories.forEach(cat => {
+            select.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        });
+        return categories;
+    }
+}
+
+async function loadCategory(categories) {
+    if (!categoryId) return;
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
+        const form = document.getElementById('category-form');
+        form.parent_code.value = category.parent_code || '';
+        form.code.value = category.code;
+        form.name.value = category.name;
+    }
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        code: form.code.value,
+        name: form.name.value,
+        level: 2,
+        parent_code: form.parent_code.value
+    };
+
+    const url = categoryId ? `/categories/${categoryId}` : '/categories';
+    const method = categoryId ? 'PUT' : 'POST';
+
+    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
+    if (result) {
+        window.location.href = '/category-minor';
+    }
+}
+
+async function init() {
+    const categories = await loadMajorCategories();
+    await loadCategory(categories);
+}
+
+init();
+</script>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}入库单管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>入库单管理</h1>
+    <div class="page-actions">
+        <a href="/in-orders/new" class="btn btn-primary">新建入库单</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <select id="status-filter" onchange="loadOrders()">
+        <option value="">全部状态</option>
+        <option value="pending">待审核</option>
+        <option value="approved">已审核</option>
+    </select>
+    <select id="per-page" onchange="loadOrders()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadOrders()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>单据编号</th>
+                <th>供应商</th>
+                <th>经手人</th>
+                <th>入库日期</th>
+                <th>用途</th>
+                <th>操作员</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="orders-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadOrders(page = 1) {
+    currentPage = page;
+    const status = document.getElementById('status-filter').value;
+    const perPage = document.getElementById('per-page').value;
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (status) params.append('status', status);
+
+    const data = await apiRequest(`/in-orders?${params}`);
+    if (data) {
+        renderOrders(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+    }
+}
+
+function renderOrders(orders) {
+    const tbody = document.getElementById('orders-tbody');
+    if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = orders.map(o => `
+        <tr>
+            <td><a href="/in-orders/${o.id}/detail">${o.order_no}</a></td>
+            <td>${o.supplier_name || ''}</td>
+            <td>${o.receiver || ''}</td>
+            <td>${o.receiver_date || ''}</td>
+            <td>${o.purpose || ''}</td>
+            <td>${o.operator_name || ''}</td>
+            <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+            <td>${o.created_at}</td>
+            <td>
+                ${o.status === 'pending' ? `
+                    <a href="/in-orders/${o.id}/edit" class="btn btn-sm">编辑</a>
+                    <button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>
+                    <button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>
+                ` : `
+                    <a href="/in-orders/${o.id}/detail" class="btn btn-sm">查看</a>
+                `}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusText(status) {
+    const map = { pending: '待审核', approved: '已审核', rejected: '已拒绝' };
+    return map[status] || status;
+}
+
+async function approveOrder(id) {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (!currentUser || !currentUser.can_approve) {
+        alert('无审核权限');
+        return;
+    }
+    if (!confirm('确定要审核通过该入库单吗？')) return;
+    const result = await apiRequest(`/in-orders/${id}/approve`, { method: 'POST' });
+    if (result) {
+        alert('审核成功');
+        loadOrders(currentPage);
+    } else {
+        alert('审核失败');
+    }
+}
+
+async function deleteOrder(id) {
+    if (!confirm('确定要删除该入库单吗？')) return;
+    const result = await apiRequest(`/in-orders/${id}`, { method: 'DELETE' });
+    if (result) {
+        alert('删除成功');
+        loadOrders(currentPage);
+    } else {
+        alert('删除失败');
+    }
+}
+
+loadOrders();
+
+// Hide approve buttons for non-admin users
+(async () => {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (currentUser && !currentUser.can_approve) {
+        document.querySelectorAll('.approve-btn').forEach(b => b.style.display = 'none');
+    }
+})();
+</script>
+{% endblock %}
