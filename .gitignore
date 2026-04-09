@@ -7,3 +7,7 @@ db/
 *.log
 .DS_Store
 .claude/
+.playwright/
+.playwright-cli/
+cookies.txt
+debug_output.txt
