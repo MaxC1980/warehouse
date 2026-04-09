@@ -93,10 +93,10 @@ function onMajorCategoryChange() {
 }
 
 const detailHeaders = [
-    '物料编码', '物料名称', '规格型号', '单位', '批次号', '生产日期', '有效日期', '当前库存', '待审入库', '待审出库', '状态'
+    '物料编码', '物料名称', '厂商', '规格型号', '单位', '批次号', '生产日期', '有效日期', '当前库存', '待审入库', '待审出库', '状态'
 ];
 const summaryHeaders = [
-    '物料编码', '物料名称', '规格型号', '单位', '当前库存', '状态'
+    '物料编码', '物料名称', '厂商', '规格型号', '单位', '当前库存', '状态'
 ];
 
 function setViewMode(mode) {
@@ -137,7 +137,7 @@ function renderTableHeader() {
 function renderInventory(inventory) {
     const tbody = document.getElementById('inventory-tbody');
     if (inventory.length === 0) {
-        const colCount = currentMode === 'detail' ? 11 : 6;
+        const colCount = currentMode === 'detail' ? 12 : 7;
         tbody.innerHTML = `<tr><td colspan="${colCount}">暂无数据</td></tr>`;
         return;
     }
@@ -146,6 +146,7 @@ function renderInventory(inventory) {
             <tr>
                 <td>${item.material_code}</td>
                 <td>${item.material_name}</td>
+                <td>${item.manufacturer || ''}</td>
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
                 <td>${item.batch_no || '-'}</td>
@@ -162,6 +163,7 @@ function renderInventory(inventory) {
             <tr>
                 <td>${item.material_code}</td>
                 <td>${item.material_name}</td>
+                <td>${item.manufacturer || ''}</td>
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
                 <td>${item.quantity}</td>

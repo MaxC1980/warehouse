@@ -32,6 +32,7 @@
             <tr>
                 <th>物料编码</th>
                 <th>物料名称</th>
+                <th>厂商</th>
                 <th>规格型号</th>
                 <th>单位</th>
                 <th>当前库存</th>
@@ -93,13 +94,14 @@ async function loadReport(page = 1) {
 function renderReport(items) {
     const tbody = document.getElementById('report-tbody');
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(item => `
         <tr class="${item.status === '低于安全库存' ? 'warning-row' : ''}">
             <td>${item.material_code}</td>
             <td>${item.material_name}</td>
+            <td>${item.manufacturer || ''}</td>
             <td>${item.spec || ''}</td>
             <td>${item.unit}</td>
             <td>${item.quantity}</td>

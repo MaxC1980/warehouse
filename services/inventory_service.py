@@ -37,13 +37,13 @@ class InventoryService:
                 f"""
                 SELECT
                     m.code as material_code, m.name as material_name,
-                    m.spec, m.unit,
+                    m.spec, m.unit, m.manufacturer,
                     SUM(i.quantity) as quantity,
                     MAX(i.updated_at) as updated_at
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-                GROUP BY m.code, m.name, m.spec, m.unit
+                GROUP BY m.code, m.name, m.spec, m.unit, m.manufacturer
                 ORDER BY m.code
                 LIMIT ? OFFSET ?
                 """,
@@ -66,7 +66,7 @@ class InventoryService:
                 f"""
                 SELECT
                     m.id as material_id, m.code as material_code, m.name as material_name,
-                    m.spec, m.unit, m.storage_condition, m.shelf_life,
+                    m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
                     i.batch_no, i.production_date, i.expiry_date,
                     i.quantity, i.updated_at
                 FROM inventory i

@@ -47,6 +47,7 @@ class ReportService:
                 m.name as material_name,
                 m.spec,
                 m.unit,
+                m.manufacturer,
                 m.safety_stock,
                 COALESCE(SUM(i.quantity), 0) as quantity,
                 CASE
