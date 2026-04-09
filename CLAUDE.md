@@ -9,8 +9,8 @@ Flask + SQLite 仓库管理系统。默认登录账号：`admin` / `admin123`
 ## 运行应用
 
 ```bash
-python run.py    # 开发环境（debug模式）
-python app.py    # 生产环境
+python run.py                      # 开发环境（debug模式）
+gunicorn -w 4 -b 0.0.0.0:5000 app:app  # 生产环境
 ```
 
 服务启动在 `http://localhost:5000`
@@ -94,7 +94,8 @@ conn.close()
 - `material.is_reusable` - 物料是否可回用
 - `out_order_item.initial_gross_weight` - 领用毛重
 - `out_order_item.shipment_info` - 实发信息
-- `reusable_material_weight` - 称重记录表- `initial_gross_weight` / `return_gross_weight` - 领用/退回毛重
+- `reusable_material_weight` - 称重记录表
+- `initial_gross_weight` / `return_gross_weight` - 领用/退回毛重
 - `actual_net_weight` - 实际净用量 = 领用毛重 - 退回毛重
 - `status` - `checked_out`（已领用）或 `returned`（已退回）
 
