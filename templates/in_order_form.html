@@ -77,7 +77,7 @@
 
     <!-- 物料选择弹窗 -->
     <div id="material-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
-        <div class="modal-content" style="width:900px; max-height:85vh; overflow:auto;">
+        <div class="modal-content" style="width:1200px !important; max-width:none !important; max-height:85vh; overflow:auto;">
             <div class="modal-header">
                 <h3>选择物料</h3>
                 <button type="button" onclick="closeMaterialModal()" class="btn btn-sm">关闭</button>
@@ -93,14 +93,14 @@
                 <input type="text" id="modal-material-name" placeholder="物料名称" style="width:100px; flex:none; min-width:0;">
                 <input type="text" id="modal-material-spec" placeholder="物料规格" style="width:100px; flex:none; min-width:0;">
                 <select id="modal-per-page" onchange="modalPage=1; loadMaterialModal()" style="width:80px; flex:none;">
-                    <option value="20">20</option>
-                    <option value="50" selected>50</option>
+                    <option value="15" selected>15</option>
+                    <option value="50">50</option>
                     <option value="100">100</option>
                 </select>
                 <button type="button" onclick="modalPage=1; loadMaterialModal()" class="btn btn-secondary" style="flex:none;">搜索</button>
                 <div id="modal-pagination" style="display:flex; align-items:center; gap:4px; margin-left:auto; flex:none;"></div>
             </div>
-            <div style="max-height:400px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
+            <div style="max-height:550px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
                 <table id="modal-material-table" style="width:100%; border-collapse:collapse;">
                     <thead>
                         <tr>
@@ -478,8 +478,8 @@ async function loadMaterialModal() {
 
     tbody.innerHTML = data.items.map(item => {
         const checked = modalSelected.has(item.id) ? 'checked' : '';
-        return `<tr>
-            <td><input type="checkbox" data-id="${item.id}" data-code="${item.code}" data-name="${item.name}" data-spec="${item.spec || ''}" data-unit="${item.unit || ''}" data-category="${item.category_name || ''}" onchange="toggleMaterialSelect(this)" ${checked}></td>
+        return `<tr onclick="toggleMaterialSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
+            <td><input type="checkbox" data-id="${item.id}" data-code="${item.code}" data-name="${item.name}" data-spec="${item.spec || ''}" data-unit="${item.unit || ''}" data-category="${item.category_name || ''}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
             <td>${item.code}</td>
             <td>${item.name}</td>
             <td>${item.spec || ''}</td>
@@ -507,6 +507,8 @@ function renderModalPagination(total, page, perPage) {
 
 function toggleMaterialSelect(cb) {
     const id = parseInt(cb.dataset.id);
+    // Toggle the checkbox
+    cb.checked = !cb.checked;
     if (cb.checked) {
         modalSelected.add(id);
     } else {
@@ -584,7 +586,7 @@ function confirmMaterialSelection() {
     background: rgba(0,0,0,0.5); z-index: 1000;
     display: flex; align-items: center; justify-content: center;
 }
-.modal-content { background: white; border-radius: 4px; padding: 16px; width: 600px; }
+.modal-content { background: white; border-radius: 4px; padding: 16px; width: 1200px; max-width: none; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .modal-header h3 { margin: 0; }
 .modal-footer { text-align: right; margin-top: 10px; }

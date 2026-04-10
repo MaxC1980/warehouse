@@ -16,10 +16,15 @@ class Config:
     # Default: debug off for safety
     DEBUG = False
 
+    # Server port
+    PORT = 5000
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    PORT = 5001
 
 
 class ProductionConfig(Config):
     DEBUG = False
+    PORT = 5000

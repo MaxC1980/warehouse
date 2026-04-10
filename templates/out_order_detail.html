@@ -38,6 +38,10 @@
             <span class="status {{ order.status }}">{{ '待审核' if order.status == 'pending' else '已审核' if order.status == 'approved' else '已完成' if order.status == 'completed' else order.status }}</span>
         </div>
         <div class="info-item">
+            <label>用途：</label>
+            <span>{{ order.purpose or '' }}</span>
+        </div>
+        <div class="info-item">
             <label>创建时间：</label>
             <span>{{ order.created_at }}</span>
         </div>
@@ -45,7 +49,7 @@
             <label>审核时间：</label>
             <span>{{ order.approved_at or '' }}</span>
         </div>
-        <div class="info-item">
+        <div class="info-item full-width">
             <label>备注：</label>
             <span>{{ order.remark or '' }}</span>
         </div>
@@ -137,6 +141,9 @@
 .info-item label {
     font-weight: bold;
     min-width: 80px;
+}
+.info-item.full-width {
+    grid-column: 1 / -1;
 }
 .items-table, .related-orders table {
     background: white;

@@ -65,7 +65,7 @@
 
 <!-- 库存选择弹窗 -->
 <div id="inventory-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
-    <div class="modal-content" style="width:900px; max-height:85vh; overflow:auto;">
+    <div class="modal-content" style="width:1200px !important; max-width:none !important; max-height:85vh; overflow:auto;">
         <div class="modal-header">
             <h3>从库存选择物料</h3>
             <button type="button" onclick="closeInventoryModal()" class="btn btn-sm">关闭</button>
@@ -81,14 +81,14 @@
             <input type="text" id="modal-material-name" placeholder="物料名称" style="width:120px; flex:none; min-width:0;">
             <input type="text" id="modal-material-spec" placeholder="物料规格" style="width:120px; flex:none; min-width:0;">
             <select id="modal-per-page" onchange="modalPage=1; loadInventoryModal()" style="width:80px; flex:none;">
-                <option value="15">15</option>
-                <option value="50" selected>50</option>
+                <option value="15" selected>15</option>
+                <option value="50">50</option>
                 <option value="100">100</option>
             </select>
             <button type="button" onclick="modalPage=1; loadInventoryModal()" class="btn btn-secondary" style="flex:none;">搜索</button>
             <div id="modal-pagination" style="display:flex; align-items:center; gap:4px; margin-left:auto; flex:none;"></div>
         </div>
-        <div style="max-height:400px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
+        <div style="max-height:550px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
             <table id="modal-inventory-table" style="width:100%; border-collapse:collapse;">
                 <thead>
                     <tr>
@@ -335,8 +335,8 @@ async function loadInventoryModal() {
         const key = `${item.material_id}-${item.batch_no}`;
         const checked = modalSelected.has(key) ? 'checked' : '';
         const isReusable = item.material_is_reusable == 1 ? '1' : '0';
-        return `<tr>
-            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onchange="toggleSelect(this)" ${checked}></td>
+        return `<tr onclick="toggleSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
+            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onclick="event.stopPropagation(); toggleSelect(this)" ${checked}></td>
             <td>${item.material_code}</td>
             <td>${item.material_name}</td>
             <td>${item.material_spec || ''}</td>
@@ -367,6 +367,8 @@ function renderModalPagination(total, page, perPage) {
 
 function toggleSelect(cb) {
     const key = cb.dataset.key;
+    // Toggle the checkbox
+    cb.checked = !cb.checked;
     if (cb.checked) {
         modalSelected.add(key);
     } else {
@@ -482,18 +484,25 @@ async function loadEmployees() {
     if (data) {
         const select = document.getElementById('receiver-select');
         data.items.forEach(e => {
-            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+            const selected = e.name === currentUsername ? 'selected' : '';
+            select.innerHTML += '<option value="' + e.name + '" ' + selected + '>' + e.name + '</option>';
+            // 如果匹配到当前用户且有部门，自动填充
+            if (e.name === currentUsername && e.department) {
+                document.getElementById('department').value = e.department;
+            }
         });
     }
 }
 
 let currentPermissionLevel = 1;
+let currentUsername = '';
 
 (async function() {
-    // Get current user permission level
+    // Get current user permission level and username
     const user = await apiRequest('/auth/current_user');
     if (user) {
         currentPermissionLevel = user.permission_level || 1;
+        currentUsername = user.username || '';
     }
 
     await loadEmployees();
@@ -516,7 +525,7 @@ let currentPermissionLevel = 1;
     background: rgba(0,0,0,0.5); z-index: 1000;
     display: flex; align-items: center; justify-content: center;
 }
-.modal-content { background: white; border-radius: 4px; padding: 16px; width: 600px; }
+.modal-content { background: white; border-radius: 4px; padding: 16px; width: 1200px; max-width: none; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .modal-header h3 { margin: 0; }
 .modal-footer { text-align: right; margin-top: 10px; }

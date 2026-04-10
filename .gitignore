@@ -11,3 +11,4 @@ db/
 .playwright-cli/
 cookies.txt
 debug_output.txt
+debug/

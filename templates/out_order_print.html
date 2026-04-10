@@ -52,32 +52,25 @@
 
         .info-row {
             display: flex;
-            flex-wrap: wrap;
             border: 1px solid #000;
             border-bottom: none;
         }
         .info-row:last-child { border-bottom: 1px solid #000; }
-        .info-cell {
-            padding: 6px 8px;
+        .info-row-2 {
+            display: flex;
+            border-left: 1px solid #000;
             border-right: 1px solid #000;
             border-top: 1px solid #000;
+        }
+        .info-row-2:last-of-type { border-bottom: 1px solid #000; }
+        .info-cell {
+            flex: 1;
+            padding: 6px 8px;
+            border-right: 1px solid #000;
             box-sizing: border-box;
         }
         .info-cell:last-child { border-right: none; }
         .info-cell label { font-weight: bold; }
-
-        .info-row-2 {
-            display: flex;
-            border: 1px solid #000;
-            border-top: none;
-        }
-        .info-row-2 .info-cell {
-            padding: 6px 8px;
-            border-right: 1px solid #000;
-            border-top: 1px solid #000;
-            box-sizing: border-box;
-        }
-        .info-row-2 .info-cell:last-child { border-right: none; }
 
         table {
             width: 100%;
@@ -142,8 +135,8 @@
             <div class="info-cell" style="flex:50%;"><label>领用人：</label>{{ order.receiver or '' }}</div>
             <div class="info-cell" style="flex:50%;"><label>用途：</label>{{ order.purpose or '' }}</div>
         </div>
-        <div class="info-row-2" style="border-bottom: 2px solid #000;">
-            <div class="info-cell" style="flex:100%; border-bottom: 2px solid #000;"><label>备注：</label>{{ order.remark or '' }}</div>
+        <div class="info-row-2" style="border-bottom: 1px solid #000;">
+            <div class="info-cell" style="flex:100%;"><label>备注：</label>{{ order.remark or '' }}</div>
         </div>
 
         <table>

@@ -270,4 +270,4 @@ def weight_records():
     return render_template('weight_record_list.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=app.config['DEBUG'], host='0.0.0.0', port=app.config['PORT'])
