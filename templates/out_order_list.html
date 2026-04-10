@@ -81,9 +81,9 @@ function renderOrders(orders) {
             <td>${o.created_at}</td>
             <td>
                 ${o.status === 'pending' ? `
-                    <a href="/out-orders/${o.id}/edit" class="btn btn-sm">编辑</a>
-                    <button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>
-                    <button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>
+                    ${currentPermissionLevel >= 2 ? `<a href="/out-orders/${o.id}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : `
                     <a href="/out-orders/${o.id}/detail" class="btn btn-sm">查看</a>
                 `}
@@ -101,9 +101,10 @@ function getStatusText(status) {
     return map[status] || status;
 }
 
+let currentPermissionLevel = 1;
+
 async function approveOrder(id) {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (!currentUser || !currentUser.can_approve) {
+    if (currentPermissionLevel < 3) {
         alert('无审核权限');
         return;
     }
@@ -118,6 +119,10 @@ async function approveOrder(id) {
 }
 
 async function deleteOrder(id) {
+    if (currentPermissionLevel < 2) {
+        alert('无删除权限');
+        return;
+    }
     if (!confirm('确定要删除该出库单吗？')) return;
     const result = await apiRequest(`/out-orders/${id}`, { method: 'DELETE' });
     if (result) {
@@ -130,11 +135,11 @@ async function deleteOrder(id) {
 
 loadOrders();
 
-// Hide approve buttons for non-admin users
+// Get permission level
 (async () => {
     const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser && !currentUser.can_approve) {
-        document.querySelectorAll('.approve-btn').forEach(b => b.style.display = 'none');
+    if (currentUser) {
+        currentPermissionLevel = currentUser.permission_level || 1;
     }
 })();
 </script>

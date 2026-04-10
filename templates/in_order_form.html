@@ -197,7 +197,14 @@ async function loadOrder() {
         if (order.status !== 'pending') {
             disableForm();
         } else {
-            document.getElementById('approve-btn').style.display = 'inline-block';
+            // Show approve button only for permission_level >= 3
+            if (currentPermissionLevel >= 3) {
+                document.getElementById('approve-btn').style.display = 'inline-block';
+            }
+            // Disable form for permission_level < 2
+            if (currentPermissionLevel < 2) {
+                disableForm();
+            }
         }
     }
 }
@@ -207,8 +214,7 @@ async function approveOrder() {
         alert('请先保存后再审核');
         return;
     }
-    const currentUser = await apiRequest('/auth/current_user');
-    if (!currentUser || !currentUser.can_approve) {
+    if (currentPermissionLevel < 3) {
         alert('无审核权限');
         return;
     }
@@ -380,7 +386,15 @@ async function loadEmployees() {
     }
 }
 
+let currentPermissionLevel = 1;
+
 (async function() {
+    // Get current user permission level
+    const user = await apiRequest('/auth/current_user');
+    if (user) {
+        currentPermissionLevel = user.permission_level || 1;
+    }
+
     await loadSuppliers();
     await loadEmployees();
     await loadMaterials();
@@ -388,7 +402,15 @@ async function loadEmployees() {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('receiver_date').value = today;
     }
-    if (orderId) await loadOrder();
+    if (orderId) {
+        await loadOrder();
+    } else {
+        // New order: hide save button if permission_level < 2
+        if (currentPermissionLevel < 2) {
+            document.getElementById('save-btn').style.display = 'none';
+            disableForm();
+        }
+    }
 })();
 
 // ---- 物料选择弹窗 ----

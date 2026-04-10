@@ -30,6 +30,10 @@ def get_supplier(supplier_id):
 
 @supplier_bp.route('/suppliers', methods=['POST'])
 def create_supplier():
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无创建权限'}), 403
+
     data = request.get_json()
     supplier = SupplierService.create_supplier(
         name=data.get('name'),
@@ -41,6 +45,10 @@ def create_supplier():
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['PUT'])
 def update_supplier(supplier_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无编辑权限'}), 403
+
     data = request.get_json()
     supplier = SupplierService.update_supplier(
         supplier_id,
@@ -55,6 +63,10 @@ def update_supplier(supplier_id):
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['DELETE'])
 def delete_supplier(supplier_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无删除权限'}), 403
+
     success = SupplierService.delete_supplier(supplier_id)
     if success:
         return jsonify({'message': 'Supplier deleted'})

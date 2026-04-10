@@ -31,6 +31,10 @@ def get_in_order(order_id):
 
 @in_order_bp.route('/in-orders', methods=['POST'])
 def create_in_order():
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无创建权限'}), 403
+
     data = request.get_json()
     operator_id = session.get('user_id')
 
@@ -53,6 +57,10 @@ def create_in_order():
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['PUT'])
 def update_in_order(order_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无编辑权限'}), 403
+
     data = request.get_json()
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -76,6 +84,10 @@ def update_in_order(order_id):
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['DELETE'])
 def delete_in_order(order_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无删除权限'}), 403
+
     success = OrderService.delete_in_order(order_id)
     if success:
         return jsonify({'message': 'Order deleted'})
@@ -83,7 +95,8 @@ def delete_in_order(order_id):
 
 @in_order_bp.route('/in-orders/<int:order_id>/approve', methods=['POST'])
 def approve_in_order(order_id):
-    if not AuthService.check_can_approve(session.get('user_id')):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 3:
         return jsonify({'error': '无审核权限'}), 403
 
     approved_by = session.get('user_id')

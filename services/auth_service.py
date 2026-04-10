@@ -6,14 +6,19 @@ class AuthService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, can_approve FROM user WHERE username = ? AND password = ?",
+            "SELECT id, username, can_approve, permission_level FROM user WHERE username = ? AND password = ?",
             (username, password)
         )
         user = cursor.fetchone()
         conn.close()
 
         if user:
-            return {'id': user['id'], 'username': user['username'], 'can_approve': user['can_approve']}
+            return {
+                'id': user['id'],
+                'username': user['username'],
+                'can_approve': user['can_approve'],
+                'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
+            }
         return None
 
     @staticmethod
@@ -21,14 +26,19 @@ class AuthService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, can_approve FROM user WHERE id = ?",
+            "SELECT id, username, can_approve, permission_level FROM user WHERE id = ?",
             (user_id,)
         )
         user = cursor.fetchone()
         conn.close()
 
         if user:
-            return {'id': user['id'], 'username': user['username'], 'can_approve': user['can_approve']}
+            return {
+                'id': user['id'],
+                'username': user['username'],
+                'can_approve': user['can_approve'],
+                'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
+            }
         return None
 
     @staticmethod

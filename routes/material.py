@@ -10,6 +10,10 @@ def get_categories():
 
 @material_bp.route('/categories', methods=['POST'])
 def create_category():
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无创建权限'}), 403
+
     data = request.get_json()
     category = MaterialService.create_category(
         code=data.get('code'),
@@ -21,6 +25,10 @@ def create_category():
 
 @material_bp.route('/categories/<int:category_id>', methods=['PUT'])
 def update_category(category_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无编辑权限'}), 403
+
     data = request.get_json()
     category = MaterialService.update_category(
         category_id,
@@ -33,6 +41,10 @@ def update_category(category_id):
 
 @material_bp.route('/categories/<int:category_id>', methods=['DELETE'])
 def delete_category(category_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无删除权限'}), 403
+
     success = MaterialService.delete_category(category_id)
     if success:
         return jsonify({'message': 'Category deleted'})
@@ -78,6 +90,10 @@ def get_material(material_id):
 
 @material_bp.route('/materials', methods=['POST'])
 def create_material():
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无创建权限'}), 403
+
     data = request.get_json()
     material = MaterialService.create_material(
         name=data.get('name'),
@@ -95,6 +111,10 @@ def create_material():
 
 @material_bp.route('/materials/<int:material_id>', methods=['PUT'])
 def update_material(material_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无编辑权限'}), 403
+
     data = request.get_json()
     material = MaterialService.update_material(
         material_id,
@@ -115,6 +135,10 @@ def update_material(material_id):
 
 @material_bp.route('/materials/<int:material_id>', methods=['DELETE'])
 def delete_material(material_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无删除权限'}), 403
+
     success = MaterialService.delete_material(material_id)
     if success:
         return jsonify({'message': 'Material deleted'})

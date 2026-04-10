@@ -30,6 +30,10 @@ def get_employee(employee_id):
 
 @employee_bp.route('/employees', methods=['POST'])
 def create_employee():
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无创建权限'}), 403
+
     data = request.get_json()
     employee = EmployeeService.create_employee(
         name=data.get('name'),
@@ -41,6 +45,10 @@ def create_employee():
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['PUT'])
 def update_employee(employee_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无编辑权限'}), 403
+
     data = request.get_json()
     employee = EmployeeService.update_employee(
         employee_id,
@@ -55,6 +63,10 @@ def update_employee(employee_id):
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['DELETE'])
 def delete_employee(employee_id):
+    permission_level = session.get('permission_level', 0)
+    if permission_level < 2:
+        return jsonify({'error': '无删除权限'}), 403
+
     success = EmployeeService.delete_employee(employee_id)
     if success:
         return jsonify({'message': 'Employee deleted'})

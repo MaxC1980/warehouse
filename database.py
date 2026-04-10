@@ -34,6 +34,14 @@ def init_db():
         # Set admin user can_approve = 1
         cursor.execute("UPDATE user SET can_approve = 1 WHERE username = 'admin'")
 
+    # Add permission_level column if it doesn't exist (for existing databases)
+    cursor.execute("PRAGMA table_info(user)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'permission_level' not in columns:
+        cursor.execute("ALTER TABLE user ADD COLUMN permission_level INTEGER DEFAULT 1")
+        # Set admin permission_level = 3
+        cursor.execute("UPDATE user SET permission_level = 3 WHERE username = 'admin'")
+
     # Employee table (经手人/领用人/退库人)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS employee (
@@ -314,12 +322,27 @@ def init_db():
         END
     ''')
 
-    # Insert default admin user if not exists
+    # Insert default users if not exists
+    # Level 1 (查看): view / view123
+    # Level 2 (编辑): edit / edit123
+    # Level 3 (管理): admin / admin123
     cursor.execute("SELECT id FROM user WHERE username = 'admin'")
     if not cursor.fetchone():
         cursor.execute(
-            "INSERT INTO user (username, password, can_approve) VALUES (?, ?, ?)",
-            ('admin', 'admin123', 1)
+            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
+            ('admin', 'admin123', 1, 3)
+        )
+    cursor.execute("SELECT id FROM user WHERE username = 'view'")
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
+            ('view', 'view123', 0, 1)
+        )
+    cursor.execute("SELECT id FROM user WHERE username = 'edit'")
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
+            ('edit', 'edit123', 0, 2)
         )
 
     conn.commit()

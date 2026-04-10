@@ -79,9 +79,9 @@ function renderOrders(orders) {
             <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             <td>
                 ${o.status === 'pending' ? `
-                    <a href="/return-orders/${o.id}/edit" class="btn btn-sm">编辑</a>
-                    <button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>
-                    <button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>
+                    ${currentPermissionLevel >= 2 ? `<a href="/return-orders/${o.id}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : `
                     <a href="/return-orders/${o.id}/detail" class="btn btn-sm">查看</a>
                 `}
@@ -100,7 +100,13 @@ function getStatusText(status) {
     return map[status] || status;
 }
 
+let currentPermissionLevel = 1;
+
 async function deleteOrder(id) {
+    if (currentPermissionLevel < 2) {
+        alert('无删除权限');
+        return;
+    }
     if (!confirm('确定要删除该退库单吗？')) return;
 
     const result = await apiRequest(`/return-orders/${id}`, { method: 'DELETE' });
@@ -111,8 +117,7 @@ async function deleteOrder(id) {
 }
 
 async function approveOrder(id) {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (!currentUser || !currentUser.can_approve) {
+    if (currentPermissionLevel < 3) {
         alert('无审核权限');
         return;
     }
@@ -129,11 +134,11 @@ async function approveOrder(id) {
 
 loadOrders();
 
-// Hide approve buttons for non-admin users
+// Get permission level
 (async () => {
     const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser && !currentUser.can_approve) {
-        document.querySelectorAll('.approve-btn').forEach(b => b.style.display = 'none');
+    if (currentUser) {
+        currentPermissionLevel = currentUser.permission_level || 1;
     }
 })();
 </script>

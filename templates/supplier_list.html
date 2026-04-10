@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>供应商管理</h1>
     <div class="page-actions">
-        <a href="/suppliers/new" class="btn btn-primary">新增供应商</a>
+        <a href="/suppliers/new" class="btn btn-primary" id="add-btn">新增供应商</a>
     </div>
 </div>
 
@@ -70,14 +70,20 @@ function renderSuppliers(suppliers) {
             <td>${s.phone || ''}</td>
             <td>${s.address || ''}</td>
             <td>
-                <a href="/suppliers/${s.id}/edit" class="btn btn-sm">编辑</a>
-                <button onclick="deleteSupplier(${s.id})" class="btn btn-sm btn-danger">删除</button>
+                ${currentPermissionLevel >= 2 ? `<a href="/suppliers/${s.id}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${currentPermissionLevel >= 2 ? `<button onclick="deleteSupplier(${s.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');
 }
 
+let currentPermissionLevel = 1;
+
 async function deleteSupplier(id) {
+    if (currentPermissionLevel < 2) {
+        alert('无删除权限');
+        return;
+    }
     if (!confirm('确定要删除该供应商吗？')) return;
     const result = await apiRequest(`/suppliers/${id}`, { method: 'DELETE' });
     if (result) {
@@ -86,5 +92,16 @@ async function deleteSupplier(id) {
 }
 
 loadSuppliers();
+
+// Get permission level and hide buttons for read-only users
+(async () => {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (currentUser) {
+        currentPermissionLevel = currentUser.permission_level || 1;
+        if (currentPermissionLevel < 2) {
+            document.getElementById('add-btn').style.display = 'none';
+        }
+    }
+})();
 </script>
 {% endblock %}

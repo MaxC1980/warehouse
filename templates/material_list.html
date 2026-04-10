@@ -5,9 +5,9 @@
 {% block content %}
 <div class="page-header">
     <h1>物料管理</h1>
-    <div class="page-actions">
-        <a href="/materials/new" class="btn btn-primary">新增物料</a>
-        <button onclick="showImportModal()" class="btn btn-secondary">导入Excel</button>
+    <div class="page-actions" id="page-actions">
+        <a href="/materials/new" class="btn btn-primary" id="add-btn">新增物料</a>
+        <button onclick="showImportModal()" class="btn btn-secondary" id="import-btn">导入Excel</button>
     </div>
 </div>
 
@@ -179,14 +179,20 @@ function renderMaterials(materials) {
             <td>${m.shelf_life || '-'}</td>
             <td>${m.remark || ''}</td>
             <td>
-                <a href="/materials/${m.id}/edit" class="btn btn-sm">编辑</a>
-                <button onclick="deleteMaterial(${m.id})" class="btn btn-sm btn-danger">删除</button>
+                ${currentPermissionLevel >= 2 ? `<a href="/materials/${m.id}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${currentPermissionLevel >= 2 ? `<button onclick="deleteMaterial(${m.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');
 }
 
+let currentPermissionLevel = 1;
+
 async function deleteMaterial(id) {
+    if (currentPermissionLevel < 2) {
+        alert('无删除权限');
+        return;
+    }
     if (!confirm('确定要删除该物料吗？')) return;
     const result = await apiRequest(`/materials/${id}`, { method: 'DELETE' });
     if (result) {
@@ -225,6 +231,18 @@ document.getElementById('import-form').addEventListener('submit', async function
 
 loadCategories();
 loadMaterials();
+
+// Get permission level and hide buttons for read-only users
+(async () => {
+    const currentUser = await apiRequest('/auth/current_user');
+    if (currentUser) {
+        currentPermissionLevel = currentUser.permission_level || 1;
+        if (currentPermissionLevel < 2) {
+            document.getElementById('add-btn').style.display = 'none';
+            document.getElementById('import-btn').style.display = 'none';
+        }
+    }
+})();
 </script>
 
 <style>
