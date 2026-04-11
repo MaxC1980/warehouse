@@ -139,7 +139,7 @@ def delete_material(material_id):
     if permission_level < 2:
         return jsonify({'error': '无删除权限'}), 403
 
-    success = MaterialService.delete_material(material_id)
-    if success:
-        return jsonify({'message': 'Material deleted'})
-    return jsonify({'error': 'Material not found'}), 404
+    result = MaterialService.delete_material(material_id)
+    if result[0]:
+        return jsonify({'message': result[1]})
+    return jsonify({'error': result[1]}), 400

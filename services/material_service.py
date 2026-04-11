@@ -294,10 +294,30 @@ class MaterialService:
     def delete_material(material_id):
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # 检查是否有入库明细
+        cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False, '该物料已有入库记录，不能删除'
+
+        # 检查是否有出库明细
+        cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False, '该物料已有出库记录，不能删除'
+
+        # 检查是否有库存
+        cursor.execute("SELECT SUM(quantity) FROM inventory WHERE material_id = ?", (material_id,))
+        result = cursor.fetchone()[0]
+        if result and result > 0:
+            conn.close()
+            return False, '该物料还有库存，不能删除'
+
         cursor.execute("DELETE FROM material WHERE id = ?", (material_id,))
         conn.commit()
         conn.close()
-        return True
+        return True, '删除成功'
 
     @staticmethod
     def import_materials(data):

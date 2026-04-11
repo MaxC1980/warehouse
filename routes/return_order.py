@@ -110,18 +110,13 @@ def approve_return_order(order_id):
 
     try:
         result = OrderService.approve_return_order(order_id, approved_by, weight_data)
-        if result:
-            return jsonify(result)
-        return jsonify({'error': 'Order not found or cannot be approved'}), 400
+        if result is None:
+            return jsonify({'error': 'Order not found or cannot be approved'}), 400
+        if result is False:
+            return jsonify({'error': '该出库单已有审核通过的退库单，不能重复审核'}), 400
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 400
-
-@return_order_bp.route('/return-orders/<int:order_id>/reject', methods=['POST'])
-def reject_return_order(order_id):
-    result = OrderService.reject_return_order(order_id)
-    if result:
-        return jsonify(result)
-    return jsonify({'error': 'Order not found or cannot be rejected'}), 400
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])
 def get_return_orders_by_out_order(out_order_id):

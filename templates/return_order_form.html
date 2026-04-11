@@ -116,12 +116,12 @@ async function loadOutOrders() {
     const select = document.getElementById('related-out-order');
     select.innerHTML = '<option value="">请选择出库单</option>';
     if (data && data.items) {
-        // Only filter out orders with existing approved returns when creating NEW return order
+        // Only filter out orders with existing returns (pending or approved) when creating NEW return order
         const returnedOutOrderIds = new Set();
         if (!orderId) {
             const returnData = await apiRequest('/return-orders?per_page=1000');
             if (returnData && returnData.items) {
-                returnData.items.filter(r => r.status === 'approved').forEach(r => {
+                returnData.items.filter(r => r.status === 'pending' || r.status === 'approved').forEach(r => {
                     if (r.related_out_order_id) returnedOutOrderIds.add(r.related_out_order_id);
                 });
             }

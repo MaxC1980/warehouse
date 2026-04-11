@@ -244,73 +244,77 @@ class OrderService:
 
     @staticmethod
     def approve_in_order(order_id, approved_by):
-        # First pass: collect items and prepare batch numbers
+        """审核入库单 - 同一事务内完成"""
+        from datetime import datetime
+
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON")
 
-        cursor.execute("SELECT * FROM in_order WHERE id = ?", (order_id,))
-        order = cursor.fetchone()
+        try:
+            # 1. 获取订单并验证状态
+            cursor.execute("SELECT * FROM in_order WHERE id = ?", (order_id,))
+            order = cursor.fetchone()
 
-        if not order or order['status'] != 'pending':
-            conn.close()
-            return None
+            if not order or order['status'] != 'pending':
+                conn.close()
+                return None
 
-        cursor.execute("SELECT * FROM in_order_item WHERE order_id = ?", (order_id,))
-        items = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+            # 2. 获取订单明细
+            cursor.execute("SELECT * FROM in_order_item WHERE order_id = ?", (order_id,))
+            items = [dict(row) for row in cursor.fetchall()]
 
-        # Second pass: update inventory with separate connections
-        from datetime import datetime
-        for item in items:
-            batch_no = item['batch_no'] if item['batch_no'] else f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            if not items:
+                conn.close()
+                return None
 
-            # Update batch_no back to in_order_item
-            if not item['batch_no']:
-                conn2 = get_db_connection()
-                cursor2 = conn2.cursor()
-                cursor2.execute("UPDATE in_order_item SET batch_no = ? WHERE id = ?", (batch_no, item['id']))
-                conn2.commit()
-                conn2.close()
+            # 3. 处理每个明细项（在同一事务内）
+            for item in items:
+                batch_no = item['batch_no'] if item['batch_no'] else f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-            # Update inventory
-            InventoryService.update_inventory(
-                material_id=item['material_id'],
-                quantity_change=item['quantity'],
-                batch_no=batch_no,
-                production_date=item.get('production_date'),
-                expiry_date=item.get('expiry_date'),
-                in_order_item_id=item['id']
+                # 如果批次号是自动生成的，更新回 in_order_item
+                if not item['batch_no']:
+                    cursor.execute(
+                        "UPDATE in_order_item SET batch_no = ? WHERE id = ?",
+                        (batch_no, item['id'])
+                    )
+
+                # 更新或插入库存（在同一事务内）
+                cursor.execute(
+                    "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
+                    (item['material_id'], batch_no)
+                )
+                existing = cursor.fetchone()
+
+                if existing:
+                    cursor.execute(
+                        """UPDATE inventory
+                           SET quantity = quantity + ?, updated_at = datetime('now', 'localtime')
+                           WHERE material_id = ? AND batch_no = ?""",
+                        (item['quantity'], item['material_id'], batch_no)
+                    )
+                else:
+                    cursor.execute(
+                        """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity, in_order_item_id)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (item['material_id'], batch_no, item.get('production_date'),
+                         item.get('expiry_date'), item['quantity'], item['id'])
+                    )
+
+            # 4. 更新订单状态
+            cursor.execute(
+                "UPDATE in_order SET status = 'approved', approved_at = datetime('now', 'localtime'), approved_by = ? WHERE id = ?",
+                (approved_by, order_id)
             )
 
-        # Third pass: update order status
-        conn3 = get_db_connection()
-        cursor3 = conn3.cursor()
-        cursor3.execute(
-            "UPDATE in_order SET status = 'approved', approved_at = datetime('now', 'localtime'), approved_by = ? WHERE id = ?",
-            (approved_by, order_id)
-        )
-        conn3.commit()
-        conn3.close()
-
-        return OrderService.get_in_order_by_id(order_id)
-
-    @staticmethod
-    def reject_in_order(order_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE in_order SET status = 'rejected' WHERE id = ? AND status = 'pending'",
-            (order_id,)
-        )
-
-        if cursor.rowcount == 0:
+            conn.commit()
             conn.close()
-            return None
+            return OrderService.get_in_order_by_id(order_id)
 
-        conn.commit()
-        conn.close()
-        return OrderService.get_in_order_by_id(order_id)
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            raise e
 
     # Out Order methods
     @staticmethod
@@ -1196,6 +1200,16 @@ class OrderService:
                 conn.close()
                 return None
 
+            # 检查是否已有 approved 的退库单关联到同一个出库单
+            if order['related_out_order_id']:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM return_order WHERE related_out_order_id = ? AND status = 'approved' AND id != ?",
+                    (order['related_out_order_id'], order_id)
+                )
+                if cursor.fetchone()[0] > 0:
+                    conn.close()
+                    return False, '该出库单已有审核通过的退库单，不能重复审核'
+
             # Get items
             cursor.execute("SELECT * FROM return_order_item WHERE return_order_id = ?", (order_id,))
             items = [dict(row) for row in cursor.fetchall()]
@@ -1318,24 +1332,6 @@ class OrderService:
             conn.rollback()
             conn.close()
             raise e
-
-    @staticmethod
-    def reject_return_order(order_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "UPDATE return_order SET status = 'cancelled' WHERE id = ? AND status = 'pending'",
-            (order_id,)
-        )
-
-        if cursor.rowcount == 0:
-            conn.close()
-            return None
-
-        conn.commit()
-        conn.close()
-        return OrderService.get_return_order_by_id(order_id)
 
     @staticmethod
     def get_return_orders_by_out_order(out_order_id):

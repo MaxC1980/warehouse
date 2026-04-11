@@ -136,7 +136,7 @@ function renderOrders(orders) {
 }
 
 function getStatusText(status) {
-    const map = { pending: '待审核', approved: '已审核', rejected: '已拒绝', cancelled: '已取消' };
+    const map = { pending: '待审核', approved: '已审核', cancelled: '已取消' };
     return map[status] || status;
 }
 

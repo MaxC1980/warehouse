@@ -105,13 +105,6 @@ def approve_in_order(order_id):
         return jsonify(result)
     return jsonify({'error': 'Order not found or cannot be approved'}), 400
 
-@in_order_bp.route('/in-orders/<int:order_id>/reject', methods=['POST'])
-def reject_in_order(order_id):
-    result = OrderService.reject_in_order(order_id)
-    if result:
-        return jsonify(result)
-    return jsonify({'error': 'Order not found or cannot be rejected'}), 400
-
 @in_order_bp.route('/in-orders/detail', methods=['GET'])
 def get_in_orders_with_details():
     page = request.args.get('page', 1, type=int)
