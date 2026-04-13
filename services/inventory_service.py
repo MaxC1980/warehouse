@@ -49,17 +49,20 @@ class InventoryService:
                 """,
                 params + [per_page, offset]
             )
+            inventory = []
+            for row in cursor.fetchall():
+                item = dict(row)
+                item['status'] = '正常'
+                inventory.append(item)
         else:
-            # 批次明细
-            cursor.execute(
-                f"""
+            # 批次明细：先查库存
+            count_query = f"""
                 SELECT COUNT(*) as count
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-                """,
-                params
-            )
+            """
+            cursor.execute(count_query, params)
             total = cursor.fetchone()['count']
 
             cursor.execute(
@@ -78,41 +81,58 @@ class InventoryService:
                 params + [per_page, offset]
             )
 
-        inventory = []
-        for row in cursor.fetchall():
-            item = dict(row)
-            item['status'] = '正常'
-            inventory.append(item)
+            inventory = []
+            for row in cursor.fetchall():
+                item = dict(row)
+                item['status'] = '正常'
+                inventory.append(item)
 
-        # 待审入库/出库：同一事务内查询，附加到每条库存记录
+            # 待审入库：查不在库存表中的待审入库批次
+            cursor.execute("""
+                SELECT
+                    m.id as material_id, m.code as material_code, m.name as material_name,
+                    m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
+                    ioi.batch_no, ioi.production_date, ioi.expiry_date,
+                    ioi.quantity, io.created_at as updated_at
+                FROM in_order_item ioi
+                JOIN in_order io ON ioi.order_id = io.id
+                JOIN material m ON ioi.material_id = m.id
+                WHERE io.status = 'pending'
+                AND NOT EXISTS (
+                    SELECT 1 FROM inventory i2
+                    WHERE i2.material_id = ioi.material_id AND i2.batch_no = ioi.batch_no
+                )
+                ORDER BY m.code, ioi.batch_no
+            """)
+            for row in cursor.fetchall():
+                item = dict(row)
+                item['status'] = '待审入库'
+                inventory.append(item)
+                total += 1
+
+            inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
+
+        # 待审出库：同一事务内查询，附加到每条库存记录
         if not summary and inventory:
             material_ids = list(set(item['material_id'] for item in inventory))
+            batch_nos = [item['batch_no'] for item in inventory]
             if material_ids:
-                placeholders = ','.join('?' * len(material_ids))
-                # 待审入库
+                placeholders_ids = ','.join('?' * len(material_ids))
+                placeholders_batches = ','.join('?' * len(batch_nos))
+                # 待审出库（按物料+批次分组）
                 cursor.execute(f"""
-                    SELECT material_id, COALESCE(SUM(quantity), 0) as total
-                    FROM in_order_item ioi
-                    JOIN in_order io ON ioi.order_id = io.id
-                    WHERE io.status = 'pending' AND ioi.material_id IN ({placeholders})
-                    GROUP BY ioi.material_id
-                """, material_ids)
-                pending_in_map = {row['material_id']: row['total'] for row in cursor.fetchall()}
-
-                # 待审出库
-                cursor.execute(f"""
-                    SELECT material_id, COALESCE(SUM(quantity), 0) as total
+                    SELECT material_id, batch_no, COALESCE(SUM(quantity), 0) as total
                     FROM out_order_item ooi
                     JOIN out_order oo ON ooi.order_id = oo.id
-                    WHERE oo.status = 'pending' AND ooi.material_id IN ({placeholders})
-                    GROUP BY ooi.material_id
-                """, material_ids)
-                pending_out_map = {row['material_id']: row['total'] for row in cursor.fetchall()}
+                    WHERE oo.status = 'pending'
+                    AND ooi.material_id IN ({placeholders_ids})
+                    AND ooi.batch_no IN ({placeholders_batches})
+                    GROUP BY ooi.material_id, ooi.batch_no
+                """, material_ids + batch_nos)
+                pending_out_map = {(row['material_id'], row['batch_no']): row['total'] for row in cursor.fetchall()}
 
-                # 附加到每条库存记录
                 for item in inventory:
-                    item['pending_in'] = pending_in_map.get(item['material_id'], 0)
-                    item['pending_out'] = pending_out_map.get(item['material_id'], 0)
+                    item['pending_out'] = pending_out_map.get((item['material_id'], item['batch_no']), 0)
 
         conn.close()
         return inventory, total
