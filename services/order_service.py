@@ -1078,7 +1078,6 @@ class OrderService:
                     (related_out_order_id,)
                 )
                 if cursor.fetchone()['count'] > 0:
-                    conn.close()
                     raise Exception("该出库单已有审核通过的退库单,不允许再次退库")
 
             order_no = OrderService._generate_return_order_no()

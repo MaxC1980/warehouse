@@ -79,6 +79,7 @@ def init_db():
             shelf_life INTEGER,
             remark TEXT,
             is_reusable INTEGER DEFAULT 0,
+            safety_stock REAL DEFAULT 0,
             created_at DATETIME
         )
     ''')
@@ -141,6 +142,7 @@ def init_db():
             operator_id INTEGER,
             status TEXT DEFAULT 'pending',
             remark TEXT,
+            purpose TEXT,
             created_at DATETIME,
             approved_at DATETIME,
             approved_by INTEGER,
