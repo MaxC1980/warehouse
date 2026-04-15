@@ -8,6 +8,8 @@
 </div>
 
 <div class="filter-bar">
+    <button onclick="setThisWeek()" class="btn btn-sm">本周</button>
+    <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
     <input type="date" id="date-from">
     <input type="date" id="date-to">
     <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
@@ -35,6 +37,29 @@
 
 {% block scripts %}
 <script>
+function formatDate(d) {
+    const pad = n => n < 10 ? '0' + n : n;
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+function setThisWeek() {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=周日
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    document.getElementById('date-from').value = formatDate(monday);
+    document.getElementById('date-to').value = formatDate(today);
+    loadReport();
+}
+
+function setThisMonth() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('date-from').value = formatDate(firstDay);
+    document.getElementById('date-to').value = formatDate(today);
+    loadReport();
+}
+
 async function loadReport() {
     const dateFrom = document.getElementById('date-from').value;
     const dateTo = document.getElementById('date-to').value;
@@ -45,13 +70,19 @@ async function loadReport() {
 
     const data = await apiRequest(`/reports/summary?${params}`);
     if (data) {
-        document.getElementById('in-count').textContent = data.in_count || 0;
-        document.getElementById('in-amount').textContent = (data.in_amount || 0).toFixed(2);
-        document.getElementById('out-count').textContent = data.out_count || 0;
-        document.getElementById('out-amount').textContent = (data.out_amount || 0).toFixed(2);
+        document.getElementById('in-count').textContent = data.in_order_count || 0;
+        document.getElementById('in-amount').textContent = (data.in_order_amount || 0).toFixed(2);
+        document.getElementById('out-count').textContent = data.out_order_count || 0;
+        document.getElementById('out-amount').textContent = (data.out_order_amount || 0).toFixed(2);
     }
 }
 
-loadReport();
+(function() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('date-from').value = formatDate(firstDay);
+    document.getElementById('date-to').value = formatDate(today);
+    loadReport();
+})();
 </script>
 {% endblock %}

@@ -202,6 +202,11 @@ def report_inventory():
 def report_in_detail():
     return render_template('report_in_detail.html')
 
+@app.route('/reports/out-detail')
+@login_required
+def report_out_detail():
+    return render_template('report_out_detail.html')
+
 @app.route('/reports/summary')
 @login_required
 def report_summary():

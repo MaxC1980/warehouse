@@ -50,7 +50,15 @@
                 </div>
             </div>
             <a href="/inventory" class="nav-link">库存查询</a>
-            <a href="/reports/inventory" class="nav-link">报表</a>
+            <div class="nav-dropdown">
+                <span class="nav-link">报表 ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/reports/inventory">库存报表</a>
+                    <a href="/reports/in-detail">入库明细报表</a>
+                    <a href="/reports/out-detail">出库明细报表</a>
+                    <a href="/reports/summary">汇总统计</a>
+                </div>
+            </div>
             <div class="nav-dropdown">
                 <span class="nav-user" style="cursor:pointer;">{{ session.username }} ▾</span>
                 <div class="nav-dropdown-menu">

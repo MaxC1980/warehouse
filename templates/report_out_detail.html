@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}入库明细报表 - 仓库管理系统{% endblock %}
+{% block title %}出库明细报表 - 仓库管理系统{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>入库明细报表</h1>
+    <h1>出库明细报表</h1>
     <div class="page-actions">
         <button onclick="exportExcel()" class="btn btn-secondary">导出Excel</button>
     </div>
@@ -22,9 +22,9 @@
     <table>
         <thead>
             <tr>
-                <th>入库单号</th>
-                <th>入库日期</th>
-                <th>供应商</th>
+                <th>出库单号</th>
+                <th>出库日期</th>
+                <th>部门</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
                 <th>批次号</th>
@@ -77,7 +77,7 @@ async function loadReport(page = 1) {
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
 
-    const data = await apiRequest(`/reports/in-detail?${params}`);
+    const data = await apiRequest(`/reports/out-detail?${params}`);
     if (data) {
         renderReport(data.items);
     }
@@ -93,7 +93,7 @@ function renderReport(items) {
         <tr>
             <td>${item.order_no}</td>
             <td>${item.created_at}</td>
-            <td>${item.supplier_name || ''}</td>
+            <td>${item.department || ''}</td>
             <td>${item.material_code}</td>
             <td>${item.material_name}</td>
             <td>${item.batch_no || ''}</td>
@@ -108,7 +108,7 @@ function renderReport(items) {
 function exportExcel() {
     const dateFrom = document.getElementById('date-from').value;
     const dateTo = document.getElementById('date-to').value;
-    let url = '/api/reports/in-detail/export?';
+    let url = '/api/reports/out-detail/export?';
     if (dateFrom) url += 'date_from=' + dateFrom + '&';
     if (dateTo) url += 'date_to=' + dateTo;
     window.location.href = url;
