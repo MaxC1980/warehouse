@@ -176,6 +176,7 @@ class ReportService:
             SELECT
                 o.order_no,
                 o.created_at,
+                o.department,
                 m.code as material_code,
                 m.name as material_name,
                 i.batch_no,
