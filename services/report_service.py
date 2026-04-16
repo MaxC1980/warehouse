@@ -83,7 +83,7 @@ class ReportService:
             params.append(date_from)
         if date_to:
             where_clauses.append("o.created_at <= ?")
-            params.append(date_to)
+            params.append(date_to + ' 23:59:59')
         if material_id:
             where_clauses.append("i.material_id = ?")
             params.append(material_id)
@@ -149,7 +149,7 @@ class ReportService:
             params.append(date_from)
         if date_to:
             where_clauses.append("o.created_at <= ?")
-            params.append(date_to)
+            params.append(date_to + ' 23:59:59')
         if material_id:
             where_clauses.append("i.material_id = ?")
             params.append(material_id)
@@ -212,7 +212,7 @@ class ReportService:
             params.append(date_from)
         if date_to:
             where_clauses.append("created_at <= ?")
-            params.append(date_to)
+            params.append(date_to + ' 23:59:59')
 
         where_sql = ""
         if where_clauses:
