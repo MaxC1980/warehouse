@@ -45,29 +45,6 @@
 <script>
 let currentPage = 1;
 
-function formatDate(d) {
-    const pad = n => n < 10 ? '0' + n : n;
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-}
-
-function setThisWeek() {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    document.getElementById('date-from').value = formatDate(monday);
-    document.getElementById('date-to').value = formatDate(today);
-    loadReport();
-}
-
-function setThisMonth() {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('date-from').value = formatDate(firstDay);
-    document.getElementById('date-to').value = formatDate(today);
-    loadReport();
-}
-
 async function loadReport(page = 1) {
     currentPage = page;
     const dateFrom = document.getElementById('date-from').value;
@@ -115,11 +92,7 @@ function exportExcel() {
 }
 
 (function() {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('date-from').value = formatDate(firstDay);
-    document.getElementById('date-to').value = formatDate(today);
-    loadReport();
+    setThisMonth();
 })();
 </script>
 {% endblock %}

@@ -31,11 +31,37 @@ async function apiRequest(url, options = {}) {
     }
 }
 
-// Format date
+// Format date for display
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('zh-CN');
+}
+
+// Format date for input value (YYYY-MM-DD using local time)
+function formatDateForInput(d) {
+    const pad = n => n < 10 ? '0' + n : n;
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+// Set date range to current week (Monday to today)
+function setThisWeek() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    document.getElementById('date-from').value = formatDateForInput(monday);
+    document.getElementById('date-to').value = formatDateForInput(today);
+    loadReport();
+}
+
+// Set date range to current month (1st to today)
+function setThisMonth() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('date-from').value = formatDateForInput(firstDay);
+    document.getElementById('date-to').value = formatDateForInput(today);
+    loadReport();
 }
 
 // Format datetime

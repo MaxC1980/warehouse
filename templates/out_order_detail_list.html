@@ -42,6 +42,7 @@
                 <th>批次</th>
                 <th>申请用量</th>
                 <th>实际用量</th>
+                <th>领用毛重</th>
                 <th>状态</th>
             </tr>
         </thead>
@@ -84,7 +85,7 @@ async function loadOrders(page = 1) {
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13">暂无数据</td></tr>';
         return;
     }
 
@@ -97,6 +98,7 @@ function renderOrders(orders) {
                 <td>${o.receiver || ''}</td>
                 <td>${o.receiver_date || ''}</td>
                 <td colspan="6"></td>
+                <td></td>
                 <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             </tr>`;
         } else {
@@ -114,6 +116,7 @@ function renderOrders(orders) {
                         <td>${item.batch_no || ''}</td>
                         <td>${item.requested_quantity || 0}</td>
                         <td>${item.actual_quantity || 0}</td>
+                        <td rowspan="${o.items.length}">${item.initial_gross_weight || ''}</td>
                         <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
                     </tr>`;
                 } else {

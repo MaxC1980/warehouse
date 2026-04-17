@@ -726,9 +726,10 @@ class OrderService:
             cursor.execute(orders_query, order_ids)
             orders = [dict(row) for row in cursor.fetchall()]
 
-            # Get items for each order (with material filter applied)
-            for order in orders:
-                item_query = f"""
+            # Batch fetch items for all orders (fix N+1)
+            if orders:
+                placeholders = ','.join(['?'] * len(order_ids))
+                items_query = f"""
                     SELECT
                         i.*,
                         m.code as material_code,
@@ -737,10 +738,19 @@ class OrderService:
                         m.unit
                     FROM in_order_item i
                     JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id = ? AND {" AND ".join(material_conditions)}
+                    WHERE i.order_id IN ({placeholders}) AND {" AND ".join(material_conditions)}
                 """
-                cursor.execute(item_query, [order['order_id']] + material_params)
-                order['items'] = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(items_query, order_ids + material_params)
+                all_items = [dict(row) for row in cursor.fetchall()]
+                # Group items by order_id
+                items_by_order = {}
+                for item in all_items:
+                    oid = item['order_id']
+                    if oid not in items_by_order:
+                        items_by_order[oid] = []
+                    items_by_order[oid].append(item)
+                for order in orders:
+                    order['items'] = items_by_order.get(order['order_id'], [])
         else:
             # No material filter - use original efficient query
             order_where_sql = ("WHERE " + " AND ".join(order_where_clauses)) if order_where_clauses else ""
@@ -775,9 +785,12 @@ class OrderService:
             )
             orders = [dict(row) for row in cursor.fetchall()]
 
-            for order in orders:
+            # Batch fetch items for all orders (fix N+1)
+            if orders:
+                order_ids = [o['order_id'] for o in orders]
+                placeholders = ','.join(['?'] * len(order_ids))
                 cursor.execute(
-                    """
+                    f"""
                     SELECT
                         i.*,
                         m.code as material_code,
@@ -786,11 +799,19 @@ class OrderService:
                         m.unit
                     FROM in_order_item i
                     JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id = ?
+                    WHERE i.order_id IN ({placeholders})
                     """,
-                    [order['order_id']]
+                    order_ids
                 )
-                order['items'] = [dict(row) for row in cursor.fetchall()]
+                all_items = [dict(row) for row in cursor.fetchall()]
+                items_by_order = {}
+                for item in all_items:
+                    oid = item['order_id']
+                    if oid not in items_by_order:
+                        items_by_order[oid] = []
+                    items_by_order[oid].append(item)
+                for order in orders:
+                    order['items'] = items_by_order.get(order['order_id'], [])
 
         conn.close()
         return orders, total
@@ -876,7 +897,9 @@ class OrderService:
             )
             orders = [dict(row) for row in cursor.fetchall()]
 
-            for order in orders:
+            # Batch fetch items for all orders (fix N+1)
+            if orders:
+                placeholders = ','.join(['?'] * len(order_ids))
                 cursor.execute(
                     f"""
                     SELECT
@@ -884,11 +907,19 @@ class OrderService:
                         m.code as material_code, m.name as material_name, m.spec, m.unit
                     FROM out_order_item i
                     JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id = ? AND {" AND ".join(material_conditions)}
+                    WHERE i.order_id IN ({placeholders}) AND {" AND ".join(material_conditions)}
                     """,
-                    [order['order_id']] + material_params
+                    order_ids + material_params
                 )
-                order['items'] = [dict(row) for row in cursor.fetchall()]
+                all_items = [dict(row) for row in cursor.fetchall()]
+                items_by_order = {}
+                for item in all_items:
+                    oid = item['order_id']
+                    if oid not in items_by_order:
+                        items_by_order[oid] = []
+                    items_by_order[oid].append(item)
+                for order in orders:
+                    order['items'] = items_by_order.get(order['order_id'], [])
         else:
             order_where_sql = ("WHERE " + " AND ".join(order_where_clauses)) if order_where_clauses else ""
 
@@ -913,19 +944,30 @@ class OrderService:
             )
             orders = [dict(row) for row in cursor.fetchall()]
 
-            for order in orders:
+            # Batch fetch items for all orders (fix N+1)
+            if orders:
+                order_ids = [o['order_id'] for o in orders]
+                placeholders = ','.join(['?'] * len(order_ids))
                 cursor.execute(
-                    """
+                    f"""
                     SELECT
                         i.*,
                         m.code as material_code, m.name as material_name, m.spec, m.unit
                     FROM out_order_item i
                     JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id = ?
+                    WHERE i.order_id IN ({placeholders})
                     """,
-                    [order['order_id']]
+                    order_ids
                 )
-                order['items'] = [dict(row) for row in cursor.fetchall()]
+                all_items = [dict(row) for row in cursor.fetchall()]
+                items_by_order = {}
+                for item in all_items:
+                    oid = item['order_id']
+                    if oid not in items_by_order:
+                        items_by_order[oid] = []
+                    items_by_order[oid].append(item)
+                for order in orders:
+                    order['items'] = items_by_order.get(order['order_id'], [])
 
         if has_material_filter:
             orders = [o for o in orders if o['items']]
@@ -993,10 +1035,12 @@ class OrderService:
         )
         orders = [dict(row) for row in cursor.fetchall()]
 
-        # Fetch items for each order
-        for order in orders:
+        # Batch fetch items for all orders (fix N+1)
+        if orders:
+            order_ids = [o['id'] for o in orders]
+            placeholders = ','.join(['?'] * len(order_ids))
             cursor.execute(
-                """
+                f"""
                 SELECT
                     ri.*,
                     m.code as material_code,
@@ -1005,11 +1049,19 @@ class OrderService:
                     m.unit
                 FROM return_order_item ri
                 LEFT JOIN material m ON ri.material_id = m.id
-                WHERE ri.return_order_id = ?
+                WHERE ri.return_order_id IN ({placeholders})
                 """,
-                (order['id'],)
+                order_ids
             )
-            order['items'] = [dict(row) for row in cursor.fetchall()]
+            all_items = [dict(row) for row in cursor.fetchall()]
+            items_by_order = {}
+            for item in all_items:
+                oid = item['return_order_id']
+                if oid not in items_by_order:
+                    items_by_order[oid] = []
+                items_by_order[oid].append(item)
+            for order in orders:
+                order['items'] = items_by_order.get(order['id'], [])
 
         conn.close()
 

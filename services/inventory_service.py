@@ -1,4 +1,62 @@
 from database import get_db_connection
+import re
+import operator
+import ast
+
+
+def safe_eval_formula(formula):
+    """安全解析简单算术公式，只允许数字和 +-*/() """
+    formula = formula.strip()
+    if not re.match(r'^[\d\s\+\-\*\/\.\(\)]+$', formula):
+        raise ValueError('Invalid characters in formula')
+    # 简单的递归下降解析器
+    return _parse_expr(formula)
+
+
+def _parse_expr(s):
+    s = s.strip()
+    return _parse_add_sub(s, 0)[0]
+
+
+def _parse_add_sub(s, pos):
+    left, pos = _parse_mul_div(s, pos)
+    while pos < len(s) and s[pos] in '+-':
+        op = s[pos]
+        pos += 1
+        right, pos = _parse_mul_div(s, pos)
+        left = left + right if op == '+' else left - right
+    return left, pos
+
+
+def _parse_mul_div(s, pos):
+    left, pos = _parse_term(s, pos)
+    while pos < len(s) and s[pos] in '*/':
+        op = s[pos]
+        pos += 1
+        right, pos = _parse_term(s, pos)
+        left = left * right if op == '*' else left / right
+    return left, pos
+
+
+def _parse_term(s, pos):
+    # 跳过空白
+    while pos < len(s) and s[pos] == ' ':
+        pos += 1
+    if pos < len(s) and s[pos] == '(':
+        pos += 1
+        result, pos = _parse_add_sub(s, pos)
+        if pos < len(s) and s[pos] == ')':
+            pos += 1
+        return result, pos
+    # 解析数字
+    start = pos
+    while pos < len(s) and s[pos] in '0123456789.':
+        pos += 1
+    if start == pos:
+        raise ValueError('Expected number')
+    num_str = s[start:pos]
+    return float(num_str), pos
+
 
 class InventoryService:
     @staticmethod
@@ -299,7 +357,7 @@ class InventoryService:
                     if quantity.startswith('='):
                         # Evaluate simple arithmetic formula like =400-8-6-3
                         try:
-                            quantity = float(eval(quantity[1:]))
+                            quantity = safe_eval_formula(quantity[1:])
                         except:
                             quantity = 0
                     else:

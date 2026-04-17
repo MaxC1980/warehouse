@@ -391,7 +391,9 @@ let currentPermissionLevel = 1;
 
     await loadEmployees();
     if (!orderId) {
-        const today = new Date().toISOString().split('T')[0];
+        const pad = n => n < 10 ? '0' + n : n;
+        const d = new Date();
+        const today = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
         document.getElementById('receiver_date').value = today;
         // New order: hide save button if permission_level < 2
         if (currentPermissionLevel < 2) {
