@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Flask + SQLite 仓库管理系统。默认账号：`admin` / `admin123`
+Flask + SQLite 仓库管理系统。默认账号：`admin` / `admin12345`
 
 ## 运行
 
