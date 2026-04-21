@@ -5,6 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1>出库台账</h1>
+    <button onclick="exportExcel()" class="btn btn-primary">导出Excel</button>
 </div>
 
 <div class="filter-bar">
@@ -34,6 +35,7 @@
                 <th>出库单号</th>
                 <th>部门</th>
                 <th>领用人</th>
+                <th>用途</th>
                 <th>日期</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
@@ -82,10 +84,29 @@ async function loadOrders(page = 1) {
     }
 }
 
+function exportExcel() {
+    const status = document.getElementById('status-filter').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const materialCode = document.getElementById('material-code').value.trim();
+    const materialName = document.getElementById('material-name').value.trim();
+    const materialSpec = document.getElementById('material-spec').value.trim();
+
+    const params = new URLSearchParams({ page: 1, per_page: 10000 });
+    if (status) params.append('status', status);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (materialCode) params.append('material_code', materialCode);
+    if (materialName) params.append('material_name', materialName);
+    if (materialSpec) params.append('material_spec', materialSpec);
+
+    window.location.href = '/api/out-orders/detail/export?' + params.toString();
+}
+
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
         return;
     }
 
@@ -96,6 +117,7 @@ function renderOrders(orders) {
                 <td>${o.order_no}</td>
                 <td>${o.department || ''}</td>
                 <td>${o.receiver || ''}</td>
+                <td>${o.purpose || ''}</td>
                 <td>${o.receiver_date || ''}</td>
                 <td colspan="6"></td>
                 <td></td>
@@ -108,6 +130,7 @@ function renderOrders(orders) {
                         <td rowspan="${o.items.length}">${o.order_no}</td>
                         <td rowspan="${o.items.length}">${o.department || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver || ''}</td>
+                        <td rowspan="${o.items.length}">${o.purpose || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
                         <td>${item.material_code || ''}</td>
                         <td>${item.material_name || ''}</td>

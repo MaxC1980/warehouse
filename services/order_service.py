@@ -885,7 +885,7 @@ class OrderService:
                 f"""
                 SELECT
                     o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
-                    o.status, o.remark, o.created_at, o.approved_at,
+                    o.status, o.remark, o.purpose, o.created_at, o.approved_at,
                     u.username as operator_name, a.username as approved_by_name
                 FROM out_order o
                 LEFT JOIN user u ON o.operator_id = u.id
@@ -930,7 +930,7 @@ class OrderService:
                 f"""
                 SELECT
                     o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
-                    o.status, o.remark, o.created_at, o.approved_at,
+                    o.status, o.remark, o.purpose, o.created_at, o.approved_at,
                     u.username as operator_name, a.username as approved_by_name
                 FROM out_order o
                 LEFT JOIN user u ON o.operator_id = u.id

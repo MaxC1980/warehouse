@@ -1,61 +1,4 @@
 from database import get_db_connection
-import re
-import operator
-import ast
-
-
-def safe_eval_formula(formula):
-    """安全解析简单算术公式，只允许数字和 +-*/() """
-    formula = formula.strip()
-    if not re.match(r'^[\d\s\+\-\*\/\.\(\)]+$', formula):
-        raise ValueError('Invalid characters in formula')
-    # 简单的递归下降解析器
-    return _parse_expr(formula)
-
-
-def _parse_expr(s):
-    s = s.strip()
-    return _parse_add_sub(s, 0)[0]
-
-
-def _parse_add_sub(s, pos):
-    left, pos = _parse_mul_div(s, pos)
-    while pos < len(s) and s[pos] in '+-':
-        op = s[pos]
-        pos += 1
-        right, pos = _parse_mul_div(s, pos)
-        left = left + right if op == '+' else left - right
-    return left, pos
-
-
-def _parse_mul_div(s, pos):
-    left, pos = _parse_term(s, pos)
-    while pos < len(s) and s[pos] in '*/':
-        op = s[pos]
-        pos += 1
-        right, pos = _parse_term(s, pos)
-        left = left * right if op == '*' else left / right
-    return left, pos
-
-
-def _parse_term(s, pos):
-    # 跳过空白
-    while pos < len(s) and s[pos] == ' ':
-        pos += 1
-    if pos < len(s) and s[pos] == '(':
-        pos += 1
-        result, pos = _parse_add_sub(s, pos)
-        if pos < len(s) and s[pos] == ')':
-            pos += 1
-        return result, pos
-    # 解析数字
-    start = pos
-    while pos < len(s) and s[pos] in '0123456789.':
-        pos += 1
-    if start == pos:
-        raise ValueError('Expected number')
-    num_str = s[start:pos]
-    return float(num_str), pos
 
 
 class InventoryService:
@@ -269,7 +212,7 @@ class InventoryService:
                 if existing:
                     cursor.execute(
                         """UPDATE inventory
-                           SET quantity = quantity + ?, updated_at = datetime('now', 'localtime')
+                           SET quantity = ROUND(quantity + ?, 2), updated_at = datetime('now', 'localtime')
                            WHERE material_id = ? AND batch_no = ?""",
                         (quantity_change, material_id, batch_no)
                     )
@@ -299,7 +242,7 @@ class InventoryService:
             if batch_no:
                 cursor.execute(
                     """UPDATE inventory
-                       SET quantity = quantity - ?, updated_at = datetime('now', 'localtime')
+                       SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
                        WHERE material_id = ? AND batch_no = ? AND quantity >= ?""",
                     (quantity, material_id, batch_no, quantity)
                 )
@@ -322,7 +265,7 @@ class InventoryService:
 
                 cursor.execute(
                     """UPDATE inventory
-                       SET quantity = quantity - ?, updated_at = datetime('now', 'localtime')
+                       SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
                        WHERE id = ?""",
                     (quantity, batch['id'])
                 )
@@ -352,23 +295,14 @@ class InventoryService:
                 production_date = row.get('production_date') or None
                 expiry_date = row.get('expiry_date') or None
 
-                # Handle quantity: support formula strings like '=400-8-6-3' or plain numbers
-                if isinstance(quantity, str):
-                    if quantity.startswith('='):
-                        # Evaluate simple arithmetic formula like =400-8-6-3
-                        try:
-                            quantity = safe_eval_formula(quantity[1:])
-                        except:
-                            quantity = 0
-                    else:
-                        try:
-                            quantity = float(quantity)
-                        except:
-                            quantity = 0
-                elif quantity is None:
+                # Validate quantity: must be a number, no formulas allowed
+                if quantity is None:
                     quantity = 0
                 else:
-                    quantity = float(quantity)
+                    try:
+                        quantity = float(quantity)
+                    except:
+                        raise ValueError(f"数量必须是数字，当前值: {quantity}")
 
                 # Auto-generate batch_no if not provided (batch_no is NOT NULL)
                 if not batch_no:
