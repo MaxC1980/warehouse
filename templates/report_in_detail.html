@@ -15,6 +15,11 @@
     <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
     <input type="date" id="date-from">
     <input type="date" id="date-to">
+    <select id="per-page" onchange="loadReport()">
+        <option value="15" selected>15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
     <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
 </div>
 
@@ -49,14 +54,16 @@ async function loadReport(page = 1) {
     currentPage = page;
     const dateFrom = document.getElementById('date-from').value;
     const dateTo = document.getElementById('date-to').value;
+    const perPage = document.getElementById('per-page').value;
 
-    const params = new URLSearchParams({ page, per_page: 100 });
+    const params = new URLSearchParams({ page, per_page: perPage });
     if (dateFrom) params.append('date_from', dateFrom);
     if (dateTo) params.append('date_to', dateTo);
 
     const data = await apiRequest(`/reports/in-detail?${params}`);
     if (data) {
         renderReport(data.items);
+        renderPagination('pagination', data.total, data.page, perPage, 'loadReport');
     }
 }
 
@@ -88,6 +95,7 @@ function exportExcel() {
     let url = '/api/reports/in-detail/export?';
     if (dateFrom) url += 'date_from=' + dateFrom + '&';
     if (dateTo) url += 'date_to=' + dateTo;
+    url += 'per_page=10000';
     window.location.href = url;
 }
 

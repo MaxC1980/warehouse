@@ -24,7 +24,6 @@ class InventoryService:
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
         if summary:
-            # 按物料编码汇总（不计批次）
             count_query = f"""
                 SELECT COUNT(DISTINCT m.code) as count
                 FROM inventory i
@@ -56,7 +55,6 @@ class InventoryService:
                 item['status'] = '正常'
                 inventory.append(item)
         else:
-            # 批次明细：先查库存
             count_query = f"""
                 SELECT COUNT(*) as count
                 FROM inventory i
@@ -83,13 +81,42 @@ class InventoryService:
             )
 
             inventory = []
+            inventory_map = {}
+
+            from datetime import date, datetime
             for row in cursor.fetchall():
                 item = dict(row)
-                item['status'] = '正常'
+                today = date.today()
+                expiry = item.get('expiry_date')
+                if expiry:
+                    if isinstance(expiry, str):
+                        try:
+                            expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date()
+                        except:
+                            try:
+                                expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date()
+                            except:
+                                expiry_date = None
+                    else:
+                        expiry_date = expiry
+                    if expiry_date and expiry_date < today:
+                        item['status'] = '过期'
+                    else:
+                        item['status'] = '正常'
+                else:
+                    item['status'] = '正常'
+                item['pending_in'] = 0
+                item['pending_out'] = 0
                 inventory.append(item)
+                inventory_map[(item['material_id'], item['batch_no'])] = len(inventory) - 1
 
-            # 待审入库：查不在库存表中的待审入库批次
-            cursor.execute("""
+            # 待审入库：先按批次匹配到已有库存行，匹配不上才新增行
+            pending_in_where = "WHERE io.status = 'pending'"
+            pending_in_params = []
+            if category_code:
+                pending_in_where += " AND m.category_code LIKE ?"
+                pending_in_params.append(f'{category_code}%')
+            cursor.execute(f"""
                 SELECT
                     m.id as material_id, m.code as material_code, m.name as material_name,
                     m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
@@ -98,42 +125,45 @@ class InventoryService:
                 FROM in_order_item ioi
                 JOIN in_order io ON ioi.order_id = io.id
                 JOIN material m ON ioi.material_id = m.id
-                WHERE io.status = 'pending'
-                AND NOT EXISTS (
-                    SELECT 1 FROM inventory i2
-                    WHERE i2.material_id = ioi.material_id AND i2.batch_no = ioi.batch_no
-                )
+                {pending_in_where}
                 ORDER BY m.code, ioi.batch_no
-            """)
+            """, pending_in_params)
             for row in cursor.fetchall():
-                item = dict(row)
-                item['status'] = '待审入库'
-                inventory.append(item)
-                total += 1
+                key = (row['material_id'], row['batch_no'])
+                if key in inventory_map:
+                    idx = inventory_map[key]
+                    inventory[idx]['pending_in'] += row['quantity']
+                else:
+                    item = dict(row)
+                    item['quantity'] = 0
+                    item['status'] = '正常'
+                    item['pending_in'] = row['quantity']
+                    item['pending_out'] = 0
+                    inventory.append(item)
+                    inventory_map[key] = len(inventory) - 1
+                    total += 1
 
             inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
 
-        # 待审出库：同一事务内查询，附加到每条库存记录
+        # 待审出库：匹配到已有库存行，不新增行
         if not summary and inventory:
-            material_ids = list(set(item['material_id'] for item in inventory))
-            batch_nos = [item['batch_no'] for item in inventory]
-            if material_ids:
-                placeholders_ids = ','.join('?' * len(material_ids))
-                placeholders_batches = ','.join('?' * len(batch_nos))
-                # 待审出库（按物料+批次分组）
-                cursor.execute(f"""
-                    SELECT material_id, batch_no, COALESCE(SUM(quantity), 0) as total
-                    FROM out_order_item ooi
-                    JOIN out_order oo ON ooi.order_id = oo.id
-                    WHERE oo.status = 'pending'
-                    AND ooi.material_id IN ({placeholders_ids})
-                    AND ooi.batch_no IN ({placeholders_batches})
-                    GROUP BY ooi.material_id, ooi.batch_no
-                """, material_ids + batch_nos)
+            material_ids = [item['material_id'] for item in inventory]
+            batch_nos = [item['batch_no'] for item in inventory if item['batch_no']]
+            if material_ids and batch_nos:
+                placeholders_ids = ','.join(['?'] * len(material_ids))
+                placeholders_batches = ','.join(['?'] * len(batch_nos))
+                query = ("SELECT material_id, batch_no, COALESCE(SUM(quantity), 0) as total "
+                         "FROM out_order_item ooi "
+                         "JOIN out_order oo ON ooi.order_id = oo.id "
+                         "WHERE oo.status = 'pending' "
+                         "AND ooi.material_id IN ({}) "
+                         "AND ooi.batch_no IN ({}) "
+                         "GROUP BY ooi.material_id, ooi.batch_no").format(placeholders_ids, placeholders_batches)
+                cursor.execute(query, material_ids + batch_nos)
                 pending_out_map = {(row['material_id'], row['batch_no']): row['total'] for row in cursor.fetchall()}
-
                 for item in inventory:
-                    item['pending_out'] = pending_out_map.get((item['material_id'], item['batch_no']), 0)
+                    key = (item['material_id'], item['batch_no'])
+                    item['pending_out'] = pending_out_map.get(key, 0)
 
         conn.close()
         return inventory, total
@@ -191,7 +221,6 @@ class InventoryService:
     @staticmethod
     def update_inventory(material_id, quantity_change, batch_no=None, production_date=None, expiry_date=None, in_order_item_id=None):
         """Add inventory - UPSERT on (material_id, batch_no)"""
-        # Auto-generate batch_no if not provided (batch_no is NOT NULL)
         if not batch_no:
             from datetime import datetime
             batch_no = f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -202,7 +231,6 @@ class InventoryService:
 
         try:
             if batch_no:
-                # Check if record exists
                 cursor.execute(
                     "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
                     (material_id, batch_no)
@@ -250,7 +278,6 @@ class InventoryService:
                     conn.close()
                     raise Exception(f"库存不足或批次不存在: 物料ID {material_id}, 批次 {batch_no}")
             else:
-                # Deduct from oldest batch
                 cursor.execute(
                     """SELECT id, quantity FROM inventory
                        WHERE material_id = ? AND quantity > 0
@@ -295,7 +322,6 @@ class InventoryService:
                 production_date = row.get('production_date') or None
                 expiry_date = row.get('expiry_date') or None
 
-                # Validate quantity: must be a number, no formulas allowed
                 if quantity is None:
                     quantity = 0
                 else:
@@ -304,7 +330,6 @@ class InventoryService:
                     except:
                         raise ValueError(f"数量必须是数字，当前值: {quantity}")
 
-                # Auto-generate batch_no if not provided (batch_no is NOT NULL)
                 if not batch_no:
                     from datetime import datetime
                     batch_no = f"IMP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -314,7 +339,6 @@ class InventoryService:
                     failed += 1
                     continue
 
-                # Ensure material_code is string for query
                 material_code = str(material_code)
 
                 cursor.execute("SELECT id FROM material WHERE code = ?", (material_code,))
@@ -326,7 +350,6 @@ class InventoryService:
 
                 material_id = material['id']
 
-                # Check if record exists for this batch
                 cursor.execute(
                     "SELECT id FROM inventory WHERE material_id = ? AND batch_no = ?",
                     (material_id, batch_no)

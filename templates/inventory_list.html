@@ -143,7 +143,7 @@ function renderInventory(inventory) {
     }
     if (currentMode === 'detail') {
         tbody.innerHTML = inventory.map(item => `
-            <tr>
+            <tr class="${item.status === '过期' ? 'expired-row' : ''}">
                 <td>${item.material_code}</td>
                 <td>${item.material_name}</td>
                 <td>${item.manufacturer || ''}</td>
@@ -155,7 +155,7 @@ function renderInventory(inventory) {
                 <td>${item.quantity}</td>
                 <td>${item.pending_in || 0}</td>
                 <td>${item.pending_out || 0}</td>
-                <td><span class="status">${item.status}</span></td>
+                <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${item.status}</span></td>
             </tr>
         `).join('');
     } else {
@@ -167,7 +167,7 @@ function renderInventory(inventory) {
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
                 <td>${item.quantity}</td>
-                <td><span class="status">${item.status}</span></td>
+                <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${item.status}</span></td>
             </tr>
         `).join('');
     }
@@ -237,6 +237,15 @@ document.getElementById('import-form').addEventListener('submit', async function
 .modal-content p {
     margin-bottom: 16px;
     color: #666;
+}
+
+.status.expired {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+tr.expired-row {
+    background-color: #fdeaea;
 }
 </style>
 {% endblock %}
