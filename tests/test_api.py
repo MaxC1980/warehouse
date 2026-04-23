@@ -202,6 +202,61 @@ class TestInOrderAPI(TestBase):
         data = resp.get_json()
         self.assertEqual(data['remark'], 'API测试入库')
 
+    def test_in_order_detail_pagination_by_items(self):
+        """入库台账按items分页，一个订单跨页"""
+        # 先创建供应商
+        resp = self.client.post('/api/suppliers', json={
+            'name': '测试供应商-分页',
+            'contact': '测试',
+            'phone': '13800138001'
+        })
+        supplier_id = resp.get_json()['id']
+
+        # 创建10个物料
+        material_ids = []
+        for i in range(10):
+            resp = self.client.post('/api/materials', json={
+                'name': f'分页物料-{i}',
+                'code': f'TEST-PAGE-{i:02d}',
+                'unit': '个',
+                'category_code': '0101'
+            })
+            material_ids.append(resp.get_json()['id'])
+
+        # 创建入库单 with 10 items
+        items = [
+            {
+                'material_id': material_ids[i],
+                'batch_no': f'BATCH-PAGE-{i:02d}',
+                'quantity': 10 + i,
+                'unit_price': 10.0
+            }
+            for i in range(10)
+        ]
+        resp = self.client.post('/api/in-orders', json={
+            'supplier_id': supplier_id,
+            'operator_id': 1,
+            'receiver': '分页测试',
+            'items': items
+        })
+        self.assertEqual(resp.status_code, 201)
+
+        # 查询 page 1, per_page=5
+        resp = self.client.get('/api/in-orders/detail?page=1&per_page=5')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+
+        page1_item_count = sum(len(o['items']) for o in data['items'])
+        self.assertEqual(page1_item_count, 5)
+
+        # 查询 page 2
+        resp = self.client.get('/api/in-orders/detail?page=2&per_page=5')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+
+        page2_item_count = sum(len(o['items']) for o in data['items'])
+        self.assertEqual(page2_item_count, 5)
+
 
 class TestOutOrderAPI(TestBase):
 
@@ -271,6 +326,83 @@ class TestOutOrderAPI(TestBase):
             }]
         })
         self.assertEqual(resp.status_code, 201)
+
+    def test_out_order_detail_pagination_by_items(self):
+        """出库台账按items分页，一个订单跨页"""
+        # 先创建供应商
+        resp = self.client.post('/api/suppliers', json={
+            'name': '测试供应商-出分页',
+            'contact': '测试',
+            'phone': '13800138002'
+        })
+        supplier_id = resp.get_json()['id']
+
+        # 创建10个物料
+        material_ids = []
+        for i in range(10):
+            resp = self.client.post('/api/materials', json={
+                'name': f'出库分页物料-{i}',
+                'code': f'TEST-OUT-PAGE-{i:02d}',
+                'unit': '个',
+                'category_code': '0101'
+            })
+            material_ids.append(resp.get_json()['id'])
+
+        # 创建入库单 with 10 items（审核通过）
+        items = [
+            {
+                'material_id': material_ids[i],
+                'batch_no': f'BATCH-OUT-PAGE-{i:02d}',
+                'quantity': 100 + i,
+                'unit_price': 10.0
+            }
+            for i in range(10)
+        ]
+        resp = self.client.post('/api/in-orders', json={
+            'supplier_id': supplier_id,
+            'operator_id': 1,
+            'receiver': '出库分页测试',
+            'items': items
+        })
+        in_order_id = resp.get_json()['id']
+        resp = self.client.post(f'/api/in-orders/{in_order_id}/approve')
+        self.assertEqual(resp.status_code, 200)
+
+        # 创建出库单 with 10 items
+        out_items = [
+            {
+                'material_id': material_ids[i],
+                'batch_no': f'BATCH-OUT-PAGE-{i:02d}',
+                'actual_quantity': 5 + i,
+                'requested_quantity': 5 + i
+            }
+            for i in range(10)
+        ]
+        resp = self.client.post('/api/out-orders', json={
+            'department': '出库分页测试部门',
+            'receiver': '出库分页测试',
+            'receiver_date': '2026-04-18',
+            'operator_id': 1,
+            'purpose': '出库分页测试用',
+            'items': out_items
+        })
+        self.assertEqual(resp.status_code, 201)
+
+        # 查询 page 1, per_page=5
+        resp = self.client.get('/api/out-orders/detail?page=1&per_page=5')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+
+        page1_item_count = sum(len(o['items']) for o in data['items'])
+        self.assertEqual(page1_item_count, 5)
+
+        # 查询 page 2
+        resp = self.client.get('/api/out-orders/detail?page=2&per_page=5')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+
+        page2_item_count = sum(len(o['items']) for o in data['items'])
+        self.assertEqual(page2_item_count, 5)
 
 
 class TestReportAPI(TestBase):

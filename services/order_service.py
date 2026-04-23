@@ -629,7 +629,7 @@ class OrderService:
 
     @staticmethod
     def get_in_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, material_code=None, material_name=None, material_spec=None):
-        """Get in-orders with details (LEFT JOIN in_order + in_order_item + material)"""
+        """Get in-orders with details - paginated by items"""
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -663,162 +663,117 @@ class OrderService:
 
         has_material_filter = bool(material_conditions)
 
+        # Build full WHERE clause
         if has_material_filter:
-            # Combine all WHERE conditions
             all_conditions = order_where_clauses + material_conditions
             all_params = order_params + material_params
-            where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
-
-            item_join = """
-            INNER JOIN in_order_item i ON o.id = i.order_id
-            INNER JOIN material m ON i.material_id = m.id
-            """
-
-            # Count total item rows (matching material filter)
-            count_query = f"""
-                SELECT COUNT(i.id) as count
-                FROM in_order_item i
-                INNER JOIN in_order o ON o.id = i.order_id
-                INNER JOIN material m ON i.material_id = m.id
-                {where_sql}
-            """
-            cursor.execute(count_query, all_params)
-            total = cursor.fetchone()['count']
-
-            # Get paginated order IDs
-            paginated_query = f"""
-                SELECT DISTINCT o.id as order_id
-                FROM in_order o
-                {item_join}
-                {where_sql}
-                ORDER BY o.created_at DESC
-                LIMIT ? OFFSET ?
-            """
-            cursor.execute(paginated_query, all_params + [per_page, offset])
-            order_ids = [row['order_id'] for row in cursor.fetchall()]
-
-            if not order_ids:
-                conn.close()
-                return [], 0
-
-            # Get order details
-            placeholders = ','.join(['?'] * len(order_ids))
-            orders_query = f"""
-                SELECT
-                    o.id as order_id,
-                    o.order_no,
-                    o.status,
-                    o.remark,
-                    o.receiver,
-                    o.receiver_date,
-                    o.created_at,
-                    o.approved_at,
-                    s.name as supplier_name,
-                    u.username as operator_name,
-                    a.username as approved_by_name
-                FROM in_order o
-                LEFT JOIN supplier s ON o.supplier_id = s.id
-                LEFT JOIN user u ON o.operator_id = u.id
-                LEFT JOIN user a ON o.approved_by = a.id
-                WHERE o.id IN ({placeholders})
-                ORDER BY o.created_at DESC
-            """
-            cursor.execute(orders_query, order_ids)
-            orders = [dict(row) for row in cursor.fetchall()]
-
-            # Batch fetch items for all orders (fix N+1)
-            if orders:
-                placeholders = ','.join(['?'] * len(order_ids))
-                items_query = f"""
-                    SELECT
-                        i.*,
-                        m.code as material_code,
-                        m.name as material_name,
-                        m.spec,
-                        m.unit
-                    FROM in_order_item i
-                    JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id IN ({placeholders}) AND {" AND ".join(material_conditions)}
-                """
-                cursor.execute(items_query, order_ids + material_params)
-                all_items = [dict(row) for row in cursor.fetchall()]
-                # Group items by order_id
-                items_by_order = {}
-                for item in all_items:
-                    oid = item['order_id']
-                    if oid not in items_by_order:
-                        items_by_order[oid] = []
-                    items_by_order[oid].append(item)
-                for order in orders:
-                    order['items'] = items_by_order.get(order['order_id'], [])
         else:
-            # No material filter - use original efficient query
-            order_where_sql = ("WHERE " + " AND ".join(order_where_clauses)) if order_where_clauses else ""
+            all_conditions = order_where_clauses
+            all_params = order_params
+        where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
 
-            cursor.execute(f"SELECT COUNT(i.id) as count FROM in_order_item i JOIN in_order o ON o.id = i.order_id {order_where_sql}", order_params)
-            total = cursor.fetchone()['count']
+        # Count total item rows
+        count_query = f"""
+            SELECT COUNT(i.id) as count
+            FROM in_order_item i
+            INNER JOIN in_order o ON o.id = i.order_id
+            INNER JOIN material m ON i.material_id = m.id
+            {where_sql}
+        """
+        cursor.execute(count_query, all_params)
+        total = cursor.fetchone()['count']
 
-            cursor.execute(
-                f"""
-                SELECT
-                    o.id as order_id,
-                    o.order_no,
-                    o.status,
-                    o.remark,
-                    o.receiver,
-                    o.receiver_date,
-                    o.created_at,
-                    o.approved_at,
-                    s.name as supplier_name,
-                    u.username as operator_name,
-                    a.username as approved_by_name
-                FROM in_order o
-                LEFT JOIN supplier s ON o.supplier_id = s.id
-                LEFT JOIN user u ON o.operator_id = u.id
-                LEFT JOIN user a ON o.approved_by = a.id
-                {order_where_sql}
-                GROUP BY o.id
-                ORDER BY o.created_at DESC
-                LIMIT ? OFFSET ?
-                """,
-                order_params + [per_page, offset]
-            )
-            orders = [dict(row) for row in cursor.fetchall()]
+        if total == 0:
+            conn.close()
+            return [], 0
 
-            # Batch fetch items for all orders (fix N+1)
-            if orders:
-                order_ids = [o['order_id'] for o in orders]
-                placeholders = ','.join(['?'] * len(order_ids))
-                cursor.execute(
-                    f"""
-                    SELECT
-                        i.*,
-                        m.code as material_code,
-                        m.name as material_name,
-                        m.spec,
-                        m.unit
-                    FROM in_order_item i
-                    JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id IN ({placeholders})
-                    """,
-                    order_ids
-                )
-                all_items = [dict(row) for row in cursor.fetchall()]
-                items_by_order = {}
-                for item in all_items:
-                    oid = item['order_id']
-                    if oid not in items_by_order:
-                        items_by_order[oid] = []
-                    items_by_order[oid].append(item)
-                for order in orders:
-                    order['items'] = items_by_order.get(order['order_id'], [])
+        # Get paginated items directly
+        cursor.execute(
+            f"""
+            SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
+                   i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
+                   m.code as material_code, m.name as material_name, m.spec, m.unit
+            FROM in_order_item i
+            INNER JOIN in_order o ON o.id = i.order_id
+            INNER JOIN material m ON i.material_id = m.id
+            {where_sql}
+            ORDER BY o.created_at DESC, i.id
+            LIMIT ? OFFSET ?
+            """,
+            all_params + [per_page, offset]
+        )
+        paginated_items = [dict(row) for row in cursor.fetchall()]
+
+        if not paginated_items:
+            conn.close()
+            return [], 0
+
+        # Extract order IDs and item IDs from paginated items
+        order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
+        paginated_item_ids = [item['item_id'] for item in paginated_items]
+
+        # Fetch order details
+        placeholders = ','.join(['?'] * len(order_ids))
+        cursor.execute(
+            f"""
+            SELECT
+                o.id as order_id,
+                o.order_no,
+                o.status,
+                o.remark,
+                o.receiver,
+                o.receiver_date,
+                o.created_at,
+                o.approved_at,
+                s.name as supplier_name,
+                u.username as operator_name,
+                a.username as approved_by_name
+            FROM in_order o
+            LEFT JOIN supplier s ON o.supplier_id = s.id
+            LEFT JOIN user u ON o.operator_id = u.id
+            LEFT JOIN user a ON o.approved_by = a.id
+            WHERE o.id IN ({placeholders})
+            ORDER BY o.created_at DESC
+            """,
+            order_ids
+        )
+        orders = [dict(row) for row in cursor.fetchall()]
+
+        # Batch fetch items for these orders, filtered to paginated items
+        placeholders_items = ','.join(['?'] * len(paginated_item_ids))
+        cursor.execute(
+            f"""
+            SELECT
+                i.*,
+                m.code as material_code,
+                m.name as material_name,
+                m.spec,
+                m.unit
+            FROM in_order_item i
+            JOIN material m ON i.material_id = m.id
+            WHERE i.order_id IN ({placeholders}) AND i.id IN ({placeholders_items}){' AND ' + ' AND '.join(material_conditions) if has_material_filter else ''}
+            ORDER BY i.id
+            """,
+            order_ids + paginated_item_ids + (material_params if has_material_filter else [])
+        )
+        all_items = [dict(row) for row in cursor.fetchall()]
+
+        # Group items by order_id
+        items_by_order = {}
+        for item in all_items:
+            oid = item['order_id']
+            if oid not in items_by_order:
+                items_by_order[oid] = []
+            items_by_order[oid].append(item)
+        for order in orders:
+            order['items'] = items_by_order.get(order['order_id'], [])
 
         conn.close()
         return orders, total
 
     @staticmethod
     def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, material_code=None, material_name=None, material_spec=None, has_reusable=None):
-        """Get out-orders with details"""
+        """Get out-orders with details - paginated by items"""
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -854,123 +809,96 @@ class OrderService:
 
         has_material_filter = bool(material_conditions)
 
+        # Build full WHERE clause for items query
         if has_material_filter:
-            # Combine all WHERE conditions
             all_conditions = order_where_clauses + material_conditions
             all_params = order_params + material_params
-            where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
-
-            item_join = """
-            INNER JOIN out_order_item i ON o.id = i.order_id
-            INNER JOIN material m ON i.material_id = m.id
-            """
-
-            # Count total item rows
-            cursor.execute(f"SELECT COUNT(i.id) as count FROM out_order_item i INNER JOIN out_order o ON o.id = i.order_id INNER JOIN material m ON i.material_id = m.id {where_sql}", all_params)
-            total = cursor.fetchone()['count']
-
-            # Get paginated order IDs
-            cursor.execute(
-                f"SELECT DISTINCT o.id as order_id FROM out_order o {item_join} {where_sql} ORDER BY o.created_at DESC LIMIT ? OFFSET ?",
-                all_params + [per_page, offset]
-            )
-            order_ids = [row['order_id'] for row in cursor.fetchall()]
-
-            if not order_ids:
-                conn.close()
-                return [], 0
-
-            placeholders = ','.join(['?'] * len(order_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
-                    o.status, o.remark, o.purpose, o.created_at, o.approved_at,
-                    u.username as operator_name, a.username as approved_by_name
-                FROM out_order o
-                LEFT JOIN user u ON o.operator_id = u.id
-                LEFT JOIN user a ON o.approved_by = a.id
-                WHERE o.id IN ({placeholders})
-                ORDER BY o.created_at DESC
-                """,
-                order_ids
-            )
-            orders = [dict(row) for row in cursor.fetchall()]
-
-            # Batch fetch items for all orders (fix N+1)
-            if orders:
-                placeholders = ','.join(['?'] * len(order_ids))
-                cursor.execute(
-                    f"""
-                    SELECT
-                        i.*,
-                        m.code as material_code, m.name as material_name, m.spec, m.unit
-                    FROM out_order_item i
-                    JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id IN ({placeholders}) AND {" AND ".join(material_conditions)}
-                    """,
-                    order_ids + material_params
-                )
-                all_items = [dict(row) for row in cursor.fetchall()]
-                items_by_order = {}
-                for item in all_items:
-                    oid = item['order_id']
-                    if oid not in items_by_order:
-                        items_by_order[oid] = []
-                    items_by_order[oid].append(item)
-                for order in orders:
-                    order['items'] = items_by_order.get(order['order_id'], [])
         else:
-            order_where_sql = ("WHERE " + " AND ".join(order_where_clauses)) if order_where_clauses else ""
+            all_conditions = order_where_clauses
+            all_params = order_params
+        where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
 
-            cursor.execute(f"SELECT COUNT(i.id) as count FROM out_order_item i JOIN out_order o ON o.id = i.order_id {order_where_sql}", order_params)
-            total = cursor.fetchone()['count']
+        # Count total item rows
+        count_query = f"SELECT COUNT(i.id) as count FROM out_order_item i INNER JOIN out_order o ON o.id = i.order_id INNER JOIN material m ON i.material_id = m.id {where_sql}"
+        cursor.execute(count_query, all_params)
+        total = cursor.fetchone()['count']
 
-            cursor.execute(
-                f"""
-                SELECT
-                    o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
-                    o.status, o.remark, o.purpose, o.created_at, o.approved_at,
-                    u.username as operator_name, a.username as approved_by_name
-                FROM out_order o
-                LEFT JOIN user u ON o.operator_id = u.id
-                LEFT JOIN user a ON o.approved_by = a.id
-                {order_where_sql}
-                GROUP BY o.id
-                ORDER BY o.created_at DESC
-                LIMIT ? OFFSET ?
-                """,
-                order_params + [per_page, offset]
-            )
-            orders = [dict(row) for row in cursor.fetchall()]
+        if total == 0:
+            conn.close()
+            return [], 0
 
-            # Batch fetch items for all orders (fix N+1)
-            if orders:
-                order_ids = [o['order_id'] for o in orders]
-                placeholders = ','.join(['?'] * len(order_ids))
-                cursor.execute(
-                    f"""
-                    SELECT
-                        i.*,
-                        m.code as material_code, m.name as material_name, m.spec, m.unit
-                    FROM out_order_item i
-                    JOIN material m ON i.material_id = m.id
-                    WHERE i.order_id IN ({placeholders})
-                    """,
-                    order_ids
-                )
-                all_items = [dict(row) for row in cursor.fetchall()]
-                items_by_order = {}
-                for item in all_items:
-                    oid = item['order_id']
-                    if oid not in items_by_order:
-                        items_by_order[oid] = []
-                    items_by_order[oid].append(item)
-                for order in orders:
-                    order['items'] = items_by_order.get(order['order_id'], [])
+        # Get paginated items directly, ordered by order created_at
+        cursor.execute(
+            f"""
+            SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no, i.quantity,
+                   i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
+                   i.returned_quantity, i.initial_gross_weight, i.shipment_info,
+                   m.code as material_code, m.name as material_name, m.spec, m.unit
+            FROM out_order_item i
+            INNER JOIN out_order o ON o.id = i.order_id
+            INNER JOIN material m ON i.material_id = m.id
+            {where_sql}
+            ORDER BY o.created_at DESC, i.id
+            LIMIT ? OFFSET ?
+            """,
+            all_params + [per_page, offset]
+        )
+        paginated_items = [dict(row) for row in cursor.fetchall()]
 
-        if has_material_filter:
-            orders = [o for o in orders if o['items']]
+        if not paginated_items:
+            conn.close()
+            return [], 0
+
+        # Extract order IDs from paginated items
+        order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
+        # Extract item IDs from paginated items (for filtering)
+        paginated_item_ids = [item['item_id'] for item in paginated_items]
+
+        # Fetch order details for these order IDs
+        placeholders = ','.join(['?'] * len(order_ids))
+        cursor.execute(
+            f"""
+            SELECT
+                o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
+                o.status, o.remark, o.purpose, o.created_at, o.approved_at,
+                u.username as operator_name, a.username as approved_by_name
+            FROM out_order o
+            LEFT JOIN user u ON o.operator_id = u.id
+            LEFT JOIN user a ON o.approved_by = a.id
+            WHERE o.id IN ({placeholders})
+            ORDER BY o.created_at DESC
+            """,
+            order_ids
+        )
+        orders = [dict(row) for row in cursor.fetchall()]
+
+        # Batch fetch items for these orders, filtered to only paginated items
+        placeholders_items = ','.join(['?'] * len(paginated_item_ids))
+        cursor.execute(
+            f"""
+            SELECT
+                i.*,
+                m.code as material_code, m.name as material_name, m.spec, m.unit
+            FROM out_order_item i
+            JOIN material m ON i.material_id = m.id
+            WHERE i.order_id IN ({placeholders}) AND i.id IN ({placeholders_items}){' AND ' + ' AND '.join(material_conditions) if has_material_filter else ''}
+            ORDER BY i.id
+            """,
+            order_ids + paginated_item_ids + (material_params if has_material_filter else [])
+        )
+        all_items = [dict(row) for row in cursor.fetchall()]
+
+        # Group items by order_id
+        items_by_order = {}
+        for item in all_items:
+            oid = item['order_id']
+            if oid not in items_by_order:
+                items_by_order[oid] = []
+            items_by_order[oid].append(item)
+
+        # Attach items to orders
+        for order in orders:
+            order['items'] = items_by_order.get(order['order_id'], [])
 
         conn.close()
         return orders, total
