@@ -161,7 +161,6 @@ def init_db():
             order_id INTEGER NOT NULL,
             material_id INTEGER NOT NULL,
             batch_no TEXT,
-            quantity REAL NOT NULL,
             unit_price REAL DEFAULT 0,
             remark TEXT,
             requested_quantity REAL DEFAULT 0,

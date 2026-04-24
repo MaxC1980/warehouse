@@ -180,9 +180,9 @@ class ReportService:
                 m.code as material_code,
                 m.name as material_name,
                 i.batch_no,
-                i.quantity,
+                i.actual_quantity,
                 i.unit_price,
-                i.quantity * i.unit_price as amount,
+                i.actual_quantity * i.unit_price as amount,
                 u.username as operator
             FROM out_order_item i
             JOIN out_order o ON i.order_id = o.id
@@ -264,7 +264,7 @@ class ReportService:
             f"""
             SELECT
                 COUNT(*) as count,
-                COALESCE(SUM(quantity * unit_price), 0) as total_amount
+                COALESCE(SUM(actual_quantity * unit_price), 0) as total_amount
             FROM out_order_item i
             JOIN out_order o ON i.order_id = o.id
             {where_sql}

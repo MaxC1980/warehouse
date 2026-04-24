@@ -152,7 +152,7 @@ class InventoryService:
             if material_ids and batch_nos:
                 placeholders_ids = ','.join(['?'] * len(material_ids))
                 placeholders_batches = ','.join(['?'] * len(batch_nos))
-                query = ("SELECT material_id, batch_no, COALESCE(SUM(quantity), 0) as total "
+                query = ("SELECT material_id, batch_no, COALESCE(SUM(actual_quantity), 0) as total "
                          "FROM out_order_item ooi "
                          "JOIN out_order oo ON ooi.order_id = oo.id "
                          "WHERE oo.status = 'pending' "

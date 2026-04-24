@@ -431,11 +431,11 @@ class OrderService:
                     actual_qty = item.get('actual_quantity', 0) or 0
                     cursor.execute(
                         """
-                        INSERT INTO out_order_item (order_id, material_id, batch_no, quantity, requested_quantity, actual_quantity, initial_gross_weight, shipment_info)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO out_order_item (order_id, material_id, batch_no, requested_quantity, actual_quantity, initial_gross_weight, shipment_info)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (order_id, item['material_id'], item.get('batch_no'),
-                         actual_qty, item.get('requested_quantity', 0), actual_qty,
+                         item.get('requested_quantity', 0), actual_qty,
                          item.get('initial_gross_weight'), item.get('shipment_info'))
                     )
 
@@ -493,11 +493,11 @@ class OrderService:
                     actual_qty = item.get('actual_quantity', 0) or 0
                     cursor.execute(
                         """
-                        INSERT INTO out_order_item (order_id, material_id, batch_no, quantity, requested_quantity, actual_quantity, initial_gross_weight, shipment_info)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO out_order_item (order_id, material_id, batch_no, requested_quantity, actual_quantity, initial_gross_weight, shipment_info)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (order_id, item['material_id'], item.get('batch_no'),
-                         actual_qty, item.get('requested_quantity', 0), actual_qty,
+                         item.get('requested_quantity', 0), actual_qty,
                          item.get('initial_gross_weight'), item.get('shipment_info'))
                     )
 
@@ -565,7 +565,7 @@ class OrderService:
                     continue
 
                 # For regular materials: deduct inventory based on actual_quantity
-                actual_qty = item['actual_quantity'] if item['actual_quantity'] else item['quantity']
+                actual_qty = item['actual_quantity']
                 batch_no = item['batch_no']
 
                 if batch_no:
@@ -830,7 +830,7 @@ class OrderService:
         # Get paginated items directly, ordered by order created_at
         cursor.execute(
             f"""
-            SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no, i.quantity,
+            SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
                    i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
                    i.returned_quantity, i.initial_gross_weight, i.shipment_info,
                    m.code as material_code, m.name as material_name, m.spec, m.unit
