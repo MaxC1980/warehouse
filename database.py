@@ -241,7 +241,6 @@ def init_db():
             out_order_item_id INTEGER NOT NULL,
             material_id INTEGER NOT NULL,
             batch_no TEXT,
-            return_quantity REAL NOT NULL,
             remark TEXT,
             return_gross_weight REAL,
             actual_net_weight REAL,

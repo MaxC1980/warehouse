@@ -253,7 +253,7 @@ class OrderService:
 
         try:
             # 1. 获取订单并验证状态
-            cursor.execute("SELECT * FROM in_order WHERE id = ?", (order_id,))
+            cursor.execute("SELECT id, order_no, supplier_id, operator_id, status, remark, receiver, purpose, receiver_date, created_at, approved_at, approved_by FROM in_order WHERE id = ?", (order_id,))
             order = cursor.fetchone()
 
             if not order or order['status'] != 'pending':
@@ -261,7 +261,7 @@ class OrderService:
                 return None
 
             # 2. 获取订单明细
-            cursor.execute("SELECT * FROM in_order_item WHERE order_id = ?", (order_id,))
+            cursor.execute("SELECT id, order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark FROM in_order_item WHERE order_id = ?", (order_id,))
             items = [dict(row) for row in cursor.fetchall()]
 
             if not items:
@@ -537,7 +537,7 @@ class OrderService:
             cursor.execute("PRAGMA foreign_keys = ON")
 
             # Get order
-            cursor.execute("SELECT * FROM out_order WHERE id = ?", (order_id,))
+            cursor.execute("SELECT id, order_no, operator_id, status, remark, purpose, created_at, approved_at, approved_by, department, receiver, receiver_date FROM out_order WHERE id = ?", (order_id,))
             order = cursor.fetchone()
 
             if not order or order['status'] != 'pending':
@@ -546,7 +546,7 @@ class OrderService:
 
             # Get items
             cursor.execute(
-                "SELECT * FROM out_order_item WHERE order_id = ?",
+                "SELECT id, order_id, material_id, batch_no, unit_price, remark, requested_quantity, actual_quantity, returned_quantity, initial_gross_weight, shipment_info FROM out_order_item WHERE order_id = ?",
                 (order_id,)
             )
             items = cursor.fetchall()
@@ -1075,11 +1075,11 @@ class OrderService:
                 for item in items:
                     cursor.execute(
                         """
-                        INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, return_quantity, remark, return_gross_weight, actual_net_weight)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (order_id, item['out_order_item_id'], item['material_id'],
-                         item.get('batch_no'), item.get('return_quantity', 0), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
+                         item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
                     )
 
             conn.commit()
@@ -1129,11 +1129,11 @@ class OrderService:
                 for item in items:
                     cursor.execute(
                         """
-                        INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, return_quantity, remark, return_gross_weight, actual_net_weight)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (order_id, item['out_order_item_id'], item['material_id'],
-                         item.get('batch_no'), item.get('return_quantity', 0), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
+                         item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
                     )
 
             conn.commit()
@@ -1172,7 +1172,7 @@ class OrderService:
         try:
             cursor.execute("PRAGMA foreign_keys = ON")
 
-            cursor.execute("SELECT * FROM return_order WHERE id = ?", (order_id,))
+            cursor.execute("SELECT id, order_no, related_out_order_id, department, receiver, receiver_date, operator_id, status, remark, created_at, approved_at, approved_by FROM return_order WHERE id = ?", (order_id,))
             order = cursor.fetchone()
 
             if not order or order['status'] != 'pending':
@@ -1190,7 +1190,7 @@ class OrderService:
                     return False, '该出库单已有审核通过的退库单，不能重复审核'
 
             # Get items
-            cursor.execute("SELECT * FROM return_order_item WHERE return_order_id = ?", (order_id,))
+            cursor.execute("SELECT id, return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight FROM return_order_item WHERE return_order_id = ?", (order_id,))
             items = [dict(row) for row in cursor.fetchall()]
 
             # Process each return item
@@ -1210,56 +1210,47 @@ class OrderService:
                     return_weight = item.get('return_gross_weight', 0) or 0
                 actual_net_weight = item.get('actual_net_weight', 0)
 
-                # Determine inventory change amount (to_add: positive = add to inventory, negative = deduct)
-                # For reusable materials: deduct consumption (net_weight), add back return weight
-                # For non-reusable: add back return_quantity
-                if is_reusable:
-                    # Get initial gross weight from weight record
-                    cursor.execute(
-                        "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
-                        (item['out_order_item_id'],)
-                    )
-                    weight_record = cursor.fetchone()
-                    initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
+                # Only reusable materials can be returned
+                if not is_reusable:
+                    continue
 
-                    # Calculate net weight: initial - return = actual consumption
-                    if return_weight is not None and return_weight > 0:
-                        net_weight = initial_weight - return_weight
-                    else:
-                        net_weight = actual_net_weight if actual_net_weight > 0 else 0
-                        return_weight = initial_weight - net_weight  # Calculate return_weight from net_weight
+                # Get initial gross weight from weight record
+                cursor.execute(
+                    "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
+                    (item['out_order_item_id'],)
+                )
+                weight_record = cursor.fetchone()
+                initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
 
-                    # Update weight record with return data
-                    cursor.execute(
-                        """UPDATE reusable_material_weight
-                           SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
-                               return_operator_id = ?, actual_net_weight = ?, status = 'returned'
-                           WHERE out_order_item_id = ?""",
-                        (return_weight, approved_by, net_weight, item['out_order_item_id'])
-                    )
-                    # Update out_order_item actual_quantity to actual usage (net weight)
-                    cursor.execute(
-                        "UPDATE out_order_item SET actual_quantity = ? WHERE id = ?",
-                        (net_weight, item['out_order_item_id'])
-                    )
-                    # Deduct actual consumption from inventory (what was used, not returned)
-                    inventory_delta = -net_weight
-
-                    # Update returned_quantity with actual return weight (for reference)
-                    cursor.execute(
-                        "UPDATE out_order_item SET returned_quantity = returned_quantity + ? WHERE id = ?",
-                        (return_weight or 0, item['out_order_item_id'])
-                    )
+                # Calculate net weight: initial - return = actual consumption
+                if return_weight is not None and return_weight > 0:
+                    net_weight = initial_weight - return_weight
                 else:
-                    # For non-reusable materials
-                    return_qty = item.get('return_quantity', 0) or actual_net_weight
-                    if return_qty <= 0:
-                        continue
-                    cursor.execute(
-                        "UPDATE out_order_item SET returned_quantity = returned_quantity + ? WHERE id = ?",
-                        (return_qty, item['out_order_item_id'])
-                    )
-                    inventory_delta = return_qty
+                    net_weight = actual_net_weight if actual_net_weight > 0 else 0
+                    return_weight = initial_weight - net_weight
+
+                # Update weight record with return data
+                cursor.execute(
+                    """UPDATE reusable_material_weight
+                       SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
+                           return_operator_id = ?, actual_net_weight = ?, status = 'returned'
+                       WHERE out_order_item_id = ?""",
+                    (return_weight, approved_by, net_weight, item['out_order_item_id'])
+                )
+                # Update out_order_item actual_quantity to actual usage (net weight)
+                cursor.execute(
+                    "UPDATE out_order_item SET actual_quantity = ? WHERE id = ?",
+                    (net_weight, item['out_order_item_id'])
+                )
+                # Deduct actual consumption from inventory (what was used, not returned)
+                inventory_delta = -net_weight
+                return_qty = return_weight
+
+                # Update returned_quantity with actual return weight (for reference)
+                cursor.execute(
+                    "UPDATE out_order_item SET returned_quantity = returned_quantity + ? WHERE id = ?",
+                    (return_weight or 0, item['out_order_item_id'])
+                )
 
                 # Check existing inventory batch
                 cursor.execute(
@@ -1382,7 +1373,7 @@ class OrderService:
 
             # Get current weight record
             cursor.execute(
-                "SELECT * FROM reusable_material_weight WHERE out_order_item_id = ?",
+                "SELECT id, out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, return_gross_weight, return_weight_time, return_operator_id, actual_net_weight, status, remark FROM reusable_material_weight WHERE out_order_item_id = ?",
                 (out_order_item_id,)
             )
             record = cursor.fetchone()

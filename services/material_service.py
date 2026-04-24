@@ -21,7 +21,7 @@ class MaterialService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM material_category ORDER BY code"
+            "SELECT id, code, name, parent_code, level FROM material_category ORDER BY code"
         )
         categories = [dict(row) for row in cursor.fetchall()]
         conn.close()
@@ -72,7 +72,7 @@ class MaterialService:
                 )
                 conn.commit()
 
-            cursor.execute("SELECT * FROM material_category WHERE id = ?", (category_id,))
+            cursor.execute("SELECT id, code, name, parent_code, level FROM material_category WHERE id = ?", (category_id,))
             category = cursor.fetchone()
             conn.close()
 

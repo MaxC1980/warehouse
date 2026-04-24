@@ -54,7 +54,7 @@ class TestDatabase(TestBase):
     def test_default_admin_user(self):
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user WHERE username='admin'")
+        cursor.execute("SELECT id, username, password, can_approve, created_at, permission_level FROM user WHERE username='admin'")
         user = cursor.fetchone()
         self.assertIsNotNone(user)
         self.assertEqual(user['username'], 'admin')
@@ -323,7 +323,7 @@ class TestReusableMaterial(TestBase):
         # 检查reusable_material_weight表有记录
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM reusable_material_weight WHERE material_id = ?", (material_id,))
+        cursor.execute("SELECT id, out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, return_gross_weight, return_weight_time, return_operator_id, actual_net_weight, status, remark FROM reusable_material_weight WHERE material_id = ?", (material_id,))
         weight_record = cursor.fetchone()
         conn.close()
         self.assertIsNotNone(weight_record)
@@ -335,14 +335,14 @@ class TestReturnOrder(TestBase):
     """退库审核测试"""
 
     def test_return_order_approve_restores_inventory(self):
-        """退库审核后回冲库存"""
+        """可回用物料退库审核后按净用量扣减库存"""
         from services.order_service import OrderService
         from services.material_service import MaterialService
         from services.supplier_service import SupplierService
         from services.inventory_service import InventoryService
 
-        # 1. 创建普通物料并入库
-        material = MaterialService.create_material(name='测试物料B', unit='个')
+        # 1. 创建可回用物料并入库
+        material = MaterialService.create_material(name='测试物料B', unit='个', is_reusable=1)
         supplier = SupplierService.create_supplier(name='测试供应商B')
 
         in_order = OrderService.create_in_order(
@@ -360,7 +360,7 @@ class TestReturnOrder(TestBase):
         inv = InventoryService.get_inventory_by_material(material['id'])
         self.assertEqual(inv['quantity'], 100)
 
-        # 2. 创建并审核出库单
+        # 2. 创建并审核出库单（可回用物料不扣减库存，记录毛重）
         out_order = OrderService.create_out_order(
             department='部门B',
             receiver='李四',
@@ -370,16 +370,21 @@ class TestReturnOrder(TestBase):
                 'material_id': material['id'],
                 'batch_no': 'BATCH-B001',
                 'actual_quantity': 80,
-                'requested_quantity': 80
+                'requested_quantity': 80,
+                'initial_gross_weight': 35.5
             }]
         )
-        OrderService.approve_out_order(out_order['id'], approved_by=1)
+        OrderService.approve_out_order(
+            out_order['id'],
+            approved_by=1,
+            weight_data=[{'out_order_item_id': out_order['items'][0]['id'], 'initial_gross_weight': 35.5}]
+        )
 
-        # 出库后库存为20
+        # 可回用物料出库后库存不变
         inv = InventoryService.get_inventory_by_material(material['id'])
-        self.assertEqual(inv['quantity'], 20)
+        self.assertEqual(inv['quantity'], 100)
 
-        # 3. 创建退库单
+        # 3. 创建退库单（退回毛重25.5，净用量=35.5-25.5=10）
         return_order = OrderService.create_return_order(
             related_out_order_id=out_order['id'],
             department='部门B',
@@ -390,7 +395,7 @@ class TestReturnOrder(TestBase):
                 'out_order_item_id': out_order['items'][0]['id'],
                 'material_id': material['id'],
                 'batch_no': 'BATCH-B001',
-                'return_quantity': 30
+                'return_gross_weight': 25.5
             }]
         )
 
@@ -398,9 +403,9 @@ class TestReturnOrder(TestBase):
         result = OrderService.approve_return_order(return_order['id'], approved_by=1)
         self.assertIsNotNone(result)
 
-        # 退库后库存回冲为50（20 + 30）
+        # 退库后库存扣减净用量：100 - 10 = 90
         inv = InventoryService.get_inventory_by_material(material['id'])
-        self.assertEqual(inv['quantity'], 50)
+        self.assertEqual(inv['quantity'], 90)
 
     def test_approve_out_order_insufficient_inventory(self):
         """出库审核时库存不足应报错"""
@@ -493,7 +498,7 @@ class TestReturnOrder(TestBase):
                 'out_order_item_id': out_order_item_id,
                 'material_id': material['id'],
                 'batch_no': 'BATCH-D001',
-                'return_quantity': 50
+                'return_gross_weight': 50
             }]
         )
         OrderService.approve_return_order(return_order1['id'], approved_by=1)
@@ -510,7 +515,7 @@ class TestReturnOrder(TestBase):
                     'out_order_item_id': out_order_item_id,
                     'material_id': material['id'],
                     'batch_no': 'BATCH-D001',
-                    'return_quantity': 30
+                    'return_gross_weight': 30
                 }]
             )
         self.assertIn('已有审核通过的退库单', str(context.exception))

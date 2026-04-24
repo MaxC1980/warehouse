@@ -21,7 +21,7 @@ class SupplierService:
 
         # Get suppliers
         cursor.execute(
-            f"SELECT * FROM supplier {where_sql} ORDER BY id LIMIT ? OFFSET ?",
+            f"SELECT id, name, contact, phone, address, created_at FROM supplier {where_sql} ORDER BY id LIMIT ? OFFSET ?",
             params + [per_page, offset]
         )
         suppliers = [dict(row) for row in cursor.fetchall()]
@@ -33,7 +33,7 @@ class SupplierService:
     def get_supplier_by_id(supplier_id):
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM supplier WHERE id = ?", (supplier_id,))
+        cursor.execute("SELECT id, name, contact, phone, address, created_at FROM supplier WHERE id = ?", (supplier_id,))
         supplier = cursor.fetchone()
         conn.close()
 

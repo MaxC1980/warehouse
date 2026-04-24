@@ -20,7 +20,7 @@ class EmployeeService:
         total = cursor.fetchone()['count']
 
         cursor.execute(
-            f"SELECT * FROM employee {where_sql} ORDER BY name LIMIT ? OFFSET ?",
+            f"SELECT id, name, department, phone, remark, created_at FROM employee {where_sql} ORDER BY name LIMIT ? OFFSET ?",
             params + [per_page, offset]
         )
         employees = [dict(row) for row in cursor.fetchall()]
@@ -31,7 +31,7 @@ class EmployeeService:
     def get_employee_by_id(employee_id):
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM employee WHERE id = ?", (employee_id,))
+        cursor.execute("SELECT id, name, department, phone, remark, created_at FROM employee WHERE id = ?", (employee_id,))
         employee = cursor.fetchone()
         conn.close()
         return dict(employee) if employee else None
