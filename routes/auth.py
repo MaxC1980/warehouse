@@ -16,12 +16,10 @@ def login():
     if user:
         session['user_id'] = user['id']
         session['username'] = user['username']
-        session['can_approve'] = user['can_approve']
         session['permission_level'] = user.get('permission_level', 1)
         return jsonify({
             'id': user['id'],
             'username': user['username'],
-            'can_approve': user['can_approve'],
             'permission_level': user.get('permission_level', 1)
         })
     return jsonify({'error': 'Invalid credentials'}), 401
@@ -37,7 +35,6 @@ def current_user():
         return jsonify({
             'id': session['user_id'],
             'username': session['username'],
-            'can_approve': session.get('can_approve', 0),
             'permission_level': session.get('permission_level', 1)
         })
     return jsonify({'error': 'Not logged in'}), 401

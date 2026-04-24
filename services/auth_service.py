@@ -6,7 +6,7 @@ class AuthService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, can_approve, permission_level FROM user WHERE username = ? AND password = ?",
+            "SELECT id, username, permission_level FROM user WHERE username = ? AND password = ?",
             (username, password)
         )
         user = cursor.fetchone()
@@ -16,7 +16,6 @@ class AuthService:
             return {
                 'id': user['id'],
                 'username': user['username'],
-                'can_approve': user['can_approve'],
                 'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
             }
         return None
@@ -26,7 +25,7 @@ class AuthService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, username, can_approve, permission_level FROM user WHERE id = ?",
+            "SELECT id, username, permission_level FROM user WHERE id = ?",
             (user_id,)
         )
         user = cursor.fetchone()
@@ -36,18 +35,9 @@ class AuthService:
             return {
                 'id': user['id'],
                 'username': user['username'],
-                'can_approve': user['can_approve'],
                 'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
             }
         return None
-
-    @staticmethod
-    def check_can_approve(user_id):
-        """检查用户是否有审核权限"""
-        user = AuthService.get_user_by_id(user_id)
-        if user:
-            return user.get('can_approve', 0) == 1
-        return False
 
     @staticmethod
     def change_password(user_id, old_password, new_password):

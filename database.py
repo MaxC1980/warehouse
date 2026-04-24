@@ -21,18 +21,9 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            can_approve INTEGER DEFAULT 0,
             created_at DATETIME
         )
     ''')
-
-    # Add can_approve column if it doesn't exist (for existing databases)
-    cursor.execute("PRAGMA table_info(user)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'can_approve' not in columns:
-        cursor.execute("ALTER TABLE user ADD COLUMN can_approve INTEGER DEFAULT 0")
-        # Set admin user can_approve = 1
-        cursor.execute("UPDATE user SET can_approve = 1 WHERE username = 'admin'")
 
     # Add permission_level column if it doesn't exist (for existing databases)
     cursor.execute("PRAGMA table_info(user)")
@@ -329,20 +320,20 @@ def init_db():
     cursor.execute("SELECT id FROM user WHERE username = 'admin'")
     if not cursor.fetchone():
         cursor.execute(
-            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
-            ('admin', 'admin123', 1, 3)
+            "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
+            ('admin', 'admin123', 3)
         )
     cursor.execute("SELECT id FROM user WHERE username = 'view'")
     if not cursor.fetchone():
         cursor.execute(
-            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
-            ('view', 'view123', 0, 1)
+            "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
+            ('view', 'view123', 1)
         )
     cursor.execute("SELECT id FROM user WHERE username = 'edit'")
     if not cursor.fetchone():
         cursor.execute(
-            "INSERT INTO user (username, password, can_approve, permission_level) VALUES (?, ?, ?, ?)",
-            ('edit', 'edit123', 0, 2)
+            "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
+            ('edit', 'edit123', 2)
         )
 
     conn.commit()
