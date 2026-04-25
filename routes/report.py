@@ -169,7 +169,7 @@ def export_out_detail_report():
         r['material_code'],
         r['material_name'],
         r['batch_no'],
-        r['quantity'],
+        r['actual_quantity'],
         r['unit_price'],
         r['amount'],
         r['operator']
