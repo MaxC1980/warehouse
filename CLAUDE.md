@@ -40,7 +40,7 @@ cursor.execute("PRAGMA foreign_keys = ON")
 1. 修改表结构后需手动 `ALTER TABLE` 或删除 `db/warehouse.db`
 2. SQL LIKE：`code LIKE '0103%'`（前缀），`name LIKE '%关键词%'`（模糊）
 3. `request.get_json()` 失败用 `request.get_json(silent=True) or {}`
-4. 禁止使用select *
+4. 禁止使用`select *`
 
 
 ## 调试
