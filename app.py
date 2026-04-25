@@ -9,7 +9,6 @@ sys.dont_write_bytecode = True
 
 from flask import Flask, jsonify, request, session, redirect, url_for, render_template
 from functools import wraps
-import os
 
 from config import ProductionConfig
 from database import init_db
