@@ -33,6 +33,11 @@
     <select id="minor-category" onchange="loadInventory()">
         <option value="">全部小类</option>
     </select>
+    <select id="status-filter" onchange="loadInventory()">
+        <option value="">全部</option>
+        <option value="正常">正常</option>
+        <option value="过期">过期</option>
+    </select>
     <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、规格">
     <select id="per-page" onchange="loadInventory()">
         <option value="15">15条/页</option>
@@ -96,7 +101,7 @@ const detailHeaders = [
     '物料编码', '物料名称', '品牌', '规格型号', '单位', '批次号', '生产日期', '有效日期', '当前库存', '待审入库', '待审出库', '状态'
 ];
 const summaryHeaders = [
-    '物料编码', '物料名称', '品牌', '规格型号', '单位', '当前库存', '状态'
+    '物料编码', '物料名称', '品牌', '规格型号', '单位', '当前库存'
 ];
 
 function setViewMode(mode) {
@@ -120,6 +125,8 @@ async function loadInventory(page = 1) {
     const categoryCode = minorCategory || majorCategory || '';
     if (categoryCode) params.append('category_code', categoryCode);
     if (currentMode === 'summary') params.append('summary', 'true');
+    const statusFilter = document.getElementById('status-filter').value;
+    if (statusFilter) params.append('status', statusFilter);
 
     const data = await apiRequest(`/inventory?${params}`);
     if (data) {
@@ -137,7 +144,7 @@ function renderTableHeader() {
 function renderInventory(inventory) {
     const tbody = document.getElementById('inventory-tbody');
     if (inventory.length === 0) {
-        const colCount = currentMode === 'detail' ? 12 : 7;
+        const colCount = currentMode === 'detail' ? 12 : 6;
         tbody.innerHTML = `<tr><td colspan="${colCount}">暂无数据</td></tr>`;
         return;
     }
@@ -167,7 +174,6 @@ function renderInventory(inventory) {
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
                 <td>${item.quantity}</td>
-                <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${item.status}</span></td>
             </tr>
         `).join('');
     }

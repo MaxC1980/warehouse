@@ -10,13 +10,15 @@ def get_inventory():
     keyword = request.args.get('keyword')
     summary = request.args.get('summary', type=bool, default=False)
     category_code = request.args.get('category_code')
+    status = request.args.get('status')
 
     inventory, total = InventoryService.get_inventory(
         page=page,
         per_page=per_page,
         keyword=keyword,
         summary=summary,
-        category_code=category_code
+        category_code=category_code,
+        status=status
     )
     return jsonify({
         'items': inventory,

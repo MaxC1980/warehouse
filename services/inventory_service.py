@@ -3,7 +3,7 @@ from database import get_db_connection
 
 class InventoryService:
     @staticmethod
-    def get_inventory(page=1, per_page=20, keyword=None, summary=False, category_code=None):
+    def get_inventory(page=1, per_page=20, keyword=None, summary=False, category_code=None, status=None):
         """Get inventory - summary for material汇总, detail for batch明细"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -20,6 +20,22 @@ class InventoryService:
         if category_code:
             where_clauses.append("m.category_code LIKE ?")
             params.append(f'{category_code}%')
+
+        if status:
+            from datetime import datetime
+            # 用 INSTR 找分隔符位置，兼容非标准格式如 '2026-4-15'
+            p1 = f"INSTR(i.expiry_date, '-')"
+            rest = f"SUBSTR(i.expiry_date, {p1}+1)"
+            p2 = f"INSTR({rest}, '-') + {p1}"
+            year = f"SUBSTR(i.expiry_date, 1, {p1}-1)"
+            month = f"SUBSTR(i.expiry_date, {p1}+1, {p2}-{p1}-1)"
+            day = f"SUBSTR(i.expiry_date, {p2}+1)"
+            ymd_expr = f"{year} || PRINTF('%02d', CAST({month} AS INTEGER)) || PRINTF('%02d', CAST({day} AS INTEGER))"
+            today_ymd = datetime.now().strftime('%Y%m%d')
+            if status == '正常':
+                where_clauses.append(f"(i.expiry_date IS NULL OR {ymd_expr} >= '{today_ymd}')")
+            elif status == '过期':
+                where_clauses.append(f"{ymd_expr} < '{today_ymd}'")
 
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
@@ -83,28 +99,29 @@ class InventoryService:
             inventory = []
             inventory_map = {}
 
-            from datetime import date, datetime
             for row in cursor.fetchall():
                 item = dict(row)
-                today = date.today()
-                expiry = item.get('expiry_date')
-                if expiry:
-                    if isinstance(expiry, str):
-                        try:
-                            expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date()
-                        except:
+                # SQL 已按状态过滤，精确赋值；status=None 时需动态判断
+                if status == '过期':
+                    item['status'] = '过期'
+                elif status == '正常':
+                    item['status'] = '正常'
+                else:
+                    # 全部时动态判断
+                    from datetime import date, datetime
+                    today = date.today()
+                    expiry = item.get('expiry_date')
+                    if expiry:
+                        if isinstance(expiry, str):
                             try:
                                 expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date()
                             except:
                                 expiry_date = None
-                    else:
-                        expiry_date = expiry
-                    if expiry_date and expiry_date < today:
-                        item['status'] = '过期'
+                        else:
+                            expiry_date = expiry
+                        item['status'] = '过期' if expiry_date and expiry_date < today else '正常'
                     else:
                         item['status'] = '正常'
-                else:
-                    item['status'] = '正常'
                 item['pending_in'] = 0
                 item['pending_out'] = 0
                 inventory.append(item)
