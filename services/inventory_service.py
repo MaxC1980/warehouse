@@ -21,7 +21,7 @@ class InventoryService:
             where_clauses.append("m.category_code LIKE ?")
             params.append(f'{category_code}%')
 
-        if status:
+        if status and not summary:
             from datetime import datetime
             # 用 INSTR 找分隔符位置，兼容非标准格式如 '2026-4-15'
             p1 = f"INSTR(i.expiry_date, '-')"

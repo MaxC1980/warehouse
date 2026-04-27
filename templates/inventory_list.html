@@ -126,7 +126,7 @@ async function loadInventory(page = 1) {
     if (categoryCode) params.append('category_code', categoryCode);
     if (currentMode === 'summary') params.append('summary', 'true');
     const statusFilter = document.getElementById('status-filter').value;
-    if (statusFilter) params.append('status', statusFilter);
+    if (statusFilter && currentMode === 'detail') params.append('status', statusFilter);
 
     const data = await apiRequest(`/inventory?${params}`);
     if (data) {
