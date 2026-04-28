@@ -211,6 +211,11 @@ def report_out_detail():
 def report_summary():
     return render_template('report_summary.html')
 
+@app.route('/reports/stock-flow')
+@login_required
+def report_stock_flow():
+    return render_template('report_stock_flow.html')
+
 @app.route('/category-major')
 @login_required
 def category_major():

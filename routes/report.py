@@ -181,3 +181,71 @@ def export_out_detail_report():
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     response.headers['Content-Disposition'] = 'attachment; filename=out_detail_report.xlsx'
     return response
+
+@report_bp.route('/reports/stock-flow', methods=['GET'])
+def get_stock_flow_report():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 100, type=int)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    keyword = request.args.get('keyword')
+    major_category = request.args.get('major_category')
+    minor_category = request.args.get('minor_category')
+    hide_zero = request.args.get('hide_zero') == '1'
+
+    report_data, total = ReportService.get_stock_flow_report(
+        page=page,
+        per_page=per_page,
+        date_from=date_from,
+        date_to=date_to,
+        keyword=keyword,
+        major_category=major_category,
+        minor_category=minor_category,
+        hide_zero=hide_zero
+    )
+    return jsonify({
+        'items': report_data,
+        'total': total,
+        'page': page,
+        'per_page': per_page
+    })
+
+@report_bp.route('/reports/stock-flow/export', methods=['GET'])
+def export_stock_flow_report():
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    keyword = request.args.get('keyword')
+    major_category = request.args.get('major_category')
+    minor_category = request.args.get('minor_category')
+    hide_zero = request.args.get('hide_zero') == '1'
+
+    report_data, _ = ReportService.get_stock_flow_report(
+        page=1,
+        per_page=10000,
+        date_from=date_from,
+        date_to=date_to,
+        keyword=keyword,
+        major_category=major_category,
+        minor_category=minor_category,
+        hide_zero=hide_zero
+    )
+
+    columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '期初数', '入库数', '出库数', '期末数']
+    data = [[
+        r['material_code'],
+        r['material_name'],
+        r['manufacturer'],
+        r['spec'],
+        r['unit'],
+        r['opening_qty'],
+        r['in_qty'],
+        r['out_qty'],
+        r['closing_qty']
+    ] for r in report_data]
+
+    excel_data = export_to_excel(columns, data, '出入口库存报表')
+
+    response = make_response(excel_data)
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    response.headers['Content-Disposition'] = 'attachment; filename=stock_flow_report.xlsx'
+    return response

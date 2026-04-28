@@ -286,3 +286,82 @@ class ReportService:
             'out_order_count': out_stats['count'],
             'out_order_amount': out_stats['total_amount']
         }
+
+    @staticmethod
+    def get_stock_flow_report(page=1, per_page=100, date_from=None, date_to=None, keyword=None, major_category=None, minor_category=None, hide_zero=False):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        offset = (page - 1) * per_page
+
+        where_clauses = []
+        params = []
+
+        if keyword:
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+
+        if major_category:
+            where_clauses.append("m.category_code LIKE ?")
+            params.append(major_category + '%')
+
+        if minor_category:
+            where_clauses.append("m.category_code = ?")
+            params.append(minor_category)
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        # 先查符合条件的 material，再用 subquery 计算汇总
+        inner_sql = f"""
+            SELECT
+                m.id,
+                m.code as material_code,
+                m.name as material_name,
+                m.manufacturer,
+                m.spec,
+                m.unit,
+                (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date < ?) as opening_in,
+                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status = 'approved' AND oo.receiver_date < ?) as opening_out,
+                (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date >= ? AND io.receiver_date <= ?) as period_in,
+                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status = 'approved' AND oo.receiver_date >= ? AND oo.receiver_date <= ?) as period_out
+            FROM material m
+            {where_sql}
+        """
+
+        data_sql = f"""
+            SELECT
+                id, material_code, material_name, manufacturer, spec, unit,
+                opening_in - opening_out as opening_qty,
+                period_in as in_qty,
+                period_out as out_qty,
+                opening_in - opening_out + period_in - period_out as closing_qty
+            FROM ({inner_sql}) t
+        """
+
+        if hide_zero:
+            data_sql += " WHERE (opening_in - opening_out + period_in - period_out) != 0"
+
+        data_sql += " ORDER BY material_code LIMIT ? OFFSET ?"
+
+        # Count
+        count_sql = f"SELECT COUNT(*) FROM ({inner_sql}) t"
+        if hide_zero:
+            count_sql += " WHERE (opening_in - opening_out + period_in - period_out) != 0"
+
+        cursor.execute(count_sql, [date_from, date_from, date_from, date_to, date_from, date_to] + params)
+        total = cursor.fetchone()[0]
+
+        cursor.execute(data_sql, [date_from, date_from, date_from, date_to, date_from, date_to] + params + [per_page, offset])
+
+        report_data = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            item['opening_qty'] = round(item['opening_qty'], 2)
+            item['in_qty'] = round(item['in_qty'], 2)
+            item['out_qty'] = round(item['out_qty'], 2)
+            item['closing_qty'] = round(item['closing_qty'], 2)
+            report_data.append(item)
+
+        conn.close()
+        return report_data, total

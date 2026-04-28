@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}出入库报表 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>出入库报表</h1>
+    <div class="page-actions">
+        <button onclick="exportExcel()" class="btn btn-secondary">导出Excel</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="checkbox" id="hide-zero" checked onchange="loadReport()">
+    <label for="hide-zero">隐藏全零记录</label>
+    <select id="search-major-category" onchange="onMajorChange(); loadReport()" style="width:120px;">
+        <option value="">全部大类</option>
+    </select>
+    <select id="search-minor-category" onchange="loadReport()" style="width:120px;">
+        <option value="">全部小类</option>
+    </select>
+    <input type="date" id="date-from" style="width:140px;">
+    <span>至</span>
+    <input type="date" id="date-to" style="width:140px;">
+    <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
+    <button onclick="setLastMonth()" class="btn btn-sm">上月</button>
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称">
+    <select id="per-page-select" onchange="loadReport()" style="width:80px;">
+        <option value="20">20条</option>
+        <option value="50" selected>50条</option>
+        <option value="100">100条</option>
+    </select>
+    <button onclick="loadReport()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>品牌</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th>期初数</th>
+                <th>入库数</th>
+                <th>出库数</th>
+                <th>期末数</th>
+            </tr>
+        </thead>
+        <tbody id="report-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let categoriesData = [];
+
+async function loadCategories() {
+    const data = await apiRequest('/categories?per_page=200');
+    categoriesData = data || [];
+    const majorSelect = document.getElementById('search-major-category');
+    categoriesData.filter(c => c.level === 1).forEach(c => {
+        majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+    });
+}
+
+function onMajorChange() {
+    const majorCode = document.getElementById('search-major-category').value;
+    const minorSelect = document.getElementById('search-minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+    if (majorCode) {
+        categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
+            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        });
+    }
+}
+
+function getDefaultDates() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const toDate = today.toISOString().split('T')[0];
+    const fromDate = firstDay.toISOString().split('T')[0];
+    return { fromDate, toDate };
+}
+
+function setLastMonth() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+    document.getElementById('date-from').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('date-to').value = lastDay.toISOString().split('T')[0];
+    loadReport();
+}
+
+async function loadReport(page = 1) {
+    currentPage = page;
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    const keyword = document.getElementById('search-keyword').value;
+    const majorCategory = document.getElementById('search-major-category').value;
+    const minorCategory = document.getElementById('search-minor-category').value;
+    const perPage = document.getElementById('per-page-select').value;
+    const hideZero = document.getElementById('hide-zero').checked;
+
+    if (!dateFrom || !dateTo) {
+        alert('请选择日期范围');
+        return;
+    }
+
+    const params = new URLSearchParams({ page, per_page: perPage, date_from: dateFrom, date_to: dateTo });
+    if (keyword) params.append('keyword', keyword);
+    if (majorCategory) params.append('major_category', majorCategory);
+    if (minorCategory) params.append('minor_category', minorCategory);
+    if (hideZero) params.append('hide_zero', '1');
+
+    const data = await apiRequest(`/reports/stock-flow?${params}`);
+    if (data) {
+        renderReport(data.items);
+        renderPagination(data.total, data.page, perPage);
+    }
+}
+
+function renderReport(items) {
+    const tbody = document.getElementById('report-tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(item => `
+        <tr class="${item.closing_qty < 0 ? 'warning-row' : ''}">
+            <td>${item.material_code}</td>
+            <td>${item.material_name}</td>
+            <td>${item.manufacturer || ''}</td>
+            <td>${item.spec || ''}</td>
+            <td>${item.unit}</td>
+            <td>${item.opening_qty}</td>
+            <td>${item.in_qty}</td>
+            <td>${item.out_qty}</td>
+            <td class="${item.closing_qty < 0 ? 'warning' : ''}">${item.closing_qty}</td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(total, page, perPage) {
+    const totalPages = Math.ceil(total / perPage);
+    const div = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        div.innerHTML = '';
+        return;
+    }
+    let html = '';
+    if (page > 1) html += `<button onclick="loadReport(${page - 1})" class="btn btn-sm">上一页</button>`;
+    html += `<span style="padding:4px 8px;">第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    if (page < totalPages) html += `<button onclick="loadReport(${page + 1})" class="btn btn-sm">下一页</button>`;
+    div.innerHTML = html;
+}
+
+function exportExcel() {
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    const keyword = document.getElementById('search-keyword').value;
+    const majorCategory = document.getElementById('search-major-category').value;
+    const minorCategory = document.getElementById('search-minor-category').value;
+
+    if (!dateFrom || !dateTo) {
+        alert('请选择日期范围');
+        return;
+    }
+
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (keyword) params.append('keyword', keyword);
+    if (majorCategory) params.append('major_category', majorCategory);
+    if (minorCategory) params.append('minor_category', minorCategory);
+    if (document.getElementById('hide-zero').checked) params.append('hide_zero', '1');
+    window.location.href = '/api/reports/stock-flow/export?' + params.toString();
+}
+
+(async function() {
+    await loadCategories();
+    setThisMonth();
+})();
+</script>
+{% endblock %}
