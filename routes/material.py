@@ -30,14 +30,17 @@ def update_category(category_id):
         return jsonify({'error': '无编辑权限'}), 403
 
     data = request.get_json()
-    category = MaterialService.update_category(
+    ok, category = MaterialService.update_category(
         category_id,
         code=data.get('code'),
-        name=data.get('name')
+        name=data.get('name'),
+        parent_code=data.get('parent_code')
     )
-    if category:
+    if ok:
         return jsonify(category)
-    return jsonify({'error': 'Category not found'}), 404
+    if category == 'has_materials':
+        return jsonify({'error': '该分类已被物料引用，无法修改代码或所属大类'}), 400
+    return jsonify({'error': '分类不存在'}), 404
 
 @material_bp.route('/categories/<int:category_id>', methods=['DELETE'])
 def delete_category(category_id):
@@ -45,10 +48,14 @@ def delete_category(category_id):
     if permission_level < 2:
         return jsonify({'error': '无删除权限'}), 403
 
-    success = MaterialService.delete_category(category_id)
-    if success:
-        return jsonify({'message': 'Category deleted'})
-    return jsonify({'error': 'Category not found or has children'}), 404
+    result = MaterialService.delete_category(category_id)
+    if result == 'ok':
+        return jsonify({'message': '分类已删除'})
+    if result == 'has_children':
+        return jsonify({'error': '该分类下存在子分类，无法删除'}), 400
+    if result == 'has_materials':
+        return jsonify({'error': '该分类已被物料引用，无法删除'}), 400
+    return jsonify({'error': '分类不存在'}), 404
 
 @material_bp.route('/materials', methods=['GET'])
 def get_materials():

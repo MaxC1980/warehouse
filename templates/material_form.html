@@ -124,6 +124,12 @@ async function loadMaterial() {
         form.remark.value = material.remark || '';
         document.getElementById('is_reusable').checked = material.is_reusable === 1;
 
+        // 如果有引用记录，禁用分类选择
+        if (material.has_references) {
+            document.getElementById('category-select').disabled = true;
+            document.getElementById('minor-category-select').disabled = true;
+        }
+
         // 如果有分类，回填大类和小类
         if (material.category_code) {
             const category = allCategories.find(c => c.code === material.category_code);

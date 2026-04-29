@@ -85,6 +85,9 @@ async function loadMajorCategories() {
         const filterSelect = document.getElementById('major-category-filter');
         const newParentSelect = document.getElementById('new-parent-code');
 
+        filterSelect.innerHTML = '<option value="">全部大类</option>';
+        newParentSelect.innerHTML = '<option value="">请选择大类</option>';
+
         majorCategories.forEach(cat => {
             filterSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
             newParentSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
@@ -148,23 +151,37 @@ function renderCategories() {
     pageData.forEach(c => {
         const major = allCategories.find(m => m.code === c.parent_code);
         if (editingId === c.id) {
-            html += `
-                <tr>
-                    <td>
-                        <select id="edit-parent-code" onchange="generateEditCode()">
-                            ${allCategories.filter(m => m.level === 1).map(m =>
-                                `<option value="${m.code}" ${m.code === c.parent_code ? 'selected' : ''}>${m.name}</option>`
-                            ).join('')}
-                        </select>
-                    </td>
-                    <td><input type="text" id="edit-code" value="${c.code}" maxlength="4"></td>
-                    <td><input type="text" id="edit-name" value="${c.name}"></td>
-                    <td>
-                        <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
-                        <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
-                    </td>
-                </tr>
-            `;
+            if (c.has_materials) {
+                html += `
+                    <tr>
+                        <td>${major ? major.name : ''}</td>
+                        <td>${c.code}</td>
+                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td>
+                            <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                            <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                html += `
+                    <tr>
+                        <td>
+                            <select id="edit-parent-code" onchange="generateEditCode()">
+                                ${allCategories.filter(m => m.level === 1).map(m =>
+                                    `<option value="${m.code}" ${m.code === c.parent_code ? 'selected' : ''}>${m.name}</option>`
+                                ).join('')}
+                            </select>
+                        </td>
+                        <td><input type="text" id="edit-code" value="${c.code}" maxlength="4"></td>
+                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td>
+                            <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                            <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                        </td>
+                    </tr>
+                `;
+            }
         } else {
             html += `
                 <tr>
@@ -174,6 +191,7 @@ function renderCategories() {
                     <td>
                         ${currentPermissionLevel >= 2 ? `<button onclick="startEdit(${c.id})" class="btn btn-sm">编辑</button>` : ''}
                         ${currentPermissionLevel >= 2 ? `<button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                        ${c.has_materials ? '<span class="text-muted">已引用</span>' : ''}
                     </td>
                 </tr>
             `;
@@ -235,17 +253,25 @@ function cancelEdit() {
 }
 
 async function saveEdit(id) {
-    const parent_code = document.getElementById('edit-parent-code').value;
-    const code = document.getElementById('edit-code').value.trim();
+    const cat = allCategories.find(c => c.id === id);
     const name = document.getElementById('edit-name').value.trim();
-    if (!parent_code || !code || !name) { alert('请填写完整的小类信息'); return; }
-    if (code.length !== 4) { alert('小类代码必须为4位'); return; }
-    if (!code.startsWith(parent_code)) { alert('小类代码必须以大类代码开头'); return; }
-    if (!checkCodeUnique(code, 'edit')) return;
+    if (!name) { alert('请填写分类名称'); return; }
+
+    const body = { name };
+    if (!cat || !cat.has_materials) {
+        const parent_code = document.getElementById('edit-parent-code').value;
+        const code = document.getElementById('edit-code').value.trim();
+        if (!parent_code || !code) { alert('请填写完整的小类信息'); return; }
+        if (code.length !== 4) { alert('小类代码必须为4位'); return; }
+        if (!code.startsWith(parent_code)) { alert('小类代码必须以大类代码开头'); return; }
+        if (!checkCodeUnique(code, 'edit')) return;
+        body.code = code;
+        body.parent_code = parent_code;
+    }
 
     const result = await apiRequest(`/categories/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ code, name, parent_code })
+        body: JSON.stringify(body)
     });
     if (result) {
         editingId = null;

@@ -100,16 +100,29 @@ function renderCategories() {
     let html = '';
     pageData.forEach(c => {
         if (editingId === c.id) {
-            html += `
-                <tr>
-                    <td><input type="text" id="edit-code" value="${c.code}" maxlength="2" onblur="checkEditCodeUnique()"></td>
-                    <td><input type="text" id="edit-name" value="${c.name}"></td>
-                    <td>
-                        <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
-                        <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
-                    </td>
-                </tr>
-            `;
+            if (c.has_materials) {
+                html += `
+                    <tr>
+                        <td>${c.code}</td>
+                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td>
+                            <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                            <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                html += `
+                    <tr>
+                        <td><input type="text" id="edit-code" value="${c.code}" maxlength="2" onblur="checkEditCodeUnique()"></td>
+                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td>
+                            <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
+                            <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
+                        </td>
+                    </tr>
+                `;
+            }
         } else {
             html += `
                 <tr>
@@ -118,6 +131,7 @@ function renderCategories() {
                     <td>
                         ${currentPermissionLevel >= 2 ? `<button onclick="startEdit(${c.id})" class="btn btn-sm">编辑</button>` : ''}
                         ${currentPermissionLevel >= 2 ? `<button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                        ${c.has_materials ? '<span class="text-muted">已引用</span>' : ''}
                     </td>
                 </tr>
             `;
@@ -170,15 +184,22 @@ function cancelEdit() {
 }
 
 async function saveEdit(id) {
-    const code = document.getElementById('edit-code').value.trim();
+    const cat = categories.find(c => c.id === id);
     const name = document.getElementById('edit-name').value.trim();
-    if (!code || !name) { alert('请填写完整的分类代码和名称'); return; }
-    if (code.length !== 2) { alert('分类代码必须为2位'); return; }
-    if (!checkEditCodeUnique()) return;
+    if (!name) { alert('请填写分类名称'); return; }
+
+    const body = { name };
+    if (!cat || !cat.has_materials) {
+        const code = document.getElementById('edit-code').value.trim();
+        if (!code) { alert('请填写分类代码'); return; }
+        if (code.length !== 2) { alert('分类代码必须为2位'); return; }
+        if (!checkEditCodeUnique()) return;
+        body.code = code;
+    }
 
     const result = await apiRequest(`/categories/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ code, name })
+        body: JSON.stringify(body)
     });
     if (result) {
         editingId = null;

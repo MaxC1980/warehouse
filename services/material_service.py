@@ -1,5 +1,4 @@
 from database import get_db_connection
-from datetime import datetime
 
 class MaterialService:
     # Keywords that indicate reusable materials (需要称重退库)
@@ -24,6 +23,18 @@ class MaterialService:
             "SELECT id, code, name, parent_code, level FROM material_category ORDER BY code"
         )
         categories = [dict(row) for row in cursor.fetchall()]
+
+        # Attach has_materials flag for each category
+        material_codes = None
+        for cat in categories:
+            if cat['level'] == 1:
+                cat['has_materials'] = any(c['parent_code'] == cat['code'] for c in categories if c['level'] == 2)
+            else:
+                if material_codes is None:
+                    cursor.execute("SELECT DISTINCT category_code FROM material")
+                    material_codes = {row['category_code'] for row in cursor.fetchall()}
+                cat['has_materials'] = cat['code'] in material_codes
+
         conn.close()
         return categories
 
@@ -51,10 +62,29 @@ class MaterialService:
             raise e
 
     @staticmethod
-    def update_category(category_id, code=None, name=None):
+    def update_category(category_id, code=None, name=None, parent_code=None):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
+            # Get current category info
+            cursor.execute("SELECT code, level, parent_code FROM material_category WHERE id = ?", (category_id,))
+            cat = cursor.fetchone()
+            if not cat:
+                conn.close()
+                return False, None
+
+            # Check for references if code or parent_code is being changed
+            code_changed = code and code != cat['code']
+            parent_changed = parent_code is not None and parent_code != cat['parent_code']
+            if code_changed or parent_changed:
+                if cat['level'] == 1:
+                    cursor.execute("SELECT COUNT(*) as count FROM material_category WHERE parent_code = ?", (cat['code'],))
+                else:
+                    cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code = ?", (cat['code'],))
+                if cursor.fetchone()['count'] > 0:
+                    conn.close()
+                    return False, 'has_materials'
+
             updates = []
             params = []
             if code:
@@ -63,6 +93,9 @@ class MaterialService:
             if name:
                 updates.append("name = ?")
                 params.append(name)
+            if parent_code is not None:
+                updates.append("parent_code = ?")
+                params.append(parent_code)
 
             if updates:
                 params.append(category_id)
@@ -77,8 +110,8 @@ class MaterialService:
             conn.close()
 
             if category:
-                return dict(category)
-            return None
+                return True, dict(category)
+            return False, None
         except Exception as e:
             conn.close()
             raise e
@@ -88,19 +121,35 @@ class MaterialService:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Check if category has children
+        # Get category code and level
+        cursor.execute("SELECT code, level FROM material_category WHERE id = ?", (category_id,))
+        cat = cursor.fetchone()
+        if not cat:
+            conn.close()
+            return 'not_found'
+
+        # Check if category has children (only relevant for major categories)
         cursor.execute(
-            "SELECT COUNT(*) as count FROM material_category WHERE parent_code = (SELECT code FROM material_category WHERE id = ?)",
-            (category_id,)
+            "SELECT COUNT(*) as count FROM material_category WHERE parent_code = ?",
+            (cat['code'],)
         )
         if cursor.fetchone()['count'] > 0:
             conn.close()
-            return False
+            return 'has_children'
+
+        # Check if any materials reference this category
+        if cat['level'] == 1:
+            cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code LIKE ?", (cat['code'] + '%',))
+        else:
+            cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code = ?", (cat['code'],))
+        if cursor.fetchone()['count'] > 0:
+            conn.close()
+            return 'has_materials'
 
         cursor.execute("DELETE FROM material_category WHERE id = ?", (category_id,))
         conn.commit()
         conn.close()
-        return True
+        return 'ok'
 
     @staticmethod
     def get_materials(page=1, per_page=20, category_code=None, keyword=None,
@@ -191,11 +240,21 @@ class MaterialService:
             (material_id,)
         )
         material = cursor.fetchone()
-        conn.close()
+        if not material:
+            conn.close()
+            return None
 
-        if material:
-            return dict(material)
-        return None
+        result = dict(material)
+        cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
+        has_in = cursor.fetchone()[0] > 0
+        cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
+        has_out = cursor.fetchone()[0] > 0
+        cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
+        has_inv = cursor.fetchone()[0] > 0
+        result['has_references'] = has_in or has_out or has_inv
+
+        conn.close()
+        return result
 
     @staticmethod
     def create_material(name, spec=None, unit='个', category_code=None, manufacturer=None, storage_condition='常温', shelf_life=None, remark=None, is_reusable=None, safety_stock=0):
@@ -307,12 +366,11 @@ class MaterialService:
             conn.close()
             return False, '该物料已有出库记录，不能删除'
 
-        # 检查是否有库存
-        cursor.execute("SELECT SUM(quantity) FROM inventory WHERE material_id = ?", (material_id,))
-        result = cursor.fetchone()[0]
-        if result and result > 0:
+        # 检查是否有库存记录
+        cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
+        if cursor.fetchone()[0] > 0:
             conn.close()
-            return False, '该物料还有库存，不能删除'
+            return False, '该物料已有库存记录，不能删除'
 
         cursor.execute("DELETE FROM material WHERE id = ?", (material_id,))
         conn.commit()
