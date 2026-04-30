@@ -63,6 +63,7 @@
             <tr>
                 <th>物料编码</th>
                 <th>物料名称</th>
+                <th>品牌</th>
                 <th>规格</th>
                 <th>单位</th>
                 <th>批次号</th>
@@ -77,6 +78,7 @@
             <tr data-item-id="{{ item.id }}">
                 <td>{{ item.material_code }}</td>
                 <td>{{ item.material_name }}</td>
+                <td>{{ item.manufacturer or '' }}</td>
                 <td>{{ item.spec or '' }}</td>
                 <td>{{ item.unit }}</td>
                 <td>{{ item.batch_no or '' }}</td>
@@ -87,7 +89,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="9">暂无明细数据</td>
+                <td colspan="10">暂无明细数据</td>
             </tr>
             {% endfor %}
         </tbody>

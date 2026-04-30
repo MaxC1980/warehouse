@@ -40,6 +40,7 @@
                 <tr>
                     <th>物料编码</th>
                     <th>物料名称</th>
+                    <th>品牌</th>
                     <th>规格</th>
                     <th>单位</th>
                     <th>批次号</th>
@@ -158,6 +159,7 @@ async function loadOrder() {
                     material_id: item.material_id,
                     material_code: item.material_code,
                     material_name: item.material_name,
+                    material_manufacturer: item.manufacturer,
                     material_spec: item.spec,
                     unit: item.unit,
                     batch_no: item.batch_no,
@@ -249,6 +251,7 @@ function addItemRow(data) {
     tr.innerHTML = `
         <td>${data.material_code}</td>
         <td>${data.material_name}</td>
+        <td>${data.material_manufacturer || ''}</td>
         <td>${data.material_spec || ''}</td>
         <td>${data.unit || ''}</td>
         <td>${data.batch_no || ''}</td>
@@ -392,6 +395,7 @@ function confirmInventorySelection() {
             material_id: parseInt(cb.dataset.materialId),
             material_code: cb.dataset.materialCode,
             material_name: cb.dataset.materialName,
+            material_manufacturer: cb.dataset.manufacturer,
             material_spec: cb.dataset.materialSpec,
             unit: cb.dataset.unit,
             batch_no: cb.dataset.batchNo,

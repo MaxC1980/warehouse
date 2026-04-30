@@ -109,6 +109,7 @@ class OrderService:
                 i.*,
                 m.code as material_code,
                 m.name as material_name,
+                m.manufacturer,
                 m.spec,
                 m.unit
             FROM in_order_item i
@@ -406,6 +407,7 @@ class OrderService:
                 i.*,
                 m.code as material_code,
                 m.name as material_name,
+                m.manufacturer,
                 m.spec,
                 m.unit,
                 m.is_reusable as material_is_reusable

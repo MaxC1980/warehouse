@@ -145,6 +145,7 @@
                     <th style="width:4%;">序号</th>
                     <th style="width:10%;">物料编码</th>
                     <th style="width:14%;">物料名称</th>
+                    <th style="width:8%;">品牌</th>
                     <th style="width:12%;">规格</th>
                     <th style="width:4%;">单位</th>
                     <th style="width:8%;">批次号</th>
@@ -160,6 +161,7 @@
                     <td>{{ loop.index }}</td>
                     <td class="left">{{ item.material_code }}</td>
                     <td class="left">{{ item.material_name }}</td>
+                    <td class="left">{{ item.manufacturer or '' }}</td>
                     <td class="left">{{ item.spec or '' }}</td>
                     <td>{{ item.unit }}</td>
                     <td>{{ item.batch_no or '' }}</td>
