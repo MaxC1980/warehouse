@@ -31,17 +31,25 @@ class OrderService:
         return order_no
 
     @staticmethod
-    def get_in_orders(page=1, per_page=20, status=None):
+    def get_in_orders(page=1, per_page=20, status=None, start_date=None, end_date=None):
         conn = get_db_connection()
         cursor = conn.cursor()
 
         offset = (page - 1) * per_page
 
-        where_sql = ""
+        where_clauses = []
         params = []
         if status:
-            where_sql = "WHERE o.status = ?"
+            where_clauses.append("o.status = ?")
             params.append(status)
+        if start_date:
+            where_clauses.append("o.receiver_date >= ?")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("o.receiver_date <= ?")
+            params.append(end_date)
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         # Get total count
         cursor.execute(f"SELECT COUNT(*) as count FROM in_order o {where_sql}", params)
@@ -318,17 +326,25 @@ class OrderService:
 
     # Out Order methods
     @staticmethod
-    def get_out_orders(page=1, per_page=20, status=None):
+    def get_out_orders(page=1, per_page=20, status=None, start_date=None, end_date=None):
         conn = get_db_connection()
         cursor = conn.cursor()
 
         offset = (page - 1) * per_page
 
-        where_sql = ""
+        where_clauses = []
         params = []
         if status:
-            where_sql = "WHERE o.status = ?"
+            where_clauses.append("o.status = ?")
             params.append(status)
+        if start_date:
+            where_clauses.append("o.receiver_date >= ?")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("o.receiver_date <= ?")
+            params.append(end_date)
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         # Get total count
         cursor.execute(f"SELECT COUNT(*) as count FROM out_order o {where_sql}", params)
@@ -628,7 +644,7 @@ class OrderService:
             raise e
 
     @staticmethod
-    def get_in_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, material_code=None, material_name=None, material_spec=None):
+    def get_in_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None):
         """Get in-orders with details - paginated by items"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -651,15 +667,9 @@ class OrderService:
         # Build material filter conditions
         material_conditions = []
         material_params = []
-        if material_code:
-            material_conditions.append("m.code LIKE ?")
-            material_params.append(f"{material_code}%")
-        if material_name:
-            material_conditions.append("m.name LIKE ?")
-            material_params.append(f"%{material_name}%")
-        if material_spec:
-            material_conditions.append("m.spec LIKE ?")
-            material_params.append(f"%{material_spec}%")
+        if keyword:
+            material_conditions.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            material_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         has_material_filter = bool(material_conditions)
 
@@ -692,7 +702,7 @@ class OrderService:
             f"""
             SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
                    i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
-                   m.code as material_code, m.name as material_name, m.spec, m.unit
+                   m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
             FROM in_order_item i
             INNER JOIN in_order o ON o.id = i.order_id
             INNER JOIN material m ON i.material_id = m.id
@@ -748,6 +758,7 @@ class OrderService:
                 m.code as material_code,
                 m.name as material_name,
                 m.spec,
+                m.manufacturer,
                 m.unit
             FROM in_order_item i
             JOIN material m ON i.material_id = m.id
@@ -772,7 +783,7 @@ class OrderService:
         return orders, total
 
     @staticmethod
-    def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, material_code=None, material_name=None, material_spec=None, has_reusable=None):
+    def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None, has_reusable=None):
         """Get out-orders with details - paginated by items"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -795,15 +806,9 @@ class OrderService:
         # Build material filter conditions
         material_conditions = []
         material_params = []
-        if material_code:
-            material_conditions.append("m.code LIKE ?")
-            material_params.append(f"{material_code}%")
-        if material_name:
-            material_conditions.append("m.name LIKE ?")
-            material_params.append(f"%{material_name}%")
-        if material_spec:
-            material_conditions.append("m.spec LIKE ?")
-            material_params.append(f"%{material_spec}%")
+        if keyword:
+            material_conditions.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            material_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
         if has_reusable:
             material_conditions.append("m.is_reusable = 1")
 
@@ -833,7 +838,7 @@ class OrderService:
             SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
                    i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
                    i.returned_quantity, i.initial_gross_weight, i.shipment_info,
-                   m.code as material_code, m.name as material_name, m.spec, m.unit
+                   m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
             FROM out_order_item i
             INNER JOIN out_order o ON o.id = i.order_id
             INNER JOIN material m ON i.material_id = m.id
@@ -878,7 +883,7 @@ class OrderService:
             f"""
             SELECT
                 i.*,
-                m.code as material_code, m.name as material_name, m.spec, m.unit
+                m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
             FROM out_order_item i
             JOIN material m ON i.material_id = m.id
             WHERE i.order_id IN ({placeholders}) AND i.id IN ({placeholders_items}){' AND ' + ' AND '.join(material_conditions) if has_material_filter else ''}
@@ -1463,6 +1468,7 @@ class OrderService:
                 m.code as material_code,
                 m.name as material_name,
                 m.spec,
+                m.manufacturer,
                 m.unit,
                 oi.batch_no,
                 oi.order_id,

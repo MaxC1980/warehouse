@@ -32,9 +32,10 @@
                 <th>出库单号</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
+                <th>品牌</th>
                 <th>规格</th>
                 <th>单位</th>
-                <th>批次</th>
+                <th>批次号</th>
                 <th>领用毛重</th>
                 <th>退回毛重</th>
                 <th>实际净用量</th>
@@ -80,7 +81,7 @@ async function loadData() {
 function renderTable(items) {
     const tbody = document.getElementById('data-tbody');
     if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="15">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16">暂无数据</td></tr>';
         return;
     }
 
@@ -94,6 +95,7 @@ function renderTable(items) {
             <td><a href="/out-orders/${item.order_id}/detail">${item.out_order_no || '-'}</a></td>
             <td>${item.material_code || ''}</td>
             <td>${item.material_name || ''}</td>
+            <td>${item.manufacturer || ''}</td>
             <td>${item.spec || ''}</td>
             <td>${item.unit || ''}</td>
             <td>${item.batch_no || ''}</td>

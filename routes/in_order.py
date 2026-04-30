@@ -9,11 +9,15 @@ def get_in_orders():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
 
     orders, total = OrderService.get_in_orders(
         page=page,
         per_page=per_page,
-        status=status
+        status=status,
+        start_date=start_date,
+        end_date=end_date
     )
     return jsonify({
         'items': orders,
@@ -112,9 +116,7 @@ def get_in_orders_with_details():
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
-    material_spec = request.args.get('material_spec')
+    keyword = request.args.get('keyword')
 
     orders, total = OrderService.get_in_orders_with_details(
         page=page,
@@ -122,9 +124,7 @@ def get_in_orders_with_details():
         status=status,
         start_date=start_date,
         end_date=end_date,
-        material_code=material_code,
-        material_name=material_name,
-        material_spec=material_spec
+        keyword=keyword
     )
     return jsonify({
         'items': orders,

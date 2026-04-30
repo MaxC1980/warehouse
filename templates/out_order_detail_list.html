@@ -17,9 +17,10 @@
     <span>出库日期</span>
     <input type="date" id="start-date" placeholder="开始日期">
     <input type="date" id="end-date" placeholder="结束日期">
-    <input type="text" id="material-code" placeholder="物料编码">
-    <input type="text" id="material-name" placeholder="物料名称">
-    <input type="text" id="material-spec" placeholder="物料规格">
+    <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
+    <button onclick="setLastMonth()" class="btn btn-sm">上月</button>
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
+    <button onclick="resetFilter()" class="btn btn-secondary">重置</button>
     <select id="per-page" onchange="loadOrders()">
         <option value="15" selected>15条/页</option>
         <option value="50">50条/页</option>
@@ -36,12 +37,13 @@
                 <th>部门</th>
                 <th>领用人</th>
                 <th>用途</th>
-                <th>日期</th>
+                <th>出库日期</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
+                <th>品牌</th>
                 <th>规格型号</th>
                 <th>单位</th>
-                <th>批次</th>
+                <th>批次号</th>
                 <th>申请用量</th>
                 <th>实际用量</th>
                 <th>领用毛重</th>
@@ -64,18 +66,14 @@ async function loadOrders(page = 1) {
     const status = document.getElementById('status-filter').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
-    const materialCode = document.getElementById('material-code').value.trim();
-    const materialName = document.getElementById('material-name').value.trim();
-    const materialSpec = document.getElementById('material-spec').value.trim();
+    const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
-    if (materialCode) params.append('material_code', materialCode);
-    if (materialName) params.append('material_name', materialName);
-    if (materialSpec) params.append('material_spec', materialSpec);
+    if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest(`/out-orders/detail?${params}`);
     if (data) {
@@ -88,25 +86,27 @@ function exportExcel() {
     const status = document.getElementById('status-filter').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
-    const materialCode = document.getElementById('material-code').value.trim();
-    const materialName = document.getElementById('material-name').value.trim();
-    const materialSpec = document.getElementById('material-spec').value.trim();
+    const keyword = document.getElementById('search-keyword').value.trim();
 
     const params = new URLSearchParams({ page: 1, per_page: 10000 });
     if (status) params.append('status', status);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
-    if (materialCode) params.append('material_code', materialCode);
-    if (materialName) params.append('material_name', materialName);
-    if (materialSpec) params.append('material_spec', materialSpec);
+    if (keyword) params.append('keyword', keyword);
 
     window.location.href = '/api/out-orders/detail/export?' + params.toString();
+}
+
+initDateRange('start-date', 'end-date', loadOrders);
+
+function resetFilter() {
+    window.location.href = '/out-order-details';
 }
 
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15">暂无数据</td></tr>';
         return;
     }
 
@@ -134,6 +134,7 @@ function renderOrders(orders) {
                         <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
                         <td>${item.material_code || ''}</td>
                         <td>${item.material_name || ''}</td>
+                        <td>${item.manufacturer || ''}</td>
                         <td>${item.spec || ''}</td>
                         <td>${item.unit || ''}</td>
                         <td>${item.batch_no || ''}</td>
@@ -146,6 +147,7 @@ function renderOrders(orders) {
                     html += `<tr>
                         <td>${item.material_code || ''}</td>
                         <td>${item.material_name || ''}</td>
+                        <td>${item.manufacturer || ''}</td>
                         <td>${item.spec || ''}</td>
                         <td>${item.unit || ''}</td>
                         <td>${item.batch_no || ''}</td>
@@ -168,6 +170,6 @@ function getStatusText(status) {
     return map[status] || status;
 }
 
-loadOrders();
+setThisMonth();
 </script>
 {% endblock %}

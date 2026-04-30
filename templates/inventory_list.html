@@ -38,7 +38,8 @@
         <option value="正常">正常</option>
         <option value="过期">过期</option>
     </select>
-    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、规格">
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
+    <button onclick="resetFilter()" class="btn btn-secondary">重置</button>
     <select id="per-page" onchange="loadInventory()">
         <option value="15">15条/页</option>
         <option value="50">50条/页</option>
@@ -110,6 +111,10 @@ function setViewMode(mode) {
     document.getElementById('btn-summary').className = mode === 'summary' ? 'btn btn-primary' : 'btn btn-secondary';
     currentPage = 1;
     loadInventory(1);
+}
+
+function resetFilter() {
+    window.location.href = '/inventory';
 }
 
 async function loadInventory(page = 1) {

@@ -76,7 +76,7 @@ Flask + SQLite 仓库管理系统。默认账号：`admin` / `admin123`
 ## 运行
 
 ```
-调用run.bat     # 开发环境（端口5001）              
+python run.py     # 开发环境（端口5001）              
 python app.py      # 生产环境（端口5000，用 waitress）
 ```
 
@@ -112,6 +112,7 @@ cursor.execute("PRAGMA foreign_keys = ON")
 2. SQL LIKE：`code LIKE '0103%'`（前缀），`name LIKE '%关键词%'`（模糊）
 3. `request.get_json()` 失败用 `request.get_json(silent=True) or {}`
 4. 禁止使用`select *`
+5. 不用外键约束，引用检查在业务层（Service）手动做
 
 
 ## 调试
@@ -123,6 +124,12 @@ playwright-cli snapshot
 ```
 
 调试产物放 `debug/` 目录。
+
+## 项目日志
+
+**主动写**：会话结束前在 `changelog/` 对应日期文件追加条目总结本次做了什么（功能/修复/改动原因）。
+
+**强制写**：Stop hook 自动记录时间戳 + git 变更，保证每次会话都有迹可循。
 
 ## 业务逻辑查看@docs/业务逻辑.md
 

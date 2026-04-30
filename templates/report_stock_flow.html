@@ -24,7 +24,8 @@
     <input type="date" id="date-to" style="width:140px;">
     <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
     <button onclick="setLastMonth()" class="btn btn-sm">上月</button>
-    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称">
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
+    <button onclick="resetFilter()" class="btn btn-secondary">重置</button>
     <select id="per-page-select" onchange="loadReport()" style="width:80px;">
         <option value="20">20条</option>
         <option value="50" selected>50条</option>
@@ -88,13 +89,10 @@ function getDefaultDates() {
     return { fromDate, toDate };
 }
 
-function setLastMonth() {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
-    document.getElementById('date-from').value = firstDay.toISOString().split('T')[0];
-    document.getElementById('date-to').value = lastDay.toISOString().split('T')[0];
-    loadReport();
+initDateRange('date-from', 'date-to', loadReport);
+
+function resetFilter() {
+    window.location.href = '/reports/stock-flow';
 }
 
 async function loadReport(page = 1) {

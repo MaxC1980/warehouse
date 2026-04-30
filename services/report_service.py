@@ -12,8 +12,8 @@ class ReportService:
         params = []
 
         if keyword:
-            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ?)")
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         if major_category:
             where_clauses.append("m.category_code LIKE ?")
@@ -79,10 +79,10 @@ class ReportService:
         params = []
 
         if date_from:
-            where_clauses.append("o.created_at >= ?")
+            where_clauses.append("o.receiver_date >= ?")
             params.append(date_from)
         if date_to:
-            where_clauses.append("o.created_at <= ?")
+            where_clauses.append("o.receiver_date <= ?")
             params.append(date_to + ' 23:59:59')
         if material_id:
             where_clauses.append("i.material_id = ?")
@@ -109,10 +109,12 @@ class ReportService:
             f"""
             SELECT
                 o.order_no,
-                o.created_at,
+                o.receiver_date as created_at,
                 s.name as supplier_name,
                 m.code as material_code,
                 m.name as material_name,
+                m.spec,
+                m.manufacturer,
                 i.batch_no,
                 i.quantity,
                 i.unit_price,
@@ -124,7 +126,7 @@ class ReportService:
             LEFT JOIN supplier s ON o.supplier_id = s.id
             LEFT JOIN user u ON o.operator_id = u.id
             {where_sql}
-            ORDER BY o.created_at DESC
+            ORDER BY o.receiver_date DESC
             LIMIT ? OFFSET ?
             """,
             params + [per_page, offset]
@@ -145,10 +147,10 @@ class ReportService:
         params = []
 
         if date_from:
-            where_clauses.append("o.created_at >= ?")
+            where_clauses.append("o.receiver_date >= ?")
             params.append(date_from)
         if date_to:
-            where_clauses.append("o.created_at <= ?")
+            where_clauses.append("o.receiver_date <= ?")
             params.append(date_to + ' 23:59:59')
         if material_id:
             where_clauses.append("i.material_id = ?")
@@ -175,10 +177,12 @@ class ReportService:
             f"""
             SELECT
                 o.order_no,
-                o.created_at,
+                o.receiver_date as created_at,
                 o.department,
                 m.code as material_code,
                 m.name as material_name,
+                m.spec,
+                m.manufacturer,
                 i.batch_no,
                 i.actual_quantity,
                 i.unit_price,
@@ -189,7 +193,7 @@ class ReportService:
             JOIN material m ON i.material_id = m.id
             LEFT JOIN user u ON o.operator_id = u.id
             {where_sql}
-            ORDER BY o.created_at DESC
+            ORDER BY o.receiver_date DESC
             LIMIT ? OFFSET ?
             """,
             params + [per_page, offset]
@@ -297,8 +301,8 @@ class ReportService:
         params = []
 
         if keyword:
-            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ?)")
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         if major_category:
             where_clauses.append("m.category_code LIKE ?")
@@ -340,14 +344,14 @@ class ReportService:
         """
 
         if hide_zero:
-            data_sql += " WHERE (opening_in - opening_out + period_in - period_out) != 0"
+            data_sql += " WHERE (opening_in - opening_out) != 0 OR period_in != 0 OR period_out != 0"
 
         data_sql += " ORDER BY material_code LIMIT ? OFFSET ?"
 
         # Count
         count_sql = f"SELECT COUNT(*) FROM ({inner_sql}) t"
         if hide_zero:
-            count_sql += " WHERE (opening_in - opening_out + period_in - period_out) != 0"
+            count_sql += " WHERE (opening_in - opening_out) != 0 OR period_in != 0 OR period_out != 0"
 
         cursor.execute(count_sql, [date_from, date_from, date_from, date_to, date_from, date_to] + params)
         total = cursor.fetchone()[0]

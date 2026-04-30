@@ -10,11 +10,15 @@ def get_out_orders():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
 
     orders, total = OrderService.get_out_orders(
         page=page,
         per_page=per_page,
-        status=status
+        status=status,
+        start_date=start_date,
+        end_date=end_date
     )
     return jsonify({
         'items': orders,
@@ -125,9 +129,7 @@ def get_out_orders_with_details():
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
-    material_spec = request.args.get('material_spec')
+    keyword = request.args.get('keyword')
     has_reusable = request.args.get('has_reusable', type=bool)
 
     orders, total = OrderService.get_out_orders_with_details(
@@ -136,9 +138,7 @@ def get_out_orders_with_details():
         status=status,
         start_date=start_date,
         end_date=end_date,
-        material_code=material_code,
-        material_name=material_name,
-        material_spec=material_spec,
+        keyword=keyword,
         has_reusable=has_reusable
     )
     return jsonify({
@@ -154,9 +154,7 @@ def export_out_orders_detail():
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
-    material_spec = request.args.get('material_spec')
+    keyword = request.args.get('keyword')
 
     orders, _ = OrderService.get_out_orders_with_details(
         page=1,
@@ -164,9 +162,7 @@ def export_out_orders_detail():
         status=status,
         start_date=start_date,
         end_date=end_date,
-        material_code=material_code,
-        material_name=material_name,
-        material_spec=material_spec
+        keyword=keyword
     )
 
     columns = ['出库单号', '部门', '领用人', '用途', '日期', '物料编码', '物料名称', '规格型号', '单位', '批次', '申请用量', '实际用量', '领用毛重', '状态']

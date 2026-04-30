@@ -67,7 +67,7 @@ def delete_supplier(supplier_id):
     if permission_level < 2:
         return jsonify({'error': '无删除权限'}), 403
 
-    success = SupplierService.delete_supplier(supplier_id)
+    success, msg = SupplierService.delete_supplier(supplier_id)
     if success:
         return jsonify({'message': 'Supplier deleted'})
-    return jsonify({'error': 'Supplier not found'}), 404
+    return jsonify({'error': msg}), 400

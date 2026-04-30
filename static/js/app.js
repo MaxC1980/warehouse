@@ -44,6 +44,26 @@ function formatDateForInput(d) {
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
 
+// Init date range controls (通用日期范围初始化)
+// 页面加载后调用，传入起始日期 input ID、结束日期 input ID、加载函数
+function initDateRange(startId, endId, loadFn) {
+    window.setThisMonth = function() {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById(startId).value = formatDateForInput(firstDay);
+        document.getElementById(endId).value = formatDateForInput(today);
+        if (loadFn) loadFn();
+    };
+    window.setLastMonth = function() {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+        document.getElementById(startId).value = formatDateForInput(firstDay);
+        document.getElementById(endId).value = formatDateForInput(lastDay);
+        if (loadFn) loadFn();
+    };
+}
+
 // Set date range to current week (Monday to today)
 function setThisWeek() {
     const today = new Date();
@@ -51,15 +71,6 @@ function setThisWeek() {
     const monday = new Date(today);
     monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
     document.getElementById('date-from').value = formatDateForInput(monday);
-    document.getElementById('date-to').value = formatDateForInput(today);
-    loadReport();
-}
-
-// Set date range to current month (1st to today)
-function setThisMonth() {
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('date-from').value = formatDateForInput(firstDay);
     document.getElementById('date-to').value = formatDateForInput(today);
     loadReport();
 }

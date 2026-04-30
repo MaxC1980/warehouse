@@ -14,8 +14,8 @@ class InventoryService:
         params = []
 
         if keyword:
-            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ?)")
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         if category_code:
             where_clauses.append("m.category_code LIKE ?")
@@ -443,6 +443,7 @@ class InventoryService:
                 m.code as material_code,
                 m.name as material_name,
                 m.spec as material_spec,
+                m.manufacturer,
                 m.unit,
                 m.category_code,
                 m.is_reusable as material_is_reusable

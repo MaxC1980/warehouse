@@ -32,6 +32,8 @@
                 <th>部门</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
+                <th>品牌</th>
+                <th>规格</th>
                 <th>批次号</th>
                 <th>数量</th>
                 <th>单价</th>
@@ -70,7 +72,7 @@ async function loadReport(page = 1) {
 function renderReport(items) {
     const tbody = document.getElementById('report-tbody');
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(item => `
@@ -80,6 +82,8 @@ function renderReport(items) {
             <td>${item.department || ''}</td>
             <td>${item.material_code}</td>
             <td>${item.material_name}</td>
+            <td>${item.manufacturer || ''}</td>
+            <td>${item.spec || ''}</td>
             <td>${item.batch_no || ''}</td>
             <td>${item.actual_quantity}</td>
             <td>${item.unit_price}</td>
@@ -100,6 +104,7 @@ function exportExcel() {
 }
 
 (function() {
+    initDateRange('date-from', 'date-to', loadReport);
     setThisMonth();
 })();
 </script>

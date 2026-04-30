@@ -107,6 +107,7 @@
                             <th style="width:40px;"></th>
                             <th>物料编码</th>
                             <th>物料名称</th>
+                            <th>品牌</th>
                             <th>规格</th>
                             <th>单位</th>
                             <th>分类</th>
@@ -473,7 +474,7 @@ async function loadMaterialModal() {
     const data = await apiRequest(`/materials?${params}`);
     const tbody = document.getElementById('modal-material-tbody');
     if (!data || !data.items || data.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
         document.getElementById('modal-pagination').innerHTML = '';
         return;
     }
@@ -481,9 +482,10 @@ async function loadMaterialModal() {
     tbody.innerHTML = data.items.map(item => {
         const checked = modalSelected.has(item.id) ? 'checked' : '';
         return `<tr onclick="toggleMaterialSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
-            <td><input type="checkbox" data-id="${item.id}" data-code="${item.code}" data-name="${item.name}" data-spec="${item.spec || ''}" data-unit="${item.unit || ''}" data-category="${item.category_name || ''}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
+            <td><input type="checkbox" data-id="${item.id}" data-code="${item.code}" data-name="${item.name}" data-spec="${item.spec || ''}" data-manufacturer="${item.manufacturer || ''}" data-unit="${item.unit || ''}" data-category="${item.category_name || ''}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
             <td>${item.code}</td>
             <td>${item.name}</td>
+            <td>${item.manufacturer || ''}</td>
             <td>${item.spec || ''}</td>
             <td>${item.unit || ''}</td>
             <td>${item.category_name || ''}</td>

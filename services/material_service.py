@@ -212,7 +212,7 @@ class MaterialService:
         # Get materials
         cursor.execute(
             f"""
-            SELECT m.*, c.name as category_name
+            SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
             FROM material m
             LEFT JOIN material_category c ON m.category_code = c.code
             {where_sql}
@@ -232,7 +232,7 @@ class MaterialService:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT m.*, c.name as category_name
+            SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
             FROM material m
             LEFT JOIN material_category c ON m.category_code = c.code
             WHERE m.id = ?

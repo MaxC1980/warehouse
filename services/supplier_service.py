@@ -92,7 +92,11 @@ class SupplierService:
     def delete_supplier(supplier_id):
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM in_order WHERE supplier_id = ?", (supplier_id,))
+        if cursor.fetchone()['count'] > 0:
+            conn.close()
+            return False, '该供应商已被入库单引用，无法删除'
         cursor.execute("DELETE FROM supplier WHERE id = ?", (supplier_id,))
         conn.commit()
         conn.close()
-        return True
+        return True, None

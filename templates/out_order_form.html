@@ -95,6 +95,7 @@
                         <th style="width:40px;"></th>
                         <th>物料编码</th>
                         <th>物料名称</th>
+                        <th>品牌</th>
                         <th>规格</th>
                         <th>单位</th>
                         <th>批次号</th>
@@ -336,9 +337,10 @@ async function loadInventoryModal() {
         const checked = modalSelected.has(key) ? 'checked' : '';
         const isReusable = item.material_is_reusable == 1 ? '1' : '0';
         return `<tr onclick="toggleSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
-            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onclick="event.stopPropagation(); toggleSelect(this)" ${checked}></td>
+            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-manufacturer="${item.manufacturer || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onclick="event.stopPropagation(); toggleSelect(this)" ${checked}></td>
             <td>${item.material_code}</td>
             <td>${item.material_name}</td>
+            <td>${item.manufacturer || ''}</td>
             <td>${item.material_spec || ''}</td>
             <td>${item.unit || ''}</td>
             <td>${item.batch_no || ''}</td>
