@@ -64,7 +64,7 @@
                     <td><input type="text" name="batch_no" class="batch-no"></td>
                     <td><input type="date" name="production_date" class="production-date"></td>
                     <td><input type="date" name="expiry_date" class="expiry-date"></td>
-                    <td><input type="number" name="quantity" class="quantity" step="0.01" required></td>
+                    <td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>
                     <td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>
                     <td><input type="text" name="remark" class="item-remark"></td>
                     <td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>
@@ -136,6 +136,7 @@ const orderId = {{ order_id if order_id else 'null' }};
 let isModified = false;
 
 function markModified() { isModified = true; }
+function onlyInteger(e) { return (e.key>='0' && e.key<='9') || ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key); }
 
 async function loadSuppliers() {
     const data = await apiRequest('/suppliers?per_page=1000');
@@ -178,7 +179,7 @@ async function loadOrder() {
                     '<td><input type="text" name="batch_no" class="batch-no" value="' + (item.batch_no || '') + '" ' + dis + '></td>' +
                     '<td><input type="date" name="production_date" class="production-date" value="' + (item.production_date || '') + '" ' + dis + '></td>' +
                     '<td><input type="date" name="expiry_date" class="expiry-date" value="' + (item.expiry_date || '') + '" ' + dis + '></td>' +
-                    '<td><input type="number" name="quantity" class="quantity" step="0.01" value="' + item.quantity + '" required ' + dis + '></td>' +
+                    '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + item.quantity + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
                     '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + (item.unit_price || '') + '" ' + dis + '></td>' +
                     '<td><input type="text" name="remark" class="item-remark" value="' + (item.remark || '') + '" ' + dis + '></td>' +
                     '<td>' + (isEditable ? '<button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
@@ -292,7 +293,7 @@ function addRow() {
         '<td><input type="text" name="batch_no" class="batch-no"></td>' +
         '<td><input type="date" name="production_date" class="production-date"></td>' +
         '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
-        '<td><input type="number" name="quantity" class="quantity" step="0.01" required></td>' +
+        '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
         '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
         '<td><input type="text" name="remark" class="item-remark"></td>' +
         '<td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
@@ -540,7 +541,7 @@ function confirmMaterialSelection() {
             '<td><input type="text" name="batch_no" class="batch-no"></td>' +
             '<td><input type="date" name="production_date" class="production-date"></td>' +
             '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
-            '<td><input type="number" name="quantity" class="quantity" step="0.01" required></td>' +
+            '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
             '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
             '<td><input type="text" name="remark" class="item-remark"></td>' +
             '<td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';

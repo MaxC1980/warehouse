@@ -321,7 +321,7 @@ def init_db():
     if not cursor.fetchone():
         cursor.execute(
             "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
-            ('admin', 'admin123', 3)
+            ('admin', 'admin12345', 3)
         )
     cursor.execute("SELECT id FROM user WHERE username = 'view'")
     if not cursor.fetchone():
