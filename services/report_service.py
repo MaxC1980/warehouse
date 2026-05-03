@@ -292,7 +292,7 @@ class ReportService:
         }
 
     @staticmethod
-    def get_stock_flow_report(page=1, per_page=100, date_from=None, date_to=None, keyword=None, major_category=None, minor_category=None, hide_zero=False):
+    def get_stock_flow_report(page=1, per_page=100, date_from=None, date_to=None, keyword=None, major_category=None, minor_category=None, hide_zero=False, hide_no_change=False):
         conn = get_db_connection()
         cursor = conn.cursor()
         offset = (page - 1) * per_page
@@ -343,15 +343,21 @@ class ReportService:
             FROM ({inner_sql}) t
         """
 
+        filter_conditions = []
         if hide_zero:
-            data_sql += " WHERE (opening_in - opening_out) != 0 OR period_in != 0 OR period_out != 0"
+            filter_conditions.append("((opening_in - opening_out) != 0 OR period_in != 0 OR period_out != 0)")
+        if hide_no_change:
+            filter_conditions.append("(period_in != 0 OR period_out != 0)")
+
+        if filter_conditions:
+            data_sql += " WHERE " + " AND ".join(filter_conditions)
 
         data_sql += " ORDER BY material_code LIMIT ? OFFSET ?"
 
         # Count
         count_sql = f"SELECT COUNT(*) FROM ({inner_sql}) t"
-        if hide_zero:
-            count_sql += " WHERE (opening_in - opening_out) != 0 OR period_in != 0 OR period_out != 0"
+        if filter_conditions:
+            count_sql += " WHERE " + " AND ".join(filter_conditions)
 
         cursor.execute(count_sql, [date_from, date_from, date_from, date_to, date_from, date_to] + params)
         total = cursor.fetchone()[0]

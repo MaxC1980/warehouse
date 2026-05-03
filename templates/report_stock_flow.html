@@ -11,8 +11,10 @@
 </div>
 
 <div class="filter-bar">
+    <input type="checkbox" id="hide-no-change" checked onchange="loadReport()">
+    <label for="hide-no-change">隐藏无变化</label>
     <input type="checkbox" id="hide-zero" checked onchange="loadReport()">
-    <label for="hide-zero">隐藏全零记录</label>
+    <label for="hide-zero">隐藏全零</label>
     <select id="search-major-category" onchange="onMajorChange(); loadReport()" style="width:120px;">
         <option value="">全部大类</option>
     </select>
@@ -104,6 +106,7 @@ async function loadReport(page = 1) {
     const minorCategory = document.getElementById('search-minor-category').value;
     const perPage = document.getElementById('per-page-select').value;
     const hideZero = document.getElementById('hide-zero').checked;
+    const hideNoChange = document.getElementById('hide-no-change').checked;
 
     if (!dateFrom || !dateTo) {
         alert('请选择日期范围');
@@ -115,6 +118,7 @@ async function loadReport(page = 1) {
     if (majorCategory) params.append('major_category', majorCategory);
     if (minorCategory) params.append('minor_category', minorCategory);
     if (hideZero) params.append('hide_zero', '1');
+    if (hideNoChange) params.append('hide_no_change', '1');
 
     const data = await apiRequest(`/reports/stock-flow?${params}`);
     if (data) {
@@ -175,6 +179,7 @@ function exportExcel() {
     if (majorCategory) params.append('major_category', majorCategory);
     if (minorCategory) params.append('minor_category', minorCategory);
     if (document.getElementById('hide-zero').checked) params.append('hide_zero', '1');
+    if (document.getElementById('hide-no-change').checked) params.append('hide_no_change', '1');
     window.location.href = '/api/reports/stock-flow/export?' + params.toString();
 }
 

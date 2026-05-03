@@ -192,6 +192,7 @@ def get_stock_flow_report():
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
     hide_zero = request.args.get('hide_zero') == '1'
+    hide_no_change = request.args.get('hide_no_change') == '1'
 
     report_data, total = ReportService.get_stock_flow_report(
         page=page,
@@ -201,7 +202,8 @@ def get_stock_flow_report():
         keyword=keyword,
         major_category=major_category,
         minor_category=minor_category,
-        hide_zero=hide_zero
+        hide_zero=hide_zero,
+        hide_no_change=hide_no_change
     )
     return jsonify({
         'items': report_data,
@@ -218,6 +220,7 @@ def export_stock_flow_report():
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
     hide_zero = request.args.get('hide_zero') == '1'
+    hide_no_change = request.args.get('hide_no_change') == '1'
 
     report_data, _ = ReportService.get_stock_flow_report(
         page=1,
@@ -227,7 +230,8 @@ def export_stock_flow_report():
         keyword=keyword,
         major_category=major_category,
         minor_category=minor_category,
-        hide_zero=hide_zero
+        hide_zero=hide_zero,
+        hide_no_change=hide_no_change
     )
 
     columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '期初数', '入库数', '出库数', '期末数']
