@@ -39,6 +39,9 @@ class InventoryService:
 
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
+        # 计算合计数量（不含待审，仅当前实际库存）
+        total_quantity = InventoryService.get_inventory_totals(where_sql, params, summary)
+
         if summary:
             count_query = f"""
                 SELECT COUNT(DISTINCT m.code) as count
@@ -183,7 +186,25 @@ class InventoryService:
                     item['pending_out'] = pending_out_map.get(key, 0)
 
         conn.close()
-        return inventory, total
+        return inventory, total, total_quantity
+
+    @staticmethod
+    def get_inventory_totals(where_sql, params, summary=False):
+        """Get total quantity sum for inventory"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT COALESCE(SUM(i.quantity), 0) as total_quantity
+            FROM inventory i
+            JOIN material m ON i.material_id = m.id
+            {where_sql}
+            """,
+            params
+        )
+        result = cursor.fetchone()
+        conn.close()
+        return result['total_quantity'] if result else 0
 
     @staticmethod
     def get_inventory_by_material(material_id):

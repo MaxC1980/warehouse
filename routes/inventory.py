@@ -12,7 +12,7 @@ def get_inventory():
     category_code = request.args.get('category_code')
     status = request.args.get('status')
 
-    inventory, total = InventoryService.get_inventory(
+    inventory, total, total_quantity = InventoryService.get_inventory(
         page=page,
         per_page=per_page,
         keyword=keyword,
@@ -24,7 +24,8 @@ def get_inventory():
         'items': inventory,
         'total': total,
         'page': page,
-        'per_page': per_page
+        'per_page': per_page,
+        'total_quantity': total_quantity
     })
 
 @inventory_bp.route('/inventory/<int:material_id>', methods=['GET'])

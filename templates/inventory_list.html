@@ -48,9 +48,10 @@
     <button onclick="loadInventory()" class="btn btn-secondary">搜索</button>
 </div>
 
-<div class="page-actions" style="margin-bottom: 16px;">
+<div class="page-actions" style="margin-bottom: 16px; align-items: center;">
     <button id="btn-detail" onclick="setViewMode('detail')" class="btn btn-primary">查询详情</button>
     <button id="btn-summary" onclick="setViewMode('summary')" class="btn btn-secondary">查询汇总</button>
+    <span id="inventory-summary" style="margin-left: 24px;">当前库存合计：<strong id="total-qty">-</strong></span>
 </div>
 
 <div class="data-table">
@@ -138,6 +139,7 @@ async function loadInventory(page = 1) {
         renderTableHeader();
         renderInventory(data.items);
         renderPagination('pagination', data.total, data.page, perPage, 'loadInventory');
+        document.getElementById('total-qty').textContent = data.total_quantity !== undefined ? data.total_quantity : '-';
     }
 }
 
