@@ -58,8 +58,8 @@ Transform tasks into verifiable goals:
 For multi-step tasks, state a brief plan:
 
 ```
-1. [Step] → verify: [check]              
-2. [Step] → verify: [check]              
+1. [Step] → verify: [check]                  
+2. [Step] → verify: [check]                  
 3. [Step] → verify: [check]
 ```
 
@@ -76,7 +76,7 @@ Flask + SQLite 仓库管理系统。默认账号：`admin` / `admin12345`
 ## 运行
 
 ```
-python run.py     # 开发环境（端口5001）                
+先清除pyhton进程再python run.py     # 开发环境（端口5001）                    
 python app.py      # 生产环境（端口5000，用 waitress）
 ```
 
@@ -92,17 +92,17 @@ python app.py      # 生产环境（端口5000，用 waitress）
 `apiRequest()` 在 `static/js/app.js`，**自动前缀 `/api`**，发送 session cookie：
 
 ```javascript
-const data = await apiRequest('/in-orders/detail?page=1');  // 正确                
+const data = await apiRequest('/in-orders/detail?page=1');  // 正确                    
 // const data = await apiRequest('/api/in-orders/detail');   // 错误
 ```
 
 ## 数据库
 
 ```
-conn = get_db_connection()                
-cursor = conn.cursor()                
-# 使用 cursor.execute()，操作后 conn.commit() 再 conn.close()                
-# sqlite3.Row 不支持 .get()，用 row['col'] 直接访问  
+conn = get_db_connection()                    
+cursor = conn.cursor()                    
+# 使用 cursor.execute()，操作后 conn.commit() 再 conn.close()                    
+# sqlite3.Row 不支持 .get()，用 row['col'] 直接访问      
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
 ```
 
@@ -118,8 +118,8 @@ cursor = conn.cursor()
 ## 调试
 
 ```
-playwright-cli open http://localhost:5001/login --browser=chrome --persistent                
-playwright-cli screenshot                
+playwright-cli open http://localhost:5001/login --browser=chrome --persistent                    
+playwright-cli screenshot                    
 playwright-cli snapshot
 ```
 
@@ -127,8 +127,7 @@ playwright-cli snapshot
 
 ## 项目日志
 
-会话结束前在 `changelog/`
-对应日期文件追加条目总结本次做了什么（功能/修复/改动原因）。
+会话结束前在`changelog/`对应日期文件追加条目总结本次做了什么（功能/修复/改动原因）。
 
 ## 业务逻辑查看@docs/业务逻辑.md
 

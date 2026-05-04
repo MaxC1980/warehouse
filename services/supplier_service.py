@@ -57,25 +57,25 @@ class SupplierService:
         return SupplierService.get_supplier_by_id(supplier_id)
 
     @staticmethod
-    def update_supplier(supplier_id, name=None, contact=None, phone=None, address=None):
+    def update_supplier(supplier_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
 
         updates = []
         params = []
 
-        if name:
+        if 'name' in data:
             updates.append("name = ?")
-            params.append(name)
-        if contact is not None:
+            params.append(data['name'])
+        if 'contact' in data:
             updates.append("contact = ?")
-            params.append(contact)
-        if phone is not None:
+            params.append(data['contact'])
+        if 'phone' in data:
             updates.append("phone = ?")
-            params.append(phone)
-        if address is not None:
+            params.append(data['phone'])
+        if 'address' in data:
             updates.append("address = ?")
-            params.append(address)
+            params.append(data['address'])
 
         if updates:
             params.append(supplier_id)

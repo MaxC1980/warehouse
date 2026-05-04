@@ -50,13 +50,7 @@ def update_employee(employee_id):
         return jsonify({'error': '无编辑权限'}), 403
 
     data = request.get_json()
-    employee = EmployeeService.update_employee(
-        employee_id,
-        name=data.get('name'),
-        department=data.get('department'),
-        phone=data.get('phone'),
-        remark=data.get('remark')
-    )
+    employee = EmployeeService.update_employee(employee_id, data)
     if employee:
         return jsonify(employee)
     return jsonify({'error': 'Employee not found'}), 404

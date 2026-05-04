@@ -300,43 +300,43 @@ class MaterialService:
         return MaterialService.get_material_by_id(material_id)
 
     @staticmethod
-    def update_material(material_id, name=None, spec=None, unit=None, category_code=None, manufacturer=None, storage_condition=None, shelf_life=None, remark=None, is_reusable=None, safety_stock=None):
+    def update_material(material_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
 
         updates = []
         params = []
 
-        if name:
+        if 'name' in data:
             updates.append("name = ?")
-            params.append(name)
-        if spec is not None:
+            params.append(data['name'])
+        if 'spec' in data:
             updates.append("spec = ?")
-            params.append(spec)
-        if unit:
+            params.append(data['spec'])
+        if 'unit' in data:
             updates.append("unit = ?")
-            params.append(unit)
-        if category_code:
+            params.append(data['unit'])
+        if 'category_code' in data:
             updates.append("category_code = ?")
-            params.append(category_code)
-        if manufacturer is not None:
+            params.append(data['category_code'])
+        if 'manufacturer' in data:
             updates.append("manufacturer = ?")
-            params.append(manufacturer)
-        if storage_condition is not None:
+            params.append(data['manufacturer'])
+        if 'storage_condition' in data:
             updates.append("storage_condition = ?")
-            params.append(storage_condition)
-        if shelf_life is not None:
+            params.append(data['storage_condition'])
+        if 'shelf_life' in data:
             updates.append("shelf_life = ?")
-            params.append(shelf_life)
-        if remark is not None:
+            params.append(data['shelf_life'])
+        if 'remark' in data:
             updates.append("remark = ?")
-            params.append(remark)
-        if is_reusable is not None:
+            params.append(data['remark'])
+        if 'is_reusable' in data:
             updates.append("is_reusable = ?")
-            params.append(is_reusable)
-        if safety_stock is not None:
+            params.append(data['is_reusable'])
+        if 'safety_stock' in data:
             updates.append("safety_stock = ?")
-            params.append(safety_stock)
+            params.append(data['safety_stock'])
 
         if updates:
             params.append(material_id)

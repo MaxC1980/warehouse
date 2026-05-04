@@ -123,19 +123,7 @@ def update_material(material_id):
         return jsonify({'error': '无编辑权限'}), 403
 
     data = request.get_json()
-    material = MaterialService.update_material(
-        material_id,
-        name=data.get('name'),
-        spec=data.get('spec'),
-        unit=data.get('unit'),
-        category_code=data.get('category_code'),
-        manufacturer=data.get('manufacturer'),
-        storage_condition=data.get('storage_condition'),
-        shelf_life=data.get('shelf_life'),
-        remark=data.get('remark'),
-        is_reusable=data.get('is_reusable', 0),
-        safety_stock=data.get('safety_stock')
-    )
+    material = MaterialService.update_material(material_id, data)
     if material:
         return jsonify(material)
     return jsonify({'error': 'Material not found'}), 404

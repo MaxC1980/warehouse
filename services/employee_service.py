@@ -54,23 +54,23 @@ class EmployeeService:
             raise e
 
     @staticmethod
-    def update_employee(employee_id, name=None, department=None, phone=None, remark=None):
+    def update_employee(employee_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
         updates = []
         params = []
-        if name is not None:
+        if 'name' in data:
             updates.append("name = ?")
-            params.append(name)
-        if department is not None:
+            params.append(data['name'])
+        if 'department' in data:
             updates.append("department = ?")
-            params.append(department)
-        if phone is not None:
+            params.append(data['department'])
+        if 'phone' in data:
             updates.append("phone = ?")
-            params.append(phone)
-        if remark is not None:
+            params.append(data['phone'])
+        if 'remark' in data:
             updates.append("remark = ?")
-            params.append(remark)
+            params.append(data['remark'])
         if updates:
             params.append(employee_id)
             cursor.execute(f"UPDATE employee SET {', '.join(updates)} WHERE id = ?", params)

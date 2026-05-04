@@ -73,15 +73,7 @@ def update_in_order(order_id):
     if not data.get('receiver'):
         return jsonify({'error': '请填写经手人'}), 400
 
-    order = OrderService.update_in_order(
-        order_id,
-        supplier_id=data.get('supplier_id'),
-        remark=data.get('remark'),
-        receiver=data.get('receiver'),
-        purpose=data.get('purpose'),
-        receiver_date=data.get('receiver_date'),
-        items=data.get('items', [])
-    )
+    order = OrderService.update_in_order(order_id, data)
     if order:
         return jsonify(order)
     return jsonify({'error': 'Order not found'}), 404

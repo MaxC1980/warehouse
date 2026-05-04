@@ -170,7 +170,7 @@ class OrderService:
             raise e
 
     @staticmethod
-    def update_in_order(order_id, supplier_id=None, remark=None, receiver=None, purpose=None, receiver_date=None, items=None):
+    def update_in_order(order_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -185,21 +185,21 @@ class OrderService:
             # Update main order
             updates = []
             params = []
-            if supplier_id is not None:
+            if 'supplier_id' in data:
                 updates.append("supplier_id = ?")
-                params.append(supplier_id)
-            if remark is not None:
+                params.append(data['supplier_id'])
+            if 'remark' in data:
                 updates.append("remark = ?")
-                params.append(remark)
-            if receiver is not None:
+                params.append(data['remark'])
+            if 'receiver' in data:
                 updates.append("receiver = ?")
-                params.append(receiver)
-            if purpose is not None:
+                params.append(data['receiver'])
+            if 'purpose' in data:
                 updates.append("purpose = ?")
-                params.append(purpose)
-            if receiver_date is not None:
+                params.append(data['purpose'])
+            if 'receiver_date' in data:
                 updates.append("receiver_date = ?")
-                params.append(receiver_date)
+                params.append(data['receiver_date'])
 
             if updates:
                 params.append(order_id)
@@ -209,15 +209,15 @@ class OrderService:
                 )
 
             # Update items - delete old and insert new
-            if items is not None:
+            if 'items' in data:
                 cursor.execute("DELETE FROM in_order_item WHERE order_id = ?", (order_id,))
-                for item in items:
+                for item in data['items']:
                     # Auto-generate batch_no if empty
                     batch_no = item['batch_no'] if item.get('batch_no') else f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                    production_date = item['production_date'] if 'production_date' in item.keys() else None
-                    expiry_date = item['expiry_date'] if 'expiry_date' in item.keys() else None
-                    unit_price = item['unit_price'] if 'unit_price' in item.keys() else 0
-                    remark = item['remark'] if 'remark' in item.keys() else None
+                    production_date = item.get('production_date')
+                    expiry_date = item.get('expiry_date')
+                    unit_price = item.get('unit_price', 0)
+                    remark = item.get('remark')
                     cursor.execute(
                         """
                         INSERT INTO in_order_item (order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark)
@@ -466,7 +466,7 @@ class OrderService:
             raise e
 
     @staticmethod
-    def update_out_order(order_id, department=None, receiver=None, receiver_date=None, remark=None, purpose=None, items=None):
+    def update_out_order(order_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -481,21 +481,21 @@ class OrderService:
             # Update main order
             updates = []
             params = []
-            if department is not None:
+            if 'department' in data:
                 updates.append("department = ?")
-                params.append(department)
-            if receiver is not None:
+                params.append(data['department'])
+            if 'receiver' in data:
                 updates.append("receiver = ?")
-                params.append(receiver)
-            if receiver_date is not None:
+                params.append(data['receiver'])
+            if 'receiver_date' in data:
                 updates.append("receiver_date = ?")
-                params.append(receiver_date)
-            if remark is not None:
+                params.append(data['receiver_date'])
+            if 'remark' in data:
                 updates.append("remark = ?")
-                params.append(remark)
-            if purpose is not None:
+                params.append(data['remark'])
+            if 'purpose' in data:
                 updates.append("purpose = ?")
-                params.append(purpose)
+                params.append(data['purpose'])
 
             if updates:
                 params.append(order_id)
@@ -505,9 +505,9 @@ class OrderService:
                 )
 
             # Update items - delete old and insert new
-            if items is not None:
+            if 'items' in data:
                 cursor.execute("DELETE FROM out_order_item WHERE order_id = ?", (order_id,))
-                for item in items:
+                for item in data['items']:
                     actual_qty = item.get('actual_quantity', 0) or 0
                     cursor.execute(
                         """
@@ -1098,7 +1098,7 @@ class OrderService:
             raise e
 
     @staticmethod
-    def update_return_order(order_id, department=None, receiver=None, receiver_date=None, remark=None, items=None):
+    def update_return_order(order_id, data):
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -1111,18 +1111,18 @@ class OrderService:
 
             updates = []
             params = []
-            if department is not None:
+            if 'department' in data:
                 updates.append("department = ?")
-                params.append(department)
-            if receiver is not None:
+                params.append(data['department'])
+            if 'receiver' in data:
                 updates.append("receiver = ?")
-                params.append(receiver)
-            if receiver_date is not None:
+                params.append(data['receiver'])
+            if 'receiver_date' in data:
                 updates.append("receiver_date = ?")
-                params.append(receiver_date)
-            if remark is not None:
+                params.append(data['receiver_date'])
+            if 'remark' in data:
                 updates.append("remark = ?")
-                params.append(remark)
+                params.append(data['remark'])
 
             if updates:
                 params.append(order_id)
@@ -1131,9 +1131,9 @@ class OrderService:
                     params
                 )
 
-            if items is not None:
+            if 'items' in data:
                 cursor.execute("DELETE FROM return_order_item WHERE return_order_id = ?", (order_id,))
-                for item in items:
+                for item in data['items']:
                     cursor.execute(
                         """
                         INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)

@@ -50,13 +50,7 @@ def update_supplier(supplier_id):
         return jsonify({'error': '无编辑权限'}), 403
 
     data = request.get_json()
-    supplier = SupplierService.update_supplier(
-        supplier_id,
-        name=data.get('name'),
-        contact=data.get('contact'),
-        phone=data.get('phone'),
-        address=data.get('address')
-    )
+    supplier = SupplierService.update_supplier(supplier_id, data)
     if supplier:
         return jsonify(supplier)
     return jsonify({'error': 'Supplier not found'}), 404
