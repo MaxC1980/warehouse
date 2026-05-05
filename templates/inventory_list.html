@@ -51,6 +51,7 @@
 <div class="page-actions" style="margin-bottom: 16px; align-items: center;">
     <button id="btn-detail" onclick="setViewMode('detail')" class="btn btn-primary">查询详情</button>
     <button id="btn-summary" onclick="setViewMode('summary')" class="btn btn-secondary">查询汇总</button>
+    <button id="btn-expired" onclick="showExpired()" class="btn btn-secondary">查询过期</button>
     <span id="inventory-summary" style="margin-left: 24px;">当前库存合计：<strong id="total-qty">-</strong></span>
 </div>
 
@@ -110,6 +111,18 @@ function setViewMode(mode) {
     currentMode = mode;
     document.getElementById('btn-detail').className = mode === 'detail' ? 'btn btn-primary' : 'btn btn-secondary';
     document.getElementById('btn-summary').className = mode === 'summary' ? 'btn btn-primary' : 'btn btn-secondary';
+    document.getElementById('btn-expired').className = 'btn btn-secondary';
+    document.getElementById('status-filter').value = '';
+    currentPage = 1;
+    loadInventory(1);
+}
+
+function showExpired() {
+    currentMode = 'detail';
+    document.getElementById('btn-detail').className = 'btn btn-secondary';
+    document.getElementById('btn-summary').className = 'btn btn-secondary';
+    document.getElementById('btn-expired').className = 'btn btn-primary';
+    document.getElementById('status-filter').value = '过期';
     currentPage = 1;
     loadInventory(1);
 }
