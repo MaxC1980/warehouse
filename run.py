@@ -66,7 +66,7 @@ def login():
         return redirect(url_for('dashboard'))
     return render_template('login.html')
 
-@app.route('/dashboard')
+@app.route('/dashboard', strict_slashes=False)
 @login_required
 def dashboard():
     return render_template('dashboard.html')

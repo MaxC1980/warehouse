@@ -286,7 +286,7 @@ class InventoryService:
                     cursor.execute(
                         """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity, in_order_item_id)
                            VALUES (?, ?, ?, ?, ?, ?)""",
-                        (material_id, batch_no, production_date, expiry_date, quantity_change, in_order_item_id)
+                        (material_id, batch_no, production_date, expiry_date, ROUND(quantity_change, 2), in_order_item_id)
                     )
 
             conn.commit()
@@ -396,7 +396,7 @@ class InventoryService:
 
                 if existing:
                     cursor.execute(
-                        """UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime')
+                        """UPDATE inventory SET quantity = ROUND(?, 2), updated_at = datetime('now', 'localtime')
                            WHERE material_id = ? AND batch_no = ?""",
                         (quantity, material_id, batch_no)
                     )
@@ -404,7 +404,7 @@ class InventoryService:
                     cursor.execute(
                         """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity)
                            VALUES (?, ?, ?, ?, ?)""",
-                        (material_id, batch_no, production_date, expiry_date, quantity)
+                        (material_id, batch_no, production_date, expiry_date, ROUND(quantity, 2))
                     )
 
                 conn.commit()
