@@ -37,6 +37,8 @@
         <option value="">全部</option>
         <option value="正常">正常</option>
         <option value="过期">过期</option>
+        <option value="本月过期">本月过期</option>
+        <option value="下月过期">下月过期</option>
     </select>
     <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
     <button onclick="resetFilter()" class="btn btn-secondary">重置</button>
@@ -52,6 +54,8 @@
     <button id="btn-detail" onclick="setViewMode('detail')" class="btn btn-primary">查询详情</button>
     <button id="btn-summary" onclick="setViewMode('summary')" class="btn btn-secondary">查询汇总</button>
     <button id="btn-expired" onclick="showExpired()" class="btn btn-secondary">查询过期</button>
+    <button id="btn-month-expired" onclick="showMonthExpired()" class="btn btn-secondary">本月过期</button>
+    <button id="btn-next-month-expired" onclick="showNextMonthExpired()" class="btn btn-secondary">下月过期</button>
     <span id="inventory-summary" style="margin-left: 24px;">当前库存合计：<strong id="total-qty">-</strong></span>
 </div>
 
@@ -112,6 +116,8 @@ function setViewMode(mode) {
     document.getElementById('btn-detail').className = mode === 'detail' ? 'btn btn-primary' : 'btn btn-secondary';
     document.getElementById('btn-summary').className = mode === 'summary' ? 'btn btn-primary' : 'btn btn-secondary';
     document.getElementById('btn-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
     document.getElementById('status-filter').value = '';
     currentPage = 1;
     loadInventory(1);
@@ -122,7 +128,33 @@ function showExpired() {
     document.getElementById('btn-detail').className = 'btn btn-secondary';
     document.getElementById('btn-summary').className = 'btn btn-secondary';
     document.getElementById('btn-expired').className = 'btn btn-primary';
+    document.getElementById('btn-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
     document.getElementById('status-filter').value = '过期';
+    currentPage = 1;
+    loadInventory(1);
+}
+
+function showMonthExpired() {
+    currentMode = 'detail';
+    document.getElementById('btn-detail').className = 'btn btn-secondary';
+    document.getElementById('btn-summary').className = 'btn btn-secondary';
+    document.getElementById('btn-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-month-expired').className = 'btn btn-primary';
+    document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
+    document.getElementById('status-filter').value = '本月过期';
+    currentPage = 1;
+    loadInventory(1);
+}
+
+function showNextMonthExpired() {
+    currentMode = 'detail';
+    document.getElementById('btn-detail').className = 'btn btn-secondary';
+    document.getElementById('btn-summary').className = 'btn btn-secondary';
+    document.getElementById('btn-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-next-month-expired').className = 'btn btn-primary';
+    document.getElementById('status-filter').value = '下月过期';
     currentPage = 1;
     loadInventory(1);
 }

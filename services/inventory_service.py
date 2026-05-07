@@ -36,8 +36,34 @@ class InventoryService:
                 where_clauses.append(f"(i.expiry_date IS NULL OR {ymd_expr} >= '{today_ymd}')")
             elif status == '过期':
                 where_clauses.append(f"{ymd_expr} < '{today_ymd}'")
+            elif status == '本月过期':
+                from datetime import timedelta
+                first_day = datetime.now().replace(day=1)
+                if datetime.now().month == 12:
+                    next_month = first_day.replace(year=datetime.now().year+1, month=1, day=1)
+                else:
+                    next_month = first_day.replace(month=datetime.now().month+1, day=1)
+                last_day = (next_month - timedelta(days=1)).strftime('%Y%m%d')
+                where_clauses.append(f"(i.expiry_date IS NOT NULL AND {ymd_expr} <= '{last_day}')")
+            elif status == '下月过期':
+                from datetime import timedelta
+                if datetime.now().month == 12:
+                    next_month_first = datetime.now().replace(year=datetime.now().year+1, month=1, day=1)
+                else:
+                    next_month_first = datetime.now().replace(month=datetime.now().month+1, day=1)
+                if next_month_first.month == 12:
+                    following_month_first = next_month_first.replace(year=next_month_first.year+1, month=1, day=1)
+                else:
+                    following_month_first = next_month_first.replace(month=next_month_first.month+1, day=1)
+                last_day = (following_month_first - timedelta(days=1)).strftime('%Y%m%d')
+                where_clauses.append(f"(i.expiry_date IS NOT NULL AND {ymd_expr} <= '{last_day}')")
 
         where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        if status in ('本月过期', '下月过期'):
+            order_by = "ORDER BY i.expiry_date ASC, m.code, i.batch_no"
+        else:
+            order_by = "ORDER BY m.code, i.batch_no"
 
         # 计算合计数量（不含待审，仅当前实际库存）
         total_quantity = InventoryService.get_inventory_totals(where_sql, params, summary)
@@ -93,7 +119,7 @@ class InventoryService:
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-                ORDER BY m.code, i.batch_no
+                {order_by}
                 LIMIT ? OFFSET ?
                 """,
                 params + [per_page, offset]
@@ -163,7 +189,8 @@ class InventoryService:
                     inventory_map[key] = len(inventory) - 1
                     total += 1
 
-            inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
+            if status not in ('本月过期', '下月过期'):
+                inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
 
         # 待审出库：匹配到已有库存行，不新增行
         if not summary and inventory:
