@@ -307,7 +307,7 @@ class OrderService:
                         """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity, in_order_item_id)
                            VALUES (?, ?, ?, ?, ?, ?)""",
                         (item['material_id'], batch_no, item.get('production_date'),
-                         item.get('expiry_date'), ROUND(item['quantity'], 2), item['id'])
+                         item.get('expiry_date'), round(item['quantity'], 2), item['id'])
                     )
 
             # 4. 更新订单状态
@@ -1285,7 +1285,7 @@ class OrderService:
                     cursor.execute(
                         """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
                            VALUES (?, ?, ?, ?, ?)""",
-                        (material_id, batch_no, ROUND(return_qty, 2),
+                        (material_id, batch_no, round(return_qty, 2),
                          orig['production_date'] if orig else None,
                          orig['expiry_date'] if orig else None)
                     )
