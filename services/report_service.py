@@ -185,8 +185,8 @@ class ReportService:
                 m.manufacturer,
                 i.batch_no,
                 i.actual_quantity,
-                i.unit_price,
-                i.actual_quantity * i.unit_price as amount,
+                COALESCE(i.unit_price, 0) as unit_price,
+                COALESCE(i.actual_quantity, 0) * COALESCE(i.unit_price, 0) as amount,
                 u.username as operator
             FROM out_order_item i
             JOIN out_order o ON i.order_id = o.id
