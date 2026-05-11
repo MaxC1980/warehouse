@@ -103,7 +103,7 @@ function renderOrders(orders) {
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
-                        <td>${item.return_quantity != null ? item.return_quantity : ''}</td>
+                        <td>${item.actual_net_weight != null ? item.actual_net_weight : ''}</td>
                         <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
                     </tr>`;
                 } else {
@@ -112,7 +112,7 @@ function renderOrders(orders) {
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
-                        <td>${item.return_quantity != null ? item.return_quantity : ''}</td>
+                        <td>${item.actual_net_weight != null ? item.actual_net_weight : ''}</td>
                     </tr>`;
                 }
             });
