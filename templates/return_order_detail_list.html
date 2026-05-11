@@ -34,7 +34,8 @@
                 <th>物料编码</th>
                 <th>物料名称</th>
                 <th>批次号</th>
-                <th>退库数量</th>
+                <th>退回毛重</th>
+                <th>实际净用量</th>
                 <th>状态</th>
             </tr>
         </thead>
@@ -86,7 +87,7 @@ function renderOrders(orders) {
                 <td>${o.department || ''}</td>
                 <td>${o.receiver || ''}</td>
                 <td>${o.receiver_date || ''}</td>
-                <td colspan="3"></td>
+                <td colspan="4"></td>
                 <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             </tr>`;
         } else {
@@ -101,6 +102,7 @@ function renderOrders(orders) {
                         <td>${item.material_code || ''}</td>
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
+                        <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
                         <td>${item.return_quantity != null ? item.return_quantity : ''}</td>
                         <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
                     </tr>`;
@@ -109,6 +111,7 @@ function renderOrders(orders) {
                         <td>${item.material_code || ''}</td>
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
+                        <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
                         <td>${item.return_quantity != null ? item.return_quantity : ''}</td>
                     </tr>`;
                 }

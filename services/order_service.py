@@ -982,6 +982,7 @@ class OrderService:
                     m.name as material_name,
                     m.spec,
                     m.unit,
+                    ri.return_gross_weight,
                     ri.actual_net_weight as return_quantity
                 FROM return_order_item ri
                 LEFT JOIN material m ON ri.material_id = m.id
