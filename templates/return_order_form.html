@@ -150,32 +150,44 @@ async function loadOutOrderItems() {
     }
 
     const data = await apiRequest('/out-orders/' + outOrderId);
-    if (data && data.items) {
-        // Fetch weight records for reusable materials only
-        const weightMap = {};
-        for (const item of data.items) {
-            if (item.material_is_reusable === 1) {
-                try {
-                    const weightRecord = await apiRequest('/out-orders/' + outOrderId + '/items/' + item.id + '/weight');
-                    if (weightRecord) {
-                        weightMap[item.id] = weightRecord;
-                    }
-                } catch (e) {
-                    // No weight record yet
-                }
-            }
+    if (data) {
+        // 自动填入部门
+        if (data.department) {
+            document.getElementById('department').value = data.department;
+        }
+        // 自动选中退库人
+        if (data.receiver) {
+            const receiverSelect = document.getElementById('receiver-select');
+            receiverSelect.value = data.receiver;
         }
 
-        // Filter to only reusable materials and attach weight info
-        const reusableItems = data.items.filter(item => {
-            if (weightMap[item.id]) {
-                item.initial_gross_weight = weightMap[item.id].initial_gross_weight;
-                return true;
+        if (data.items) {
+            // Fetch weight records for reusable materials only
+            const weightMap = {};
+            for (const item of data.items) {
+                if (item.material_is_reusable === 1) {
+                    try {
+                        const weightRecord = await apiRequest('/out-orders/' + outOrderId + '/items/' + item.id + '/weight');
+                        if (weightRecord) {
+                            weightMap[item.id] = weightRecord;
+                        }
+                    } catch (e) {
+                        // No weight record yet
+                    }
+                }
             }
-            return item.material_is_reusable === 1;
-        });
 
-        renderItems(reusableItems, null);
+            // Filter to only reusable materials and attach weight info
+            const reusableItems = data.items.filter(item => {
+                if (weightMap[item.id]) {
+                    item.initial_gross_weight = weightMap[item.id].initial_gross_weight;
+                    return true;
+                }
+                return item.material_is_reusable === 1;
+            });
+
+            renderItems(reusableItems, null);
+        }
     }
 }
 
