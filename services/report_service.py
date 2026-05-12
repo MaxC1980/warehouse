@@ -326,9 +326,9 @@ class ReportService:
                 m.spec,
                 m.unit,
                 (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date < ?) as opening_in,
-                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status = 'approved' AND oo.receiver_date < ?) as opening_out,
+                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status IN ('approved', 'completed') AND oo.receiver_date < ?) as opening_out,
                 (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date >= ? AND io.receiver_date <= ?) as period_in,
-                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status = 'approved' AND oo.receiver_date >= ? AND oo.receiver_date <= ?) as period_out
+                (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status IN ('approved', 'completed') AND oo.receiver_date >= ? AND oo.receiver_date <= ?) as period_out
             FROM material m
             {where_sql}
         """
