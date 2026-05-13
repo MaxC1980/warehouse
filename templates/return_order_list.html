@@ -11,13 +11,22 @@
 </div>
 
 <div class="filter-bar">
-    <select id="status-filter">
+    <select id="status-filter" onchange="loadOrders()">
         <option value="">全部状态</option>
         <option value="pending">待审核</option>
         <option value="approved">已审核</option>
-        <option value="cancelled">已取消</option>
     </select>
+    <span>退库日期</span>
+    <input type="date" id="start-date">
+    <input type="date" id="end-date">
+    <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
+    <button onclick="setLastMonth()" class="btn btn-sm">上月</button>
     <input type="text" id="out-order-no" placeholder="关联出库单号">
+    <select id="per-page" onchange="loadOrders()">
+        <option value="15" selected>15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
     <button onclick="loadOrders()" class="btn btn-secondary">搜索</button>
 </div>
 
@@ -48,16 +57,21 @@ let currentPage = 1;
 async function loadOrders(page = 1) {
     currentPage = page;
     const status = document.getElementById('status-filter').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
     const outOrderNo = document.getElementById('out-order-no').value.trim();
+    const perPage = document.getElementById('per-page').value;
 
-    const params = new URLSearchParams({ page, per_page: 20 });
+    const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
     if (outOrderNo) params.append('out_order_no', outOrderNo);
 
     const data = await apiRequest(`/return-orders?${params}`);
     if (data) {
         renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, 20, 'loadOrders');
+        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
     }
 }
 
@@ -94,8 +108,7 @@ function renderOrders(orders) {
 function getStatusText(status) {
     const map = {
         pending: '待审核',
-        approved: '已审核',
-        cancelled: '已取消'
+        approved: '已审核'
     };
     return map[status] || status;
 }
@@ -131,7 +144,8 @@ async function approveOrder(id) {
     }
 }
 
-
+initDateRange('start-date', 'end-date', loadOrders);
+setThisMonth();
 loadOrders();
 
 // Get permission level

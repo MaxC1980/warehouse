@@ -214,15 +214,13 @@ def get_weight_records():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status')
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
+    keyword = request.args.get('keyword')
 
     records, total = OrderService.get_all_weight_records(
         page=page,
         per_page=per_page,
         status=status,
-        material_code=material_code,
-        material_name=material_name
+        keyword=keyword
     )
     return jsonify({
         'items': records,

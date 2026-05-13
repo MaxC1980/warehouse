@@ -13,8 +13,7 @@
         <option value="checked_out">已领用</option>
         <option value="returned">已退回</option>
     </select>
-    <input type="text" id="material-code" placeholder="物料编码" onkeyup="if(event.key==='Enter')loadData()">
-    <input type="text" id="material-name" placeholder="物料名称" onkeyup="if(event.key==='Enter')loadData()">
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格" onkeyup="if(event.key==='Enter')loadData()">
     <select id="per-page" onchange="loadData()">
         <option value="15">15条/页</option>
         <option value="50">50条/页</option>
@@ -59,8 +58,7 @@ let currentPage = 1;
 
 async function loadData() {
     const status = document.getElementById('status-filter').value;
-    const materialCode = document.getElementById('material-code').value.trim();
-    const materialName = document.getElementById('material-name').value.trim();
+    const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
 
     const params = new URLSearchParams({
@@ -68,8 +66,7 @@ async function loadData() {
         per_page: perPage
     });
     if (status) params.append('status', status);
-    if (materialCode) params.append('material_code', materialCode);
-    if (materialName) params.append('material_name', materialName);
+    if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest('/weight-records?' + params.toString());
     if (!data) return;
@@ -138,8 +135,7 @@ function goToPage(page) {
 
 function resetFilters() {
     document.getElementById('status-filter').value = '';
-    document.getElementById('material-code').value = '';
-    document.getElementById('material-name').value = '';
+    document.getElementById('search-keyword').value = '';
     currentPage = 1;
     loadData();
 }

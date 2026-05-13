@@ -9,11 +9,19 @@ def get_return_orders():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     status = request.args.get('status')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    out_order_no = request.args.get('out_order_no')
+    keyword = request.args.get('keyword')
 
     orders, total = OrderService.get_return_orders(
         page=page,
         per_page=per_page,
-        status=status
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        out_order_no=out_order_no,
+        keyword=keyword
     )
     return jsonify({
         'items': orders,

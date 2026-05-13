@@ -952,7 +952,7 @@ class OrderService:
         return order_no
 
     @staticmethod
-    def get_return_orders(page=1, per_page=20, status=None):
+    def get_return_orders(page=1, per_page=20, status=None, start_date=None, end_date=None, out_order_no=None, keyword=None):
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -963,8 +963,37 @@ class OrderService:
         if status:
             where_sql = "WHERE r.status = ?"
             params.append(status)
+        if start_date:
+            if where_sql:
+                where_sql += " AND r.receiver_date >= ?"
+            else:
+                where_sql = "WHERE r.receiver_date >= ?"
+            params.append(start_date)
+        if end_date:
+            if where_sql:
+                where_sql += " AND r.receiver_date <= ?"
+            else:
+                where_sql = "WHERE r.receiver_date <= ?"
+            params.append(end_date)
+        if out_order_no:
+            if where_sql:
+                where_sql += " AND o.order_no LIKE ?"
+            else:
+                where_sql = "WHERE o.order_no LIKE ?"
+            params.append(f"{out_order_no}%")
+        if keyword:
+            if where_sql:
+                where_sql += " AND (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
+            else:
+                where_sql = "WHERE (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
+            params.extend([f"{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
-        cursor.execute(f"SELECT COUNT(*) as count FROM return_order r {where_sql}", params)
+        count_sql = f"""SELECT COUNT(*) as count FROM return_order r
+            LEFT JOIN out_order o ON r.related_out_order_id = o.id
+            LEFT JOIN return_order_item ri ON ri.return_order_id = r.id
+            LEFT JOIN material m ON ri.material_id = m.id
+            {where_sql}"""
+        cursor.execute(count_sql, params)
         total = cursor.fetchone()['count']
 
         cursor.execute(
@@ -978,7 +1007,10 @@ class OrderService:
             LEFT JOIN out_order o ON r.related_out_order_id = o.id
             LEFT JOIN user u ON r.operator_id = u.id
             LEFT JOIN user a ON r.approved_by = a.id
+            LEFT JOIN return_order_item ri ON ri.return_order_id = r.id
+            LEFT JOIN material m ON ri.material_id = m.id
             {where_sql}
+            GROUP BY r.id
             ORDER BY r.created_at DESC
             LIMIT ? OFFSET ?
             """,
@@ -996,6 +1028,7 @@ class OrderService:
                     ri.*,
                     m.code as material_code,
                     m.name as material_name,
+                    m.manufacturer,
                     m.spec,
                     m.unit,
                     ri.return_gross_weight,
@@ -1455,7 +1488,7 @@ class OrderService:
         return dict(record) if record else None
 
     @staticmethod
-    def get_all_weight_records(page=1, per_page=20, status=None, material_code=None, material_name=None):
+    def get_all_weight_records(page=1, per_page=20, status=None, keyword=None):
         """获取所有称重记录,支持分页和筛选"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -1466,12 +1499,9 @@ class OrderService:
         if status:
             where_sql += " AND w.status = ?"
             params.append(status)
-        if material_code:
-            where_sql += " AND m.code LIKE ?"
-            params.append(f"{material_code}%")
-        if material_name:
-            where_sql += " AND m.name LIKE ?"
-            params.append(f"%{material_name}%")
+        if keyword:
+            where_sql += " AND (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
+            params.extend([f"{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
         # Get total count
         cursor.execute(

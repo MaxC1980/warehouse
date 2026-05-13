@@ -13,7 +13,14 @@
         <option value="pending">待审核</option>
         <option value="approved">已审核</option>
     </select>
+    <span>退库日期</span>
+    <input type="date" id="start-date">
+    <input type="date" id="end-date">
+    <button onclick="setThisMonth()" class="btn btn-sm">本月</button>
+    <button onclick="setLastMonth()" class="btn btn-sm">上月</button>
     <input type="text" id="out-order-no" placeholder="关联出库单号">
+    <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
+    <button onclick="resetFilter()" class="btn btn-secondary">重置</button>
     <select id="per-page" onchange="loadOrders()">
         <option value="15" selected>15条/页</option>
         <option value="50">50条/页</option>
@@ -32,6 +39,7 @@
                 <th>退库人</th>
                 <th>退库日期</th>
                 <th>物料编码</th>
+                <th>品牌</th>
                 <th>物料名称</th>
                 <th>批次号</th>
                 <th>退回毛重</th>
@@ -53,20 +61,22 @@ let currentPage = 1;
 async function loadOrders(page = 1) {
     currentPage = page;
     const status = document.getElementById('status-filter').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
     const outOrderNo = document.getElementById('out-order-no').value.trim();
+    const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (outOrderNo) params.append('out_order_no', outOrderNo);
+    if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest(`/return-orders?${params}`);
     if (data) {
-        // Filter by out_order_no client-side if provided
-        let orders = data.items;
-        if (outOrderNo) {
-            orders = orders.filter(o => o.out_order_no && o.out_order_no.includes(outOrderNo));
-        }
-        renderOrders(orders);
+        renderOrders(data.items);
         renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
     }
 }
@@ -74,7 +84,7 @@ async function loadOrders(page = 1) {
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11">暂无数据</td></tr>';
         return;
     }
 
@@ -87,7 +97,7 @@ function renderOrders(orders) {
                 <td>${o.department || ''}</td>
                 <td>${o.receiver || ''}</td>
                 <td>${o.receiver_date || ''}</td>
-                <td colspan="4"></td>
+                <td colspan="5"></td>
                 <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             </tr>`;
         } else {
@@ -100,6 +110,7 @@ function renderOrders(orders) {
                         <td rowspan="${o.items.length}">${o.receiver || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
                         <td>${item.material_code || ''}</td>
+                        <td>${item.manufacturer || ''}</td>
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
@@ -109,6 +120,7 @@ function renderOrders(orders) {
                 } else {
                     html += `<tr>
                         <td>${item.material_code || ''}</td>
+                        <td>${item.manufacturer || ''}</td>
                         <td>${item.material_name || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.return_gross_weight != null ? item.return_gross_weight : ''}</td>
@@ -124,12 +136,17 @@ function renderOrders(orders) {
 function getStatusText(status) {
     const map = {
         pending: '待审核',
-        approved: '已审核',
-        cancelled: '已取消'
+        approved: '已审核'
     };
     return map[status] || status;
 }
 
+initDateRange('start-date', 'end-date', loadOrders);
+setThisMonth();
 loadOrders();
+
+function resetFilter() {
+    window.location.href = '/return-order-details';
+}
 </script>
 {% endblock %}
