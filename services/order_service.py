@@ -835,7 +835,7 @@ class OrderService:
 
         if total == 0:
             conn.close()
-            return [], 0
+            return [], 0, 0
 
         # Get paginated items directly, ordered by order created_at
         cursor.execute(
@@ -857,7 +857,7 @@ class OrderService:
 
         if not paginated_items:
             conn.close()
-            return [], 0
+            return [], 0, 0
 
         # Extract order IDs from paginated items
         order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))

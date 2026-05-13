@@ -57,7 +57,7 @@
 </div>
 <div class="data-table-summary">
     <span>本页合计：<strong id="page-total">0</strong></span>&nbsp;&nbsp;
-    <span>全选总计：<strong id="grand-total">0</strong></span>
+    <span>总计：<strong id="grand-total">0</strong></span>
 </div>
 
 <style>
@@ -90,9 +90,10 @@ async function loadOrders(page = 1) {
 
     const data = await apiRequest(`/out-orders/detail?${params}`);
     if (data) {
+        document.getElementById('page-total').textContent = '0';
+        document.getElementById('grand-total').textContent = data.grand_total || 0;
         renderOrders(data.items);
         renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
-        document.getElementById('grand-total').textContent = data.grand_total || 0;
     }
 }
 
@@ -133,6 +134,8 @@ function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
         tbody.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
+        document.getElementById('page-total').textContent = '0';
+        document.getElementById('grand-total').textContent = '0';
         return;
     }
 
