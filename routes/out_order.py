@@ -123,38 +123,43 @@ def get_out_orders_with_details():
     end_date = request.args.get('end_date')
     keyword = request.args.get('keyword')
     has_reusable = request.args.get('has_reusable', type=bool)
+    receiver = request.args.get('receiver')
 
-    orders, total = OrderService.get_out_orders_with_details(
+    orders, total, grand_total = OrderService.get_out_orders_with_details(
         page=page,
         per_page=per_page,
         status=status,
         start_date=start_date,
         end_date=end_date,
         keyword=keyword,
-        has_reusable=has_reusable
+        has_reusable=has_reusable,
+        receiver=receiver
     )
     return jsonify({
         'items': orders,
         'total': total,
         'page': page,
-        'per_page': per_page
+        'per_page': per_page,
+        'grand_total': round(grand_total, 2)
     })
 
 @out_order_bp.route('/out-orders/detail/export', methods=['GET'])
 def export_out_orders_detail():
     """导出出库台账明细（所有数据，不受分页限制）"""
     status = request.args.get('status')
+    receiver = request.args.get('receiver')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     keyword = request.args.get('keyword')
 
-    orders, _ = OrderService.get_out_orders_with_details(
+    orders, _, _ = OrderService.get_out_orders_with_details(
         page=1,
         per_page=10000,
         status=status,
         start_date=start_date,
         end_date=end_date,
-        keyword=keyword
+        keyword=keyword,
+        receiver=receiver
     )
 
     columns = ['出库单号', '部门', '领用人', '用途', '日期', '物料编码', '物料名称', '规格型号', '单位', '批次', '申请用量', '实际用量', '领用毛重', '状态']

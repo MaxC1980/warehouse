@@ -14,6 +14,9 @@
         <option value="pending">待审核</option>
         <option value="approved">已审核</option>
     </select>
+    <select id="receiver-filter" onchange="loadOrders()">
+        <option value="">全部领用人</option>
+    </select>
     <span>出库日期</span>
     <input type="date" id="start-date" placeholder="开始日期">
     <input type="date" id="end-date" placeholder="结束日期">
@@ -52,6 +55,15 @@
         <tbody id="orders-tbody"></tbody>
     </table>
 </div>
+<div class="data-table-summary">
+    <span>本页合计：<strong id="page-total">0</strong></span>&nbsp;&nbsp;
+    <span>全选总计：<strong id="grand-total">0</strong></span>
+</div>
+
+<style>
+.data-table-summary { margin-top: 8px; text-align: right; color: #666; }
+.data-table-summary strong { color: #333; }
+</style>
 
 <div class="pagination" id="pagination"></div>
 {% endblock %}
@@ -63,6 +75,7 @@ let currentPage = 1;
 async function loadOrders(page = 1) {
     currentPage = page;
     const status = document.getElementById('status-filter').value;
+    const receiver = document.getElementById('receiver-filter').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
     const keyword = document.getElementById('search-keyword').value.trim();
@@ -70,6 +83,7 @@ async function loadOrders(page = 1) {
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
+    if (receiver) params.append('receiver', receiver);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     if (keyword) params.append('keyword', keyword);
@@ -78,17 +92,20 @@ async function loadOrders(page = 1) {
     if (data) {
         renderOrders(data.items);
         renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+        document.getElementById('grand-total').textContent = data.grand_total || 0;
     }
 }
 
 function exportExcel() {
     const status = document.getElementById('status-filter').value;
+    const receiver = document.getElementById('receiver-filter').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
     const keyword = document.getElementById('search-keyword').value.trim();
 
     const params = new URLSearchParams({ page: 1, per_page: 10000 });
     if (status) params.append('status', status);
+    if (receiver) params.append('receiver', receiver);
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     if (keyword) params.append('keyword', keyword);
@@ -97,6 +114,16 @@ function exportExcel() {
 }
 
 initDateRange('start-date', 'end-date', loadOrders);
+
+async function loadReceivers() {
+    const data = await apiRequest('/employees');
+    if (data) {
+        const select = document.getElementById('receiver-filter');
+        data.items.forEach(e => {
+            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+        });
+    }
+}
 
 function resetFilter() {
     window.location.href = '/out-order-details';
@@ -156,6 +183,14 @@ function renderOrders(orders) {
         }
     });
     tbody.innerHTML = html;
+
+    let totalActualQty = 0;
+    orders.forEach(o => {
+        (o.items || []).forEach(item => {
+            totalActualQty += parseFloat(item.actual_quantity) || 0;
+        });
+    });
+    document.getElementById('page-total').textContent = totalActualQty.toFixed(2);
 }
 
 function getStatusText(status) {
@@ -168,5 +203,6 @@ function getStatusText(status) {
 }
 
 setThisMonth();
+loadReceivers();
 </script>
 {% endblock %}

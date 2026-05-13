@@ -785,7 +785,7 @@ class OrderService:
         return orders, total
 
     @staticmethod
-    def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None, has_reusable=None):
+    def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None, has_reusable=None, receiver=None):
         """Get out-orders with details - paginated by items"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -804,6 +804,9 @@ class OrderService:
         if end_date:
             order_where_clauses.append("o.receiver_date <= ?")
             order_params.append(end_date)
+        if receiver:
+            order_where_clauses.append("o.receiver = ?")
+            order_params.append(receiver)
 
         # Build material filter conditions
         material_conditions = []
@@ -907,8 +910,21 @@ class OrderService:
         for order in orders:
             order['items'] = items_by_order.get(order['order_id'], [])
 
+        # Grand total actual_quantity (without pagination)
+        cursor.execute(
+            f"""
+            SELECT COALESCE(SUM(i.actual_quantity), 0) as grand_total
+            FROM out_order_item i
+            INNER JOIN out_order o ON o.id = i.order_id
+            INNER JOIN material m ON i.material_id = m.id
+            {where_sql}
+            """,
+            all_params
+        )
+        grand_total = cursor.fetchone()['grand_total']
+
         conn.close()
-        return orders, total
+        return orders, total, grand_total
 
     # Return Order methods
     @staticmethod
