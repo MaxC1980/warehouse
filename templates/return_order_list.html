@@ -96,9 +96,7 @@ function renderOrders(orders) {
                     ${currentPermissionLevel >= 2 ? `<a href="/return-orders/${o.order_id}/edit" class="btn btn-sm">编辑</a>` : ''}
                     ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.order_id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
                     ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.order_id})" class="btn btn-sm btn-danger">删除</button>` : ''}
-                ` : `
-                    <a href="/return-orders/${o.order_id}/detail" class="btn btn-sm">查看</a>
-                `}
+                ` : ''}
             </td>
         </tr>`;
     });
