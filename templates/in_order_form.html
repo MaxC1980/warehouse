@@ -67,7 +67,7 @@
                     <td><input type="date" name="expiry_date" class="expiry-date"></td>
                     <td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>
                     <td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>
-                    <td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>
+                    <td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>
                 </tr>
             </tbody>
         </table>
@@ -182,7 +182,7 @@ async function loadOrder() {
                     '<td><input type="date" name="expiry_date" class="expiry-date" value="' + (item.expiry_date || '') + '" ' + dis + '></td>' +
                     '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + item.quantity + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
                     '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + (item.unit_price || '') + '" ' + dis + '></td>' +
-                    '<td>' + (isEditable ? '<button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
+                    '<td>' + (isEditable ? '<button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
                 tbody.appendChild(tr);
                 const select = tr.querySelector('.material-select');
                 materialsData.forEach(m => {
@@ -262,17 +262,7 @@ function updateMaterialInfo(select) {
     const materialId = parseInt(select.value);
 
     if (materialId) {
-        const allSelects = document.querySelectorAll('.material-select');
-        for (let s of allSelects) {
-            if (s !== select && parseInt(s.value) === materialId) {
-                alert('该物料已在明细中，请选择其他物料');
-                select.value = '';
-                tr.querySelector('.material-brand').textContent = '';
-                tr.querySelector('.material-spec').textContent = '';
-                tr.querySelector('.material-unit').textContent = '';
-                return;
-            }
-        }
+        // 允许同一物料多行明细，每行独立批次号，不再检查重复
     }
 
     const material = materialsData.find(m => m.id === materialId);
@@ -299,7 +289,7 @@ function addRow() {
         '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
         '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
         '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
-        '<td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
+        '<td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
     tbody.appendChild(tr);
     loadMaterialsForNewRow(tr);
 }
@@ -329,25 +319,41 @@ function removeRow(btn) {
     }
 }
 
+function copyRow(btn) {
+    const tr = btn.closest('tr');
+    const newTr = tr.cloneNode(true);
+    // 修复：克隆后重新设置select的选项（cloneNode会把原select的option移走）
+    const oldSelect = tr.querySelector('.material-select');
+    const newSelect = newTr.querySelector('.material-select');
+    const selectedValue = oldSelect.value;
+    const optionsHTML = oldSelect.innerHTML;
+    newSelect.innerHTML = optionsHTML;
+    newSelect.value = selectedValue;
+    const tbody = document.getElementById('items-tbody');
+    tbody.appendChild(newTr);
+}
+
 async function handleSubmit(e) {
     e.preventDefault();
     const form = e.target;
     const items = [];
-    const materialIds = [];
+    const seenKeys = new Set();
     const rows = document.querySelectorAll('#items-tbody tr');
 
     for (let row of rows) {
         const material_id = row.querySelector('.material-select').value;
         if (material_id) {
             const mid = parseInt(material_id);
-            if (materialIds.includes(mid)) {
-                alert('明细中物料编码不能重复，请检查');
+            const batch_no = row.querySelector('.batch-no').value || null;
+            const key = mid + '|' + (batch_no || '');
+            if (seenKeys.has(key)) {
+                alert('明细中物料编码和批次号不能同时重复，请检查');
                 return;
             }
-            materialIds.push(mid);
+            seenKeys.add(key);
             items.push({
                 material_id: mid,
-                batch_no: row.querySelector('.batch-no').value || null,
+                batch_no: batch_no,
                 production_date: row.querySelector('.production-date').value || null,
                 expiry_date: row.querySelector('.expiry-date').value || null,
                 quantity: parseFloat(row.querySelector('.quantity').value) || 0,
@@ -546,7 +552,7 @@ function confirmMaterialSelection() {
             '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
             '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
             '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
-            '<td><button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
+            '<td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
         tbody.appendChild(tr);
 
         const select = tr.querySelector('.material-select');

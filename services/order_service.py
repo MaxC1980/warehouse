@@ -564,7 +564,7 @@ class OrderService:
 
             # Get items
             cursor.execute(
-                "SELECT id, order_id, material_id, batch_no, unit_price, remark, requested_quantity, actual_quantity, returned_quantity, initial_gross_weight, shipment_info FROM out_order_item WHERE order_id = ?",
+                "SELECT id, order_id, material_id, batch_no, unit_price, remark, requested_quantity, actual_quantity, initial_gross_weight, shipment_info FROM out_order_item WHERE order_id = ?",
                 (order_id,)
             )
             items = cursor.fetchall()
@@ -572,19 +572,17 @@ class OrderService:
             # Check and reduce inventory for each item (inline, same transaction)
             # For reusable materials, inventory is deducted at return time based on net weight
             for item in items:
+                item = dict(item)  # Convert sqlite3.Row to dict for modification
                 # Check if material is reusable
                 cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (item['material_id'],))
                 mat = cursor.fetchone()
                 is_reusable = mat and mat['is_reusable'] == 1
 
-                if is_reusable:
-                    # For reusable materials: skip inventory deduction at approval
-                    # Weight record will be created below for tracking
-                    continue
-
-                # For regular materials: deduct inventory based on actual_quantity
-                actual_qty = item['actual_quantity']
                 batch_no = item['batch_no']
+                actual_qty = item['actual_quantity']
+
+                # For reusable materials: same handling as regular materials (deduct inventory)
+                # Return handling will use actual_quantity to calculate remaining inventory
 
                 if batch_no:
                     # Deduct from specific batch
@@ -842,7 +840,7 @@ class OrderService:
             f"""
             SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
                    i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
-                   i.returned_quantity, i.initial_gross_weight, i.shipment_info,
+                   i.initial_gross_weight, i.shipment_info,
                    m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
             FROM out_order_item i
             INNER JOIN out_order o ON o.id = i.order_id
@@ -988,7 +986,7 @@ class OrderService:
                 where_sql = "WHERE (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
             params.extend([f"{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
-        count_sql = f"""SELECT COUNT(*) as count FROM return_order r
+        count_sql = f"""SELECT COUNT(ri.id) as count FROM return_order r
             LEFT JOIN out_order o ON r.related_out_order_id = o.id
             LEFT JOIN return_order_item ri ON ri.return_order_id = r.id
             LEFT JOIN material m ON ri.material_id = m.id
@@ -996,10 +994,44 @@ class OrderService:
         cursor.execute(count_sql, params)
         total = cursor.fetchone()['count']
 
+        if total == 0:
+            conn.close()
+            return [], 0
+
+        # Get paginated items with order info
         cursor.execute(
             f"""
             SELECT
-                r.*,
+                ri.id as ri_id, ri.return_order_id, ri.out_order_item_id, ri.material_id,
+                ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight,
+                m.code as material_code, m.name as material_name, m.manufacturer, m.spec, m.unit
+            FROM return_order_item ri
+            INNER JOIN return_order r ON ri.return_order_id = r.id
+            LEFT JOIN out_order o ON r.related_out_order_id = o.id
+            LEFT JOIN material m ON ri.material_id = m.id
+            {where_sql}
+            ORDER BY r.created_at DESC, ri.id
+            LIMIT ? OFFSET ?
+            """,
+            params + [per_page, offset]
+        )
+        paginated_items = [dict(row) for row in cursor.fetchall()]
+
+        if not paginated_items:
+            conn.close()
+            return [], 0
+
+        # Extract order IDs from paginated items
+        order_ids = list(dict.fromkeys(item['return_order_id'] for item in paginated_items))
+
+        # Fetch order details for these order IDs
+        placeholders = ','.join(['?'] * len(order_ids))
+        cursor.execute(
+            f"""
+            SELECT
+                r.id as order_id, r.order_no, r.department, r.receiver, r.receiver_date,
+                r.related_out_order_id, r.status, r.remark, r.created_at, r.approved_at,
+                r.operator_id, r.approved_by,
                 o.order_no as out_order_no,
                 u.username as operator_name,
                 a.username as approved_by_name
@@ -1007,50 +1039,25 @@ class OrderService:
             LEFT JOIN out_order o ON r.related_out_order_id = o.id
             LEFT JOIN user u ON r.operator_id = u.id
             LEFT JOIN user a ON r.approved_by = a.id
-            LEFT JOIN return_order_item ri ON ri.return_order_id = r.id
-            LEFT JOIN material m ON ri.material_id = m.id
-            {where_sql}
-            GROUP BY r.id
+            WHERE r.id IN ({placeholders})
             ORDER BY r.created_at DESC
-            LIMIT ? OFFSET ?
             """,
-            params + [per_page, offset]
+            order_ids
         )
         orders = [dict(row) for row in cursor.fetchall()]
 
-        # Batch fetch items for all orders (fix N+1)
-        if orders:
-            order_ids = [o['id'] for o in orders]
-            placeholders = ','.join(['?'] * len(order_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    ri.*,
-                    m.code as material_code,
-                    m.name as material_name,
-                    m.manufacturer,
-                    m.spec,
-                    m.unit,
-                    ri.return_gross_weight,
-                    ri.actual_net_weight
-                FROM return_order_item ri
-                LEFT JOIN material m ON ri.material_id = m.id
-                WHERE ri.return_order_id IN ({placeholders})
-                """,
-                order_ids
-            )
-            all_items = [dict(row) for row in cursor.fetchall()]
-            items_by_order = {}
-            for item in all_items:
-                oid = item['return_order_id']
-                if oid not in items_by_order:
-                    items_by_order[oid] = []
-                items_by_order[oid].append(item)
-            for order in orders:
-                order['items'] = items_by_order.get(order['id'], [])
+        # Group items by order
+        items_by_order = {}
+        for item in paginated_items:
+            oid = item['return_order_id']
+            if oid not in items_by_order:
+                items_by_order[oid] = []
+            items_by_order[oid].append(item)
+
+        for order in orders:
+            order['items'] = items_by_order.get(order['order_id'], [])
 
         conn.close()
-
         return orders, total
 
     @staticmethod
@@ -1296,20 +1303,14 @@ class OrderService:
                        WHERE out_order_item_id = ?""",
                     (return_weight, approved_by, net_weight, item['out_order_item_id'])
                 )
-                # Update out_order_item actual_quantity to actual usage (net weight)
-                cursor.execute(
-                    "UPDATE out_order_item SET actual_quantity = ? WHERE id = ?",
-                    (net_weight, item['out_order_item_id'])
-                )
-                # Deduct actual consumption from inventory (what was used, not returned)
-                inventory_delta = -net_weight
-                return_qty = return_weight
 
-                # Update returned_quantity with actual return weight (for reference)
-                cursor.execute(
-                    "UPDATE out_order_item SET returned_quantity = returned_quantity + ? WHERE id = ?",
-                    (return_weight or 0, item['out_order_item_id'])
-                )
+                # Calculate remaining inventory: original actual_quantity - net_weight
+                # actual_quantity is the outbound qty (original inventory qty), remains unchanged
+                cursor.execute("SELECT actual_quantity FROM out_order_item WHERE id = ?", (item['out_order_item_id'],))
+                ooi = cursor.fetchone()
+                original_qty = ooi['actual_quantity'] if ooi else 0
+
+                remaining = original_qty - net_weight
 
                 # Check existing inventory batch
                 cursor.execute(
@@ -1320,8 +1321,8 @@ class OrderService:
 
                 if inv:
                     cursor.execute(
-                        "UPDATE inventory SET quantity = ROUND(quantity + ?, 2), updated_at = datetime('now', 'localtime') WHERE id = ?",
-                        (inventory_delta, inv['id'])
+                        "UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+                        (remaining, inv['id'])
                     )
                 else:
                     # Get production_date and expiry_date from original in_order_item
@@ -1337,7 +1338,7 @@ class OrderService:
                     cursor.execute(
                         """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
                            VALUES (?, ?, ?, ?, ?)""",
-                        (material_id, batch_no, round(return_qty, 2),
+                        (material_id, batch_no, round(remaining, 2),
                          orig['production_date'] if orig else None,
                          orig['expiry_date'] if orig else None)
                     )

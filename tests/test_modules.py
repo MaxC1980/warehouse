@@ -293,6 +293,7 @@ class TestReusableMaterial(TestBase):
         self.assertEqual(inv['quantity'], 50)
 
         # 创建出库单，传入毛重
+        # 可回用物料实际用量=库存数量(50)，审核后库存=50-50=0
         out_order = OrderService.create_out_order(
             department='生产车间',
             receiver='张三',
@@ -302,8 +303,8 @@ class TestReusableMaterial(TestBase):
                 'material_id': material_id,
                 'batch_no': 'BATCH-GLUE-001',
                 'quantity': 50,
-                'actual_quantity': 30,
-                'requested_quantity': 30,
+                'actual_quantity': 50,
+                'requested_quantity': 50,
                 'initial_gross_weight': 35.5
             }]
         )
@@ -316,9 +317,14 @@ class TestReusableMaterial(TestBase):
         )
         self.assertIsNotNone(result)
 
-        # 可回用物料审核后库存不变（不扣减）
-        inv = InventoryService.get_inventory_by_material(material_id)
-        self.assertEqual(inv['quantity'], 50)
+        # 可回用物料审核后库存扣减为0（和普通物料一样）
+        # get_inventory_by_material有quantity>0过滤，用直接查询验证
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material_id, 'BATCH-GLUE-001'))
+        row = cursor.fetchone()
+        conn.close()
+        self.assertEqual(row['quantity'], 0)
 
         # 检查reusable_material_weight表有记录
         conn = get_db_connection()
@@ -360,7 +366,8 @@ class TestReturnOrder(TestBase):
         inv = InventoryService.get_inventory_by_material(material['id'])
         self.assertEqual(inv['quantity'], 100)
 
-        # 2. 创建并审核出库单（可回用物料不扣减库存，记录毛重）
+        # 2. 创建并审核出库单（可回用物料和普通物料一样扣减库存）
+        # 可回用物料实际用量=库存数量(100)，审核后库存=100-100=0
         out_order = OrderService.create_out_order(
             department='部门B',
             receiver='李四',
@@ -369,8 +376,8 @@ class TestReturnOrder(TestBase):
             items=[{
                 'material_id': material['id'],
                 'batch_no': 'BATCH-B001',
-                'actual_quantity': 80,
-                'requested_quantity': 80,
+                'actual_quantity': 100,
+                'requested_quantity': 100,
                 'initial_gross_weight': 35.5
             }]
         )
@@ -380,11 +387,16 @@ class TestReturnOrder(TestBase):
             weight_data=[{'out_order_item_id': out_order['items'][0]['id'], 'initial_gross_weight': 35.5}]
         )
 
-        # 可回用物料出库后库存不变
-        inv = InventoryService.get_inventory_by_material(material['id'])
-        self.assertEqual(inv['quantity'], 100)
+        # 可回用物料出库后库存锁定为0
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material['id'], 'BATCH-B001'))
+        row = cursor.fetchone()
+        conn.close()
+        self.assertEqual(row['quantity'], 0)
 
         # 3. 创建退库单（退回毛重25.5，净用量=35.5-25.5=10）
+        # 退库后库存：原始库存100 - 净用量10 = 90
         return_order = OrderService.create_return_order(
             related_out_order_id=out_order['id'],
             department='部门B',
@@ -403,7 +415,7 @@ class TestReturnOrder(TestBase):
         result = OrderService.approve_return_order(return_order['id'], approved_by=1)
         self.assertIsNotNone(result)
 
-        # 退库后库存扣减净用量：100 - 10 = 90
+        # 退库后库存：原始库存100 - 净用量10 = 90
         inv = InventoryService.get_inventory_by_material(material['id'])
         self.assertEqual(inv['quantity'], 90)
 

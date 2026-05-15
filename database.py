@@ -156,7 +156,6 @@ def init_db():
             remark TEXT,
             requested_quantity DECIMAL(16,2) DEFAULT 0,
             actual_quantity DECIMAL(16,2) DEFAULT 0,
-            returned_quantity DECIMAL(16,2) DEFAULT 0,
             initial_gross_weight DECIMAL(16,2),
             shipment_info TEXT,
             FOREIGN KEY (order_id) REFERENCES out_order(id),

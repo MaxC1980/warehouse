@@ -168,7 +168,7 @@ function renderOrders(orders) {
                         <td>${item.unit || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.actual_quantity || 0}</td>
-                        <td rowspan="${o.items.length}">${item.initial_gross_weight || ''}</td>
+                        <td>${item.initial_gross_weight || ''}</td>
                         <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
                     </tr>`;
                 } else {
@@ -180,6 +180,7 @@ function renderOrders(orders) {
                         <td>${item.unit || ''}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.actual_quantity || 0}</td>
+                        <td>${item.initial_gross_weight || ''}</td>
                     </tr>`;
                 }
             });

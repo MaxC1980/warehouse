@@ -48,6 +48,7 @@
                 <th>期初数</th>
                 <th>入库数</th>
                 <th>出库数</th>
+                <th>退库数</th>
                 <th>期末数</th>
             </tr>
         </thead>
@@ -130,7 +131,7 @@ async function loadReport(page = 1) {
 function renderReport(items) {
     const tbody = document.getElementById('report-tbody');
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(item => `
@@ -143,6 +144,7 @@ function renderReport(items) {
             <td>${item.opening_qty}</td>
             <td>${item.in_qty}</td>
             <td>${item.out_qty}</td>
+            <td>${item.return_qty}</td>
             <td class="${item.closing_qty < 0 ? 'warning' : ''}">${item.closing_qty}</td>
         </tr>
     `).join('');

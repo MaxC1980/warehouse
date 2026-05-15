@@ -234,7 +234,7 @@ def export_stock_flow_report():
         hide_no_change=hide_no_change
     )
 
-    columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '期初数', '入库数', '出库数', '期末数']
+    columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '期初数', '入库数', '出库数', '退库数', '期末数']
     data = [[
         r['material_code'],
         r['material_name'],
@@ -244,6 +244,7 @@ def export_stock_flow_report():
         r['opening_qty'],
         r['in_qty'],
         r['out_qty'],
+        r['return_qty'],
         r['closing_qty']
     ] for r in report_data]
 
