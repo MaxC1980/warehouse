@@ -85,7 +85,7 @@ function renderOrders(orders) {
     let html = '';
     orders.forEach(o => {
         html += `<tr>
-            <td><a href="/return-orders/${o.id}/detail">${o.order_no}</a></td>
+            <td><a href="/return-orders/${o.order_id}/detail">${o.order_no}</a></td>
             <td>${o.out_order_no || ''}</td>
             <td>${o.department || ''}</td>
             <td>${o.receiver || ''}</td>
@@ -93,11 +93,11 @@ function renderOrders(orders) {
             <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             <td>
                 ${o.status === 'pending' ? `
-                    ${currentPermissionLevel >= 2 ? `<a href="/return-orders/${o.id}/edit" class="btn btn-sm">编辑</a>` : ''}
-                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
-                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<a href="/return-orders/${o.order_id}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.order_id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.order_id})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : `
-                    <a href="/return-orders/${o.id}/detail" class="btn btn-sm">查看</a>
+                    <a href="/return-orders/${o.order_id}/detail" class="btn btn-sm">查看</a>
                 `}
             </td>
         </tr>`;

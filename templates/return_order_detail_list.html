@@ -92,7 +92,7 @@ function renderOrders(orders) {
     orders.forEach(o => {
         if (!o.items || o.items.length === 0) {
             html += `<tr>
-                <td><a href="/return-orders/${o.id}/detail">${o.order_no}</a></td>
+                <td><a href="/return-orders/${o.order_id}/detail">${o.order_no}</a></td>
                 <td>${o.out_order_no || ''}</td>
                 <td>${o.department || ''}</td>
                 <td>${o.receiver || ''}</td>
@@ -104,7 +104,7 @@ function renderOrders(orders) {
             o.items.forEach((item, idx) => {
                 if (idx === 0) {
                     html += `<tr>
-                        <td rowspan="${o.items.length}"><a href="/return-orders/${o.id}/detail">${o.order_no}</a></td>
+                        <td rowspan="${o.items.length}"><a href="/return-orders/${o.order_id}/detail">${o.order_no}</a></td>
                         <td rowspan="${o.items.length}">${o.out_order_no || ''}</td>
                         <td rowspan="${o.items.length}">${o.department || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver || ''}</td>
