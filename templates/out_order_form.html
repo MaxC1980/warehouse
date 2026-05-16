@@ -397,7 +397,7 @@ function confirmInventorySelection() {
             unit: cb.dataset.unit,
             batch_no: cb.dataset.batchNo,
             available_qty: parseFloat(cb.dataset.availableQty),
-            actual_quantity: parseFloat(cb.dataset.availableQty),
+            actual_quantity: cb.dataset.reusable === '1' ? parseFloat(cb.dataset.availableQty) : 0,
             material_is_reusable: cb.dataset.reusable === '1' ? 1 : 0
         });
         existingMaterialBatches.add(key);
@@ -432,6 +432,11 @@ async function handleSubmit(e) {
             const shipmentInfo = row.querySelector('.shipment-info')?.value || '';
             if (initialWeight <= 0) {
                 alert('可回用物料必须填写领用毛重');
+                row.querySelector('.initial-weight')?.focus();
+                return;
+            }
+            if (initialWeight < actualQty) {
+                alert('可回用物料的领用毛重必须大于等于实际用量');
                 row.querySelector('.initial-weight')?.focus();
                 return;
             }

@@ -108,7 +108,7 @@ const detailHeaders = [
     '物料编码', '物料名称', '品牌', '规格型号', '单位', '批次号', '生产日期', '有效日期', '当前库存', '待审入库', '待审出库', '状态'
 ];
 const summaryHeaders = [
-    '物料编码', '物料名称', '品牌', '规格型号', '单位', '当前库存'
+    '物料编码', '物料名称', '品牌', '规格型号', '单位', '当前库存', '待审入库', '待审出库'
 ];
 
 function setViewMode(mode) {
@@ -196,7 +196,7 @@ function renderTableHeader() {
 function renderInventory(inventory) {
     const tbody = document.getElementById('inventory-tbody');
     if (inventory.length === 0) {
-        const colCount = currentMode === 'detail' ? 12 : 6;
+        const colCount = currentMode === 'detail' ? 12 : 8;
         tbody.innerHTML = `<tr><td colspan="${colCount}">暂无数据</td></tr>`;
         return;
     }
@@ -226,6 +226,8 @@ function renderInventory(inventory) {
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
                 <td>${item.quantity}</td>
+                <td>${item.pending_in || 0}</td>
+                <td>${item.pending_out || 0}</td>
             </tr>
         `).join('');
     }

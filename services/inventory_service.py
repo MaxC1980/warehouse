@@ -1,4 +1,52 @@
 from database import get_db_connection
+from datetime import date, datetime, timedelta
+
+
+def _normalize_date(date_str):
+    """将日期标准化为YYYYMMDD格式用于排序，兼容 '2026-4-15' 和 '2026-04-15'"""
+    if not date_str:
+        return '00000000'
+    parts = date_str.split('-')
+    if len(parts) != 3:
+        return '00000000'
+    year, month, day = parts
+    return f"{year}{int(month):02d}{int(day):02d}"
+
+
+def _expiry_matches_filter(expiry_date, status):
+    """判断物品的过期日期是否符合筛选条件：是否已到或超过指定月份末"""
+    if not expiry_date:
+        return False
+    try:
+        if isinstance(expiry_date, str):
+            expiry = datetime.strptime(expiry_date, '%Y-%m-%d').date()
+        else:
+            expiry = expiry_date
+    except:
+        return False
+
+    today = date.today()
+
+    if status == '过期':
+        return expiry < today
+    elif status == '本月过期':
+        if today.month == 12:
+            last_day = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+        else:
+            last_day = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+        return expiry <= last_day
+    elif status == '下月过期':
+        if today.month == 12:
+            next_month_first = today.replace(year=today.year+1, month=1, day=1)
+        else:
+            next_month_first = today.replace(month=today.month+1, day=1)
+        if next_month_first.month == 12:
+            following_month_first = next_month_first.replace(year=next_month_first.year+1, month=1, day=1)
+        else:
+            following_month_first = next_month_first.replace(month=next_month_first.month+1, day=1)
+        last_day = following_month_first - timedelta(days=1)
+        return expiry <= last_day
+    return False
 
 
 class InventoryService:
@@ -55,62 +103,164 @@ class InventoryService:
                     following_month_first = next_month_first.replace(year=next_month_first.year+1, month=1, day=1)
                 else:
                     following_month_first = next_month_first.replace(month=next_month_first.month+1, day=1)
+                first_day = next_month_first.strftime('%Y%m%d')
                 last_day = (following_month_first - timedelta(days=1)).strftime('%Y%m%d')
                 where_clauses.append(f"(i.expiry_date IS NOT NULL AND {ymd_expr} <= '{last_day}')")
 
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
-        if status in ('本月过期', '下月过期'):
-            order_by = "ORDER BY i.expiry_date ASC, m.code, i.batch_no"
-        else:
-            order_by = "ORDER BY m.code, i.batch_no"
-
         # 计算合计数量（不含待审，仅当前实际库存）
         total_quantity = InventoryService.get_inventory_totals(where_sql, params, summary)
 
         if summary:
-            count_query = f"""
-                SELECT COUNT(DISTINCT m.code) as count
+            # 统计实际库存的物料ID集合
+            cursor.execute("""
+                SELECT DISTINCT m.id
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-            """
-            cursor.execute(count_query, params)
-            total = cursor.fetchone()['count']
+            """.format(where_sql=where_sql), params)
+            material_ids_with_stock = [row['id'] for row in cursor.fetchall()]
 
-            cursor.execute(
-                f"""
+            # 收集待审入库的物料（排除已有实际库存的）
+            pending_only_items = []
+            pending_only_params = []
+            pending_only_where = "WHERE io.status = 'pending'"
+            if category_code:
+                pending_only_where += " AND m.category_code LIKE ?"
+                pending_only_params.append(f'{category_code}%')
+            cursor.execute(f"""
+                SELECT m.id as material_id, m.code as material_code, m.name as material_name,
+                    m.spec, m.unit, m.manufacturer,
+                    SUM(ioi.quantity) as pending_in_total
+                FROM in_order_item ioi
+                JOIN in_order io ON ioi.order_id = io.id
+                JOIN material m ON ioi.material_id = m.id
+                {pending_only_where}
+                GROUP BY m.id, m.code, m.name, m.spec, m.unit, m.manufacturer
+            """, pending_only_params)
+            for row in cursor.fetchall():
+                if row['material_id'] not in material_ids_with_stock:
+                    item = dict(row)
+                    item['quantity'] = 0
+                    item['status'] = '正常'
+                    item['pending_in'] = row['pending_in_total']
+                    item['pending_out'] = 0
+                    item['updated_at'] = ''
+                    pending_only_items.append(item)
+
+            # 合并：实际库存物料 + 待审-only物料，一起排序
+            all_items = []
+
+            cursor.execute("""
                 SELECT
-                    m.code as material_code, m.name as material_name,
+                    m.id as material_id, m.code as material_code, m.name as material_name,
                     m.spec, m.unit, m.manufacturer,
                     SUM(i.quantity) as quantity,
                     MAX(i.updated_at) as updated_at
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-                GROUP BY m.code, m.name, m.spec, m.unit, m.manufacturer
-                ORDER BY m.code
-                LIMIT ? OFFSET ?
-                """,
-                params + [per_page, offset]
-            )
-            inventory = []
+                GROUP BY m.id, m.code, m.name, m.spec, m.unit, m.manufacturer
+            """.format(where_sql=where_sql), params)
             for row in cursor.fetchall():
                 item = dict(row)
                 item['status'] = '正常'
-                inventory.append(item)
+                item['pending_in'] = 0
+                item['pending_out'] = 0
+                all_items.append(item)
+
+            # 加入待审-only物料
+            all_items.extend(pending_only_items)
+
+            # 按物料编码排序
+            all_items.sort(key=lambda x: x['material_code'])
+
+            total = len(all_items)
+            # 分页
+            inventory = all_items[offset:offset + per_page]
+            material_ids_in_summary = [item['material_id'] for item in inventory]
+
+            # 待审入库/出库汇总
+            if material_ids_in_summary:
+                mid_placeholders = ','.join(['?'] * len(material_ids_in_summary))
+                pending_in_params = material_ids_in_summary + [f'{category_code}%'] if category_code else material_ids_in_summary
+                pending_in_where = f"AND m.category_code LIKE ?" if category_code else ""
+                cursor.execute(f"""
+                    SELECT ioi.material_id, SUM(ioi.quantity) as total
+                    FROM in_order_item ioi
+                    JOIN in_order io ON ioi.order_id = io.id
+                    JOIN material m ON ioi.material_id = m.id
+                    WHERE io.status = 'pending' AND ioi.material_id IN ({mid_placeholders}) {pending_in_where}
+                    GROUP BY ioi.material_id
+                """, pending_in_params)
+                for row in cursor.fetchall():
+                    for item in inventory:
+                        if item['material_id'] == row['material_id']:
+                            item['pending_in'] = row['total']
+                            break
+
+                cursor.execute(f"""
+                    SELECT ooi.material_id, SUM(ooi.actual_quantity) as total
+                    FROM out_order_item ooi
+                    JOIN out_order oo ON ooi.order_id = oo.id
+                    WHERE oo.status = 'pending' AND ooi.material_id IN ({mid_placeholders})
+                    GROUP BY ooi.material_id
+                """, material_ids_in_summary)
+                for row in cursor.fetchall():
+                    for item in inventory:
+                        if item['material_id'] == row['material_id']:
+                            item['pending_out'] = row['total']
+                            break
+
+            conn.close()
+            return inventory, total, total_quantity
         else:
-            count_query = f"""
-                SELECT COUNT(*) as count
+            # 收集有实际库存的 (material_id, batch_no) 组合，用于排除待审-only查询
+            cursor.execute(f"""
+                SELECT DISTINCT i.material_id, i.batch_no
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-            """
-            cursor.execute(count_query, params)
-            total = cursor.fetchone()['count']
+            """, params)
+            stock_keys = set((row['material_id'], row['batch_no']) for row in cursor.fetchall())
 
-            cursor.execute(
-                f"""
+            # 待审入库补充查询（只有待审入库、无实际库存的物料）
+            pending_in_where = "WHERE io.status = 'pending'"
+            pending_in_params = []
+            if category_code:
+                pending_in_where += " AND m.category_code LIKE ?"
+                pending_in_params.append(f'{category_code}%')
+
+            pending_items = []
+            cursor.execute(f"""
+                SELECT
+                    m.id as material_id, m.code as material_code, m.name as material_name,
+                    m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
+                    ioi.batch_no, ioi.production_date, ioi.expiry_date,
+                    ioi.quantity, io.created_at as updated_at
+                FROM in_order_item ioi
+                JOIN in_order io ON ioi.order_id = io.id
+                JOIN material m ON ioi.material_id = m.id
+                {pending_in_where}
+                ORDER BY m.code, ioi.batch_no
+            """, pending_in_params)
+            for row in cursor.fetchall():
+                item = dict(row)
+                item['pending_in'] = item['quantity']
+                item['pending_out'] = 0
+                item['quantity'] = 0
+                item['status'] = '正常'
+                # 过期筛选：只有待审入库物品的过期日期也符合条件才加入
+                if status in ('过期', '本月过期', '下月过期'):
+                    if _expiry_matches_filter(item.get('expiry_date'), status):
+                        pending_items.append(item)
+                elif status in ('正常', None, ''):
+                    # 非过期/筛选：包含所有待审入库（已有库存的已在主查询中匹配）
+                    pending_items.append(item)
+
+            # 主查询：实际库存
+            cursor.execute(f"""
                 SELECT
                     m.id as material_id, m.code as material_code, m.name as material_name,
                     m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
@@ -119,24 +269,19 @@ class InventoryService:
                 FROM inventory i
                 JOIN material m ON i.material_id = m.id
                 {where_sql}
-                {order_by}
-                LIMIT ? OFFSET ?
-                """,
-                params + [per_page, offset]
-            )
+                ORDER BY m.code, i.batch_no
+            """, params)
 
             inventory = []
             inventory_map = {}
 
             for row in cursor.fetchall():
                 item = dict(row)
-                # SQL 已按状态过滤，精确赋值；status=None 时需动态判断
                 if status == '过期':
                     item['status'] = '过期'
                 elif status == '正常':
                     item['status'] = '正常'
                 else:
-                    # 全部时动态判断
                     from datetime import date, datetime
                     today = date.today()
                     expiry = item.get('expiry_date')
@@ -156,41 +301,31 @@ class InventoryService:
                 inventory.append(item)
                 inventory_map[(item['material_id'], item['batch_no'])] = len(inventory) - 1
 
-            # 待审入库：先按批次匹配到已有库存行，匹配不上才新增行
-            pending_in_where = "WHERE io.status = 'pending'"
-            pending_in_params = []
-            if category_code:
-                pending_in_where += " AND m.category_code LIKE ?"
-                pending_in_params.append(f'{category_code}%')
-            cursor.execute(f"""
-                SELECT
-                    m.id as material_id, m.code as material_code, m.name as material_name,
-                    m.spec, m.unit, m.manufacturer, m.storage_condition, m.shelf_life,
-                    ioi.batch_no, ioi.production_date, ioi.expiry_date,
-                    ioi.quantity, io.created_at as updated_at
-                FROM in_order_item ioi
-                JOIN in_order io ON ioi.order_id = io.id
-                JOIN material m ON ioi.material_id = m.id
-                {pending_in_where}
-                ORDER BY m.code, ioi.batch_no
-            """, pending_in_params)
-            for row in cursor.fetchall():
-                key = (row['material_id'], row['batch_no'])
-                if key in inventory_map:
-                    idx = inventory_map[key]
-                    inventory[idx]['pending_in'] += row['quantity']
-                else:
-                    item = dict(row)
-                    item['quantity'] = 0
-                    item['status'] = '正常'
-                    item['pending_in'] = row['quantity']
-                    item['pending_out'] = 0
+            # 把待审-only物料追加到结果集（合并同物料+批次的多条待审）
+            for item in pending_items:
+                key = (item['material_id'], item['batch_no'])
+                if key not in stock_keys:
+                    # 不在已有库存中才追加（相同物料+批次已在主查询匹配过）
                     inventory.append(item)
                     inventory_map[key] = len(inventory) - 1
-                    total += 1
+                else:
+                    # 已在主查询出现但需要累加 pending_in（库存行来自主查询）
+                    if key in inventory_map:
+                        idx = inventory_map[key]
+                        inventory[idx]['pending_in'] += item['pending_in']
 
-            if status not in ('本月过期', '下月过期'):
+            total = len(inventory)
+
+            # 统一排序后分页
+            if status in ('过期', '本月过期', '下月过期'):
+                inventory.sort(key=lambda x: (_normalize_date(x.get('expiry_date')), x['material_code'], x.get('batch_no', '')))
+            else:
                 inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
+
+            # 分页
+            inventory = inventory[offset:offset + per_page]
+            # 重建 inventory_map 供后续待审匹配使用
+            inventory_map = {(item['material_id'], item['batch_no']): idx for idx, item in enumerate(inventory)}
 
         # 待审出库：匹配到已有库存行，不新增行
         if not summary and inventory:
@@ -211,6 +346,12 @@ class InventoryService:
                 for item in inventory:
                     key = (item['material_id'], item['batch_no'])
                     item['pending_out'] = pending_out_map.get(key, 0)
+
+        # 最终统一排序
+        if status in ('过期', '本月过期', '下月过期'):
+            inventory.sort(key=lambda x: (_normalize_date(x.get('expiry_date')), x['material_code'], x.get('batch_no', '')))
+        else:
+            inventory.sort(key=lambda x: (x['material_code'], x.get('batch_no', '')))
 
         conn.close()
         return inventory, total, total_quantity
