@@ -153,8 +153,7 @@ class MaterialService:
 
     @staticmethod
     def get_materials(page=1, per_page=20, category_code=None, keyword=None,
-                      major_category=None, minor_category=None,
-                      material_code=None, material_name=None, material_spec=None):
+                      major_category=None, minor_category=None):
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -164,7 +163,6 @@ class MaterialService:
         params = []
 
         if category_code:
-            # If category_code is 2 digits (major category), match all sub-categories
             if len(category_code) == 2:
                 where_clauses.append("m.category_code LIKE ?")
                 params.append(category_code + '%')
@@ -173,30 +171,16 @@ class MaterialService:
                 params.append(category_code)
 
         if major_category:
-            # Match major category (first 2 digits of category_code)
             where_clauses.append("m.category_code LIKE ?")
             params.append(major_category + '%')
 
         if minor_category:
-            # Match specific minor category
             where_clauses.append("m.category_code = ?")
             params.append(minor_category)
 
-        if material_code:
-            where_clauses.append("m.code LIKE ?")
-            params.append(material_code + '%')
-
-        if material_name:
-            where_clauses.append("m.name LIKE ?")
-            params.append(f'%{material_name}%')
-
-        if material_spec:
-            where_clauses.append("m.spec LIKE ?")
-            params.append(f'%{material_spec}%')
-
         if keyword:
-            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ?)")
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         where_sql = ""
         if where_clauses:

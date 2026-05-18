@@ -36,7 +36,6 @@
     <table>
         <thead>
             <tr>
-                <th>出库单号</th>
                 <th>部门</th>
                 <th>领用人</th>
                 <th>用途</th>
@@ -133,7 +132,7 @@ function resetFilter() {
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13">暂无数据</td></tr>';
         document.getElementById('page-total').textContent = '0';
         document.getElementById('grand-total').textContent = '0';
         return;
@@ -143,12 +142,11 @@ function renderOrders(orders) {
     orders.forEach(o => {
         if (!o.items || o.items.length === 0) {
             html += `<tr>
-                <td>${o.order_no}</td>
                 <td>${o.department || ''}</td>
                 <td>${o.receiver || ''}</td>
                 <td>${o.purpose || ''}</td>
                 <td>${o.receiver_date || ''}</td>
-                <td colspan="5"></td>
+                <td colspan="4"></td>
                 <td></td>
                 <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             </tr>`;
@@ -156,7 +154,6 @@ function renderOrders(orders) {
             o.items.forEach((item, idx) => {
                 if (idx === 0) {
                     html += `<tr>
-                        <td rowspan="${o.items.length}">${o.order_no}</td>
                         <td rowspan="${o.items.length}">${o.department || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver || ''}</td>
                         <td rowspan="${o.items.length}">${o.purpose || ''}</td>

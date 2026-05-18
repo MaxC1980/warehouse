@@ -585,7 +585,7 @@ class InventoryService:
         return {'success': success, 'failed': failed, 'errors': errors}
 
     @staticmethod
-    def get_inventory_for_select(category_code=None, material_code=None, material_name=None, material_spec=None, page=1, per_page=50):
+    def get_inventory_for_select(category_code=None, keyword=None, page=1, per_page=50):
         """库存选择接口，返回物料+批次+库存信息，支持多条件过滤和分页"""
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -596,15 +596,9 @@ class InventoryService:
         if category_code:
             where_clauses.append("m.category_code LIKE ?")
             params.append(f"{category_code}%")
-        if material_code:
-            where_clauses.append("m.code LIKE ?")
-            params.append(f"%{material_code}%")
-        if material_name:
-            where_clauses.append("m.name LIKE ?")
-            params.append(f"%{material_name}%")
-        if material_spec:
-            where_clauses.append("m.spec LIKE ?")
-            params.append(f"%{material_spec}%")
+        if keyword:
+            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
         where_sql = "WHERE " + " AND ".join(where_clauses)
 

@@ -42,19 +42,15 @@ def get_inventory_batch_details(material_id):
 
 @inventory_bp.route('/inventory/select', methods=['GET'])
 def get_inventory_for_select():
-    """库存选择接口，支持按类别、物料编码、名称、规格过滤和分页"""
+    """库存选择接口，支持按类别、关键词过滤和分页"""
     category_code = request.args.get('category_code')
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
-    material_spec = request.args.get('material_spec')
+    keyword = request.args.get('keyword')
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
 
     items, total = InventoryService.get_inventory_for_select(
         category_code=category_code,
-        material_code=material_code,
-        material_name=material_name,
-        material_spec=material_spec,
+        keyword=keyword,
         page=page,
         per_page=per_page
     )

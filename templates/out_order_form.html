@@ -77,9 +77,7 @@
             <select id="modal-minor-category" onchange="modalPage=1; loadInventoryModal()" style="width:120px; flex:none;">
                 <option value="">全部小类</option>
             </select>
-            <input type="text" id="modal-material-code" placeholder="物料编码" style="width:120px; flex:none; min-width:0;">
-            <input type="text" id="modal-material-name" placeholder="物料名称" style="width:120px; flex:none; min-width:0;">
-            <input type="text" id="modal-material-spec" placeholder="物料规格" style="width:120px; flex:none; min-width:0;">
+            <input type="text" id="modal-keyword" placeholder="搜索物料编码、名称、品牌、规格" style="width:280px; flex:none; min-width:0;">
             <select id="modal-per-page" onchange="modalPage=1; loadInventoryModal()" style="width:80px; flex:none;">
                 <option value="15" selected>15</option>
                 <option value="50">50</option>
@@ -311,17 +309,13 @@ function onMajorCategoryChange() {
 async function loadInventoryModal() {
     const majorCategory = document.getElementById('modal-major-category').value;
     const minorCategory = document.getElementById('modal-minor-category').value;
-    const materialCode = document.getElementById('modal-material-code').value.trim();
-    const materialName = document.getElementById('modal-material-name').value.trim();
-    const materialSpec = document.getElementById('modal-material-spec').value.trim();
+    const keyword = document.getElementById('modal-keyword').value.trim();
     const perPage = document.getElementById('modal-per-page').value;
 
     const params = new URLSearchParams({ page: modalPage, per_page: perPage });
     const categoryCode = minorCategory || majorCategory || '';
     if (categoryCode) params.append('category_code', categoryCode);
-    if (materialCode) params.append('material_code', materialCode);
-    if (materialName) params.append('material_name', materialName);
-    if (materialSpec) params.append('material_spec', materialSpec);
+    if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest(`/inventory/select?${params}`);
     const tbody = document.getElementById('modal-inventory-tbody');

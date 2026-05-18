@@ -32,7 +32,6 @@
     <table>
         <thead>
             <tr>
-                <th>入库单号</th>
                 <th>经手人</th>
                 <th>入库日期</th>
                 <th>物料编码</th>
@@ -89,7 +88,7 @@ function resetFilter() {
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13">暂无数据</td></tr>';
         return;
     }
 
@@ -98,10 +97,9 @@ function renderOrders(orders) {
         if (!o.items || o.items.length === 0) {
             // 无明细的订单，显示一行
             html += `<tr>
-                <td>${o.order_no}</td>
                 <td>${o.receiver || ''}</td>
                 <td>${o.receiver_date || ''}</td>
-                <td colspan="7"></td>
+                <td colspan="6"></td>
                 <td></td>
                 <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
             </tr>`;
@@ -110,7 +108,6 @@ function renderOrders(orders) {
                 if (idx === 0) {
                     // 主表字段只在第一行显示，用rowspan
                     html += `<tr>
-                        <td rowspan="${o.items.length}">${o.order_no}</td>
                         <td rowspan="${o.items.length}">${o.receiver || ''}</td>
                         <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
                         <td>${item.material_code || ''}</td>

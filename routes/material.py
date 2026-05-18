@@ -63,12 +63,8 @@ def get_materials():
     per_page = request.args.get('per_page', 20, type=int)
     category_code = request.args.get('category_code')
     keyword = request.args.get('keyword')
-    # Additional filters for material selection modal
-    major_category = request.args.get('major_category')  # 大类 (2-digit)
-    minor_category = request.args.get('minor_category')  # 小类 (4-digit)
-    material_code = request.args.get('material_code')
-    material_name = request.args.get('material_name')
-    material_spec = request.args.get('material_spec')
+    major_category = request.args.get('major_category')
+    minor_category = request.args.get('minor_category')
 
     materials, total = MaterialService.get_materials(
         page=page,
@@ -76,10 +72,7 @@ def get_materials():
         category_code=category_code,
         keyword=keyword,
         major_category=major_category,
-        minor_category=minor_category,
-        material_code=material_code,
-        material_name=material_name,
-        material_spec=material_spec
+        minor_category=minor_category
     )
     return jsonify({
         'items': materials,
