@@ -27,7 +27,6 @@
     <table>
         <thead>
             <tr>
-                <th>ID</th>
                 <th>出库单号</th>
                 <th>物料编码</th>
                 <th>物料名称</th>
@@ -78,7 +77,7 @@ async function loadData() {
 function renderTable(items) {
     const tbody = document.getElementById('data-tbody');
     if (!items || items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="16">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15">暂无数据</td></tr>';
         return;
     }
 
@@ -88,7 +87,6 @@ function renderTable(items) {
             'returned': '<span style="color:#52c41a;">已退回</span>'
         };
         return `<tr>
-            <td>${item.id}</td>
             <td><a href="/out-orders/${item.order_id}/detail">${item.out_order_no || '-'}</a></td>
             <td>${item.material_code || ''}</td>
             <td>${item.material_name || ''}</td>

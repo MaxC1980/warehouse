@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Behavioral guidelines. Merge with project instructions as needed.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+**Tradeoff:** Bias toward caution over speed. For trivial tasks, use judgment.
 
 ## 1. Think Before Coding
 
@@ -10,14 +10,14 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 Before implementing:
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If simpler approach exists, say so. Push back when warranted.
+- If something unclear, stop. Name what's confusing. Ask.
 
 ## 2. Simplicity First
 
-**Minimum code that solves the problem. Nothing speculative.**
+**Minimum code that solves problem. Nothing speculative.**
 
 - No features beyond what was asked.
 - No abstractions for single-use code.
@@ -25,7 +25,7 @@ Before implementing:
 - No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+Ask: "Would senior engineer say this is overcomplicated?" If yes, simplify.
 
 ## 3. Surgical Changes
 
@@ -36,14 +36,14 @@ When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- If notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
 
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
-The test: Every changed line should trace directly to the user's request.
+Test: Every changed line traces directly to user's request.
 
 ## 4. Goal-Driven Execution
 
@@ -55,11 +55,10 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
-For multi-step tasks, state a brief plan:
-
+For multi-step tasks, state brief plan:
 ```
-1. [Step] → verify: [check]                            
-2. [Step] → verify: [check]                            
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
 3. [Step] → verify: [check]
 ```
 
@@ -67,7 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+**Guidelines working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 # 以下是项目说明
 
@@ -76,7 +75,7 @@ Flask + SQLite 仓库管理系统。默认账号：`admin` / `admin12345`
 ## 运行
 
 ```
-先清除pyhton进程再python run.py     # 开发环境（端口5001）                              
+先清除python进程再python run.py     # 开发环境（端口5001）
 python app.py      # 生产环境（端口5000，用 waitress）
 ```
 
@@ -92,17 +91,17 @@ python app.py      # 生产环境（端口5000，用 waitress）
 `apiRequest()` 在 `static/js/app.js`，**自动前缀 `/api`**，发送 session cookie：
 
 ```javascript
-const data = await apiRequest('/in-orders/detail?page=1');  // 正确                              
+const data = await apiRequest('/in-orders/detail?page=1');  // 正确
 // const data = await apiRequest('/api/in-orders/detail');   // 错误
 ```
 
 ## 数据库
 
 ```
-conn = get_db_connection()                              
-cursor = conn.cursor()                              
-# 使用 cursor.execute()，操作后 conn.commit() 再 conn.close()                              
-# sqlite3.Row 不支持 .get()，用 row['col'] 直接访问                
+conn = get_db_connection()
+cursor = conn.cursor()
+# 使用 cursor.execute()，操作后 conn.commit() 再 conn.close()
+# sqlite3.Row 不支持 .get()，用 row['col'] 直接访问
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
 ```
 
@@ -115,16 +114,14 @@ cursor = conn.cursor()
 5. 不用外键约束，引用检查在业务层（Service）手动做
 6. 下拉框onchange()就load数据
 
-
 ## 调试
 
 ```
-playwright-cli open http://localhost:5001/login --browser=chrome --persistent                              
-playwright-cli screenshot                              
+playwright-cli open http://localhost:5001/login --browser=chrome --persistent
+playwright-cli screenshot
 playwright-cli snapshot
 ```
 
 调试产物放 `debug/` 目录。
 
 ## 业务逻辑查看@docs/业务逻辑.md
- 
