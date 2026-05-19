@@ -4,17 +4,19 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>出入库报表</h1>
-    <div class="page-actions">
+    <div class="page-header-left">
+        <h1>出入库报表</h1>
+        <input type="checkbox" id="hide-no-change" checked onchange="loadReport()">
+        <label for="hide-no-change">仅显示有出入库</label>
+        <input type="checkbox" id="hide-zero" checked onchange="loadReport()">
+        <label for="hide-zero">仅显示有数量</label>
+    </div>
+    <div class="page-header-right">
         <button onclick="exportExcel()" class="btn btn-secondary">导出Excel</button>
     </div>
 </div>
 
 <div class="filter-bar">
-    <input type="checkbox" id="hide-no-change" checked onchange="loadReport()">
-    <label for="hide-no-change">仅显示有出入库</label>
-    <input type="checkbox" id="hide-zero" checked onchange="loadReport()">
-    <label for="hide-zero">仅显示有数量的记录</label>
     <select id="search-major-category" onchange="onMajorChange(); loadReport()" style="width:120px;">
         <option value="">全部大类</option>
     </select>

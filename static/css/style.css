@@ -255,9 +255,20 @@ tr.warning-row {
 /* Page Header */
 .page-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     margin-bottom: 20px;
+}
+
+.page-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.page-header-right {
+    display: flex;
+    gap: 12px;
 }
 
 .page-header h1 {
