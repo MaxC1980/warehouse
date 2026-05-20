@@ -97,6 +97,7 @@
                         <th>规格</th>
                         <th>单位</th>
                         <th>批次号</th>
+                        <th>有效日期</th>
                         <th>库存</th>
                         <th>可回用</th>
                     </tr>
@@ -320,7 +321,7 @@ async function loadInventoryModal() {
     const data = await apiRequest(`/inventory/select?${params}`);
     const tbody = document.getElementById('modal-inventory-tbody');
     if (!data || !data.items || data.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
         document.getElementById('modal-pagination').innerHTML = '';
         return;
     }
@@ -338,6 +339,7 @@ async function loadInventoryModal() {
             <td>${item.material_spec || ''}</td>
             <td>${item.unit || ''}</td>
             <td>${item.batch_no || ''}</td>
+            <td>${item.expiry_date || ''}</td>
             <td>${item.available_qty || 0}</td>
             <td>${isReusable === '1' ? '✓' : ''}</td>
         </tr>`;
