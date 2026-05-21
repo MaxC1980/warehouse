@@ -230,13 +230,17 @@ class ReportService:
         cursor.execute("SELECT COUNT(*) as count FROM supplier")
         total_suppliers = cursor.fetchone()['count']
 
-        # Low stock count
+        # Low stock count (物料级别，汇总各批次后低于安全库存才计)
         cursor.execute(
             """
             SELECT COUNT(*) as count
-            FROM inventory i
-            JOIN material m ON i.material_id = m.id
-            WHERE i.quantity < m.safety_stock
+            FROM (
+                SELECT m.id
+                FROM material m
+                LEFT JOIN inventory i ON m.id = i.material_id
+                GROUP BY m.id
+                HAVING COALESCE(SUM(i.quantity), 0) < m.safety_stock
+            )
             """
         )
         low_stock_count = cursor.fetchone()['count']
