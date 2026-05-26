@@ -239,6 +239,11 @@ loadInventory();
     await loadCategories();
 })();
 
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('highlight') === 'expired') {
+    setTimeout(showExpired, 100);
+}
+
 function showImportModal() {
     document.getElementById('import-modal').style.display = 'block';
 }

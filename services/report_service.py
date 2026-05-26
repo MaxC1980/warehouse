@@ -1,4 +1,5 @@
 from database import get_db_connection
+from datetime import datetime
 
 class ReportService:
     @staticmethod
@@ -245,6 +246,25 @@ class ReportService:
         )
         low_stock_count = cursor.fetchone()['count']
 
+        # Expired count (物料级别，有任一批次过期即计入)
+        today_ymd = datetime.now().strftime('%Y%m%d')
+        p1 = "INSTR(i.expiry_date, '-')"
+        rest = f"SUBSTR(i.expiry_date, {p1}+1)"
+        p2 = f"INSTR({rest}, '-') + {p1}"
+        year = f"SUBSTR(i.expiry_date, 1, {p1}-1)"
+        month = f"SUBSTR(i.expiry_date, {p1}+1, {p2}-{p1}-1)"
+        day = f"SUBSTR(i.expiry_date, {p2}+1)"
+        ymd_expr = f"{year} || PRINTF('%02d', CAST({month} AS INTEGER)) || PRINTF('%02d', CAST({day} AS INTEGER))"
+        cursor.execute(
+            f"""
+            SELECT COUNT(DISTINCT m.id) as count
+            FROM inventory i
+            JOIN material m ON i.material_id = m.id
+            WHERE i.expiry_date IS NOT NULL AND {ymd_expr} < '{today_ymd}'
+            """
+        )
+        expired_count = cursor.fetchone()['count']
+
         # Pending in orders
         cursor.execute("SELECT COUNT(*) as count FROM in_order WHERE status = 'pending'")
         pending_in = cursor.fetchone()['count']
@@ -287,6 +307,7 @@ class ReportService:
             'total_materials': total_materials,
             'total_suppliers': total_suppliers,
             'low_stock_count': low_stock_count,
+            'expired_count': expired_count,
             'pending_in': pending_in,
             'pending_out': pending_out,
             'in_order_count': in_stats['count'],

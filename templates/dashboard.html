@@ -16,6 +16,12 @@
             <div class="stat-value warning" id="low-stock-count">-</div>
         </div>
         <div class="stat-card">
+            <h3>已过期物料</h3>
+            <div class="stat-value warning"><a href="/inventory?highlight=expired" id="expired-count">-</a></div>
+        </div>
+    </div>
+    <div class="stats-grid">
+        <div class="stat-card">
             <h3>待审核入库单</h3>
             <div class="stat-value" id="pending-in-count">-</div>
         </div>
@@ -23,6 +29,7 @@
             <h3>待审核出库单</h3>
             <div class="stat-value" id="pending-out-count">-</div>
         </div>
+        <div class="stat-card" style="visibility:hidden;"></div>
     </div>
 
     <div class="quick-actions">
@@ -47,9 +54,24 @@ async function loadStats() {
     ]);
 
     if (materials) document.getElementById('material-count').textContent = materials.total;
-    if (summary) document.getElementById('low-stock-count').textContent = summary.low_stock_count || 0;
-    if (inOrders) document.getElementById('pending-in-count').textContent = inOrders.total;
-    if (outOrders) document.getElementById('pending-out-count').textContent = outOrders.total;
+    if (summary) {
+        document.getElementById('low-stock-count').textContent = summary.low_stock_count || 0;
+        document.getElementById('expired-count').textContent = summary.expired_count || 0;
+    }
+    if (inOrders) {
+        const inEl = document.getElementById('pending-in-count');
+        inEl.textContent = inOrders.total;
+        if (inOrders.total > 0) {
+            inEl.innerHTML = `<a href="/in-orders">${inOrders.total}</a>`;
+        }
+    }
+    if (outOrders) {
+        const outEl = document.getElementById('pending-out-count');
+        outEl.textContent = outOrders.total;
+        if (outOrders.total > 0) {
+            outEl.innerHTML = `<a href="/out-orders">${outOrders.total}</a>`;
+        }
+    }
 }
 
 loadStats();
