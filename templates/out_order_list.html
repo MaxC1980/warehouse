@@ -36,6 +36,7 @@
                 <th>单据编号</th>
                 <th>部门</th>
                 <th>领用人</th>
+                <th>用途</th>
                 <th>领用日期</th>
                 <th>操作员</th>
                 <th>状态</th>
@@ -76,7 +77,7 @@ async function loadOrders(page = 1) {
 function renderOrders(orders) {
     const tbody = document.getElementById('orders-tbody');
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = orders.map(o => `
@@ -84,6 +85,7 @@ function renderOrders(orders) {
             <td><a href="/out-orders/${o.id}/detail">${o.order_no}</a></td>
             <td>${o.department || ''}</td>
             <td>${o.receiver || ''}</td>
+            <td>${o.purpose || ''}</td>
             <td>${o.receiver_date || ''}</td>
             <td>${o.operator_name || ''}</td>
             <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
