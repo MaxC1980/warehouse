@@ -246,7 +246,7 @@ class ReportService:
         )
         low_stock_count = cursor.fetchone()['count']
 
-        # Expired count (物料级别，有任一批次过期即计入)
+        # Expired count (物料级别，有任一批次过期即计入，仅有库存的)
         today_ymd = datetime.now().strftime('%Y%m%d')
         p1 = "INSTR(i.expiry_date, '-')"
         rest = f"SUBSTR(i.expiry_date, {p1}+1)"
@@ -260,7 +260,7 @@ class ReportService:
             SELECT COUNT(DISTINCT m.id) as count
             FROM inventory i
             JOIN material m ON i.material_id = m.id
-            WHERE i.expiry_date IS NOT NULL AND {ymd_expr} < '{today_ymd}'
+            WHERE i.quantity > 0 AND i.expiry_date IS NOT NULL AND {ymd_expr} < '{today_ymd}'
             """
         )
         expired_count = cursor.fetchone()['count']
