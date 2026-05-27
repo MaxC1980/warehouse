@@ -11,11 +11,11 @@
     <div class="form-grid">
         <div class="form-group">
             <label>部门 *</label>
-            <input type="text" name="department" id="department" value="工程部" required>
+            <input type="text" name="department" id="department" required>
         </div>
         <div class="form-group">
             <label>领用人 *</label>
-            <select name="receiver" id="receiver-select" required>
+            <select name="receiver" id="receiver-select" onchange="onReceiverChange()" required>
                 <option value="">请选择</option>
             </select>
         </div>
@@ -486,18 +486,28 @@ async function handleSubmit(e) {
     }
 }
 
+let employeesData = [];
+
 async function loadEmployees() {
     const data = await apiRequest('/employees');
     if (data) {
+        employeesData = data.items || [];
         const select = document.getElementById('receiver-select');
-        data.items.forEach(e => {
+        employeesData.forEach(e => {
             const selected = e.name === currentUsername ? 'selected' : '';
             select.innerHTML += '<option value="' + e.name + '" ' + selected + '>' + e.name + '</option>';
-            // 如果匹配到当前用户且有部门，自动填充
             if (e.name === currentUsername && e.department) {
                 document.getElementById('department').value = e.department;
             }
         });
+    }
+}
+
+function onReceiverChange() {
+    const selectedName = document.getElementById('receiver-select').value;
+    const emp = employeesData.find(e => e.name === selectedName);
+    if (emp && emp.department) {
+        document.getElementById('department').value = emp.department;
     }
 }
 
