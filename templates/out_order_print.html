@@ -42,6 +42,14 @@
         .header {
             text-align: center;
             margin-bottom: 10px;
+            position: relative;
+            padding-top: 10mm;
+        }
+        .logo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 40mm;
         }
         .title {
             font-size: 20px;
@@ -120,6 +128,7 @@
 <body>
     <div class="document">
         <div class="header">
+            <img src="{{ url_for('static', filename='CAGT.png') }}" class="logo">
             <div class="title">出库单</div>
         </div>
 
