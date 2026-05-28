@@ -1,12 +1,10 @@
 from database import get_db_connection
 
 class MaterialService:
-    # Keywords that indicate reusable materials (需要称重退库)
     REUSABLE_KEYWORDS = ['胶水', '锡膏']
 
     @staticmethod
     def _is_reusable_material(name):
-        """根据物料名称自动判断是否为可回用物料"""
         if not name:
             return 0
         name_lower = name.lower()
@@ -17,63 +15,53 @@ class MaterialService:
 
     @staticmethod
     def get_all_categories():
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, code, name, parent_code, level FROM material_category ORDER BY code"
-        )
-        categories = [dict(row) for row in cursor.fetchall()]
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, code, name, parent_code, level FROM material_category ORDER BY code"
+            )
+            categories = [dict(row) for row in cursor.fetchall()]
 
-        # Attach has_materials flag for each category
-        material_codes = None
-        for cat in categories:
-            if cat['level'] == 1:
-                cat['has_materials'] = any(c['parent_code'] == cat['code'] for c in categories if c['level'] == 2)
-            else:
-                if material_codes is None:
-                    cursor.execute("SELECT DISTINCT category_code FROM material")
-                    material_codes = {row['category_code'] for row in cursor.fetchall()}
-                cat['has_materials'] = cat['code'] in material_codes
+            material_codes = None
+            for cat in categories:
+                if cat['level'] == 1:
+                    cat['has_materials'] = any(c['parent_code'] == cat['code'] for c in categories if c['level'] == 2)
+                else:
+                    if material_codes is None:
+                        cursor.execute("SELECT DISTINCT category_code FROM material")
+                        material_codes = {row['category_code'] for row in cursor.fetchall()}
+                    cat['has_materials'] = cat['code'] in material_codes
 
-        conn.close()
         return categories
 
     @staticmethod
     def create_category(code, name, parent_code=None, level=1):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO material_category (code, name, parent_code, level) VALUES (?, ?, ?, ?)",
                 (code, name, parent_code, level)
             )
             conn.commit()
             category_id = cursor.lastrowid
-            conn.close()
-            return {
-                'id': category_id,
-                'code': code,
-                'name': name,
-                'parent_code': parent_code,
-                'level': level
-            }
-        except Exception as e:
-            conn.close()
-            raise e
+
+        return {
+            'id': category_id,
+            'code': code,
+            'name': name,
+            'parent_code': parent_code,
+            'level': level
+        }
 
     @staticmethod
     def update_category(category_id, code=None, name=None, parent_code=None):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            # Get current category info
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             cursor.execute("SELECT code, level, parent_code FROM material_category WHERE id = ?", (category_id,))
             cat = cursor.fetchone()
             if not cat:
-                conn.close()
                 return False, None
 
-            # Check for references if code or parent_code is being changed
             code_changed = code and code != cat['code']
             parent_changed = parent_code is not None and parent_code != cat['parent_code']
             if code_changed or parent_changed:
@@ -82,7 +70,6 @@ class MaterialService:
                 else:
                     cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code = ?", (cat['code'],))
                 if cursor.fetchone()['count'] > 0:
-                    conn.close()
                     return False, 'has_materials'
 
             updates = []
@@ -107,420 +94,379 @@ class MaterialService:
 
             cursor.execute("SELECT id, code, name, parent_code, level FROM material_category WHERE id = ?", (category_id,))
             category = cursor.fetchone()
-            conn.close()
 
             if category:
                 return True, dict(category)
             return False, None
-        except Exception as e:
-            conn.close()
-            raise e
 
     @staticmethod
     def delete_category(category_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-        # Get category code and level
-        cursor.execute("SELECT code, level FROM material_category WHERE id = ?", (category_id,))
-        cat = cursor.fetchone()
-        if not cat:
-            conn.close()
-            return 'not_found'
+            cursor.execute("SELECT code, level FROM material_category WHERE id = ?", (category_id,))
+            cat = cursor.fetchone()
+            if not cat:
+                return 'not_found'
 
-        # Check if category has children (only relevant for major categories)
-        cursor.execute(
-            "SELECT COUNT(*) as count FROM material_category WHERE parent_code = ?",
-            (cat['code'],)
-        )
-        if cursor.fetchone()['count'] > 0:
-            conn.close()
-            return 'has_children'
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM material_category WHERE parent_code = ?",
+                (cat['code'],)
+            )
+            if cursor.fetchone()['count'] > 0:
+                return 'has_children'
 
-        # Check if any materials reference this category
-        if cat['level'] == 1:
-            cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code LIKE ?", (cat['code'] + '%',))
-        else:
-            cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code = ?", (cat['code'],))
-        if cursor.fetchone()['count'] > 0:
-            conn.close()
-            return 'has_materials'
+            if cat['level'] == 1:
+                cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code LIKE ?", (cat['code'] + '%',))
+            else:
+                cursor.execute("SELECT COUNT(*) as count FROM material WHERE category_code = ?", (cat['code'],))
+            if cursor.fetchone()['count'] > 0:
+                return 'has_materials'
 
-        cursor.execute("DELETE FROM material_category WHERE id = ?", (category_id,))
-        conn.commit()
-        conn.close()
+            cursor.execute("DELETE FROM material_category WHERE id = ?", (category_id,))
+            conn.commit()
+
         return 'ok'
 
     @staticmethod
     def get_materials(page=1, per_page=20, category_code=None, keyword=None,
                       major_category=None, minor_category=None):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-        offset = (page - 1) * per_page
+            offset = (page - 1) * per_page
 
-        where_clauses = []
-        params = []
+            where_clauses = []
+            params = []
 
-        if category_code:
-            if len(category_code) == 2:
+            if category_code:
+                if len(category_code) == 2:
+                    where_clauses.append("m.category_code LIKE ?")
+                    params.append(category_code + '%')
+                else:
+                    where_clauses.append("m.category_code = ?")
+                    params.append(category_code)
+
+            if major_category:
                 where_clauses.append("m.category_code LIKE ?")
-                params.append(category_code + '%')
-            else:
+                params.append(major_category + '%')
+
+            if minor_category:
                 where_clauses.append("m.category_code = ?")
-                params.append(category_code)
+                params.append(minor_category)
 
-        if major_category:
-            where_clauses.append("m.category_code LIKE ?")
-            params.append(major_category + '%')
+            if keyword:
+                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
+                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
 
-        if minor_category:
-            where_clauses.append("m.category_code = ?")
-            params.append(minor_category)
+            where_sql = ""
+            if where_clauses:
+                where_sql = "WHERE " + " AND ".join(where_clauses)
 
-        if keyword:
-            where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-            params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+            cursor.execute(
+                f"SELECT COUNT(*) as count FROM material m {where_sql}",
+                params
+            )
+            total = cursor.fetchone()['count']
 
-        where_sql = ""
-        if where_clauses:
-            where_sql = "WHERE " + " AND ".join(where_clauses)
-
-        # Get total count
-        cursor.execute(
-            f"SELECT COUNT(*) as count FROM material m {where_sql}",
-            params
-        )
-        total = cursor.fetchone()['count']
-
-        # Get materials
-        cursor.execute(
-            f"""
-            SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
-            FROM material m
-            LEFT JOIN material_category c ON m.category_code = c.code
-            {where_sql}
-            ORDER BY m.code
-            LIMIT ? OFFSET ?
-            """,
-            params + [per_page, offset]
-        )
-        materials = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+            cursor.execute(
+                f"""
+                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
+                FROM material m
+                LEFT JOIN material_category c ON m.category_code = c.code
+                {where_sql}
+                ORDER BY m.code
+                LIMIT ? OFFSET ?
+                """,
+                params + [per_page, offset]
+            )
+            materials = [dict(row) for row in cursor.fetchall()]
 
         return materials, total
 
     @staticmethod
     def get_material_by_id(material_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
-            FROM material m
-            LEFT JOIN material_category c ON m.category_code = c.code
-            WHERE m.id = ?
-            """,
-            (material_id,)
-        )
-        material = cursor.fetchone()
-        if not material:
-            conn.close()
-            return None
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
+                FROM material m
+                LEFT JOIN material_category c ON m.category_code = c.code
+                WHERE m.id = ?
+                """,
+                (material_id,)
+            )
+            material = cursor.fetchone()
+            if not material:
+                return None
 
-        result = dict(material)
-        cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
-        has_in = cursor.fetchone()[0] > 0
-        cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
-        has_out = cursor.fetchone()[0] > 0
-        cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
-        has_inv = cursor.fetchone()[0] > 0
-        result['has_references'] = has_in or has_out or has_inv
+            result = dict(material)
+            cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
+            has_in = cursor.fetchone()[0] > 0
+            cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
+            has_out = cursor.fetchone()[0] > 0
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
+            has_inv = cursor.fetchone()[0] > 0
+            result['has_references'] = has_in or has_out or has_inv
 
-        conn.close()
         return result
 
     @staticmethod
     def create_material(name, spec=None, unit='个', category_code=None, manufacturer=None, storage_condition='常温', shelf_life=None, remark=None, is_reusable=None, safety_stock=0):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-        # Auto-detect is_reusable based on material name
-        if is_reusable is None:
-            is_reusable = MaterialService._is_reusable_material(name)
+            if is_reusable is None:
+                is_reusable = MaterialService._is_reusable_material(name)
 
-        # Generate code: category_code(4 digits) + sequence(4 digits)
-        if category_code:
+            if category_code:
+                cursor.execute(
+                    "SELECT code FROM material WHERE category_code = ? ORDER BY code DESC LIMIT 1",
+                    (category_code,)
+                )
+                last_code = cursor.fetchone()
+                if last_code:
+                    seq = int(last_code['code'][-4:]) + 1
+                else:
+                    seq = 1
+                code = category_code + str(seq).zfill(4)
+            else:
+                cursor.execute("SELECT code FROM material ORDER BY code DESC LIMIT 1")
+                last_code = cursor.fetchone()
+                if last_code:
+                    seq = int(last_code['code']) + 1
+                else:
+                    seq = 1
+                code = str(seq).zfill(8)
+
             cursor.execute(
-                "SELECT code FROM material WHERE category_code = ? ORDER BY code DESC LIMIT 1",
-                (category_code,)
+                """
+                INSERT INTO material (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable, safety_stock)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable, safety_stock)
             )
-            last_code = cursor.fetchone()
-            if last_code:
-                seq = int(last_code['code'][-4:]) + 1
-            else:
-                seq = 1
-            code = category_code + str(seq).zfill(4)
-        else:
-            cursor.execute("SELECT code FROM material ORDER BY code DESC LIMIT 1")
-            last_code = cursor.fetchone()
-            if last_code:
-                seq = int(last_code['code']) + 1
-            else:
-                seq = 1
-            code = str(seq).zfill(8)
-
-        cursor.execute(
-            """
-            INSERT INTO material (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable, safety_stock)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable, safety_stock)
-        )
-        conn.commit()
-        material_id = cursor.lastrowid
-        conn.close()
+            conn.commit()
+            material_id = cursor.lastrowid
 
         return MaterialService.get_material_by_id(material_id)
 
     @staticmethod
     def update_material(material_id, data):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-        updates = []
-        params = []
+            updates = []
+            params = []
 
-        if 'name' in data:
-            updates.append("name = ?")
-            params.append(data['name'])
-        if 'spec' in data:
-            updates.append("spec = ?")
-            params.append(data['spec'])
-        if 'unit' in data:
-            updates.append("unit = ?")
-            params.append(data['unit'])
-        if 'category_code' in data:
-            updates.append("category_code = ?")
-            params.append(data['category_code'])
-        if 'manufacturer' in data:
-            updates.append("manufacturer = ?")
-            params.append(data['manufacturer'])
-        if 'storage_condition' in data:
-            updates.append("storage_condition = ?")
-            params.append(data['storage_condition'])
-        if 'shelf_life' in data:
-            updates.append("shelf_life = ?")
-            params.append(data['shelf_life'])
-        if 'remark' in data:
-            updates.append("remark = ?")
-            params.append(data['remark'])
-        if 'is_reusable' in data:
-            updates.append("is_reusable = ?")
-            params.append(data['is_reusable'])
-        if 'safety_stock' in data:
-            updates.append("safety_stock = ?")
-            params.append(data['safety_stock'])
+            if 'name' in data:
+                updates.append("name = ?")
+                params.append(data['name'])
+            if 'spec' in data:
+                updates.append("spec = ?")
+                params.append(data['spec'])
+            if 'unit' in data:
+                updates.append("unit = ?")
+                params.append(data['unit'])
+            if 'category_code' in data:
+                updates.append("category_code = ?")
+                params.append(data['category_code'])
+            if 'manufacturer' in data:
+                updates.append("manufacturer = ?")
+                params.append(data['manufacturer'])
+            if 'storage_condition' in data:
+                updates.append("storage_condition = ?")
+                params.append(data['storage_condition'])
+            if 'shelf_life' in data:
+                updates.append("shelf_life = ?")
+                params.append(data['shelf_life'])
+            if 'remark' in data:
+                updates.append("remark = ?")
+                params.append(data['remark'])
+            if 'is_reusable' in data:
+                updates.append("is_reusable = ?")
+                params.append(data['is_reusable'])
+            if 'safety_stock' in data:
+                updates.append("safety_stock = ?")
+                params.append(data['safety_stock'])
 
-        if updates:
-            params.append(material_id)
-            cursor.execute(
-                f"UPDATE material SET {', '.join(updates)} WHERE id = ?",
-                params
-            )
-            conn.commit()
+            if updates:
+                params.append(material_id)
+                cursor.execute(
+                    f"UPDATE material SET {', '.join(updates)} WHERE id = ?",
+                    params
+                )
+                conn.commit()
 
-        conn.close()
         return MaterialService.get_material_by_id(material_id)
 
     @staticmethod
     def delete_material(material_id):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
 
-        # 检查是否有入库明细
-        cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            return False, '该物料已有入库记录，不能删除'
+            cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
+            if cursor.fetchone()[0] > 0:
+                return False, '该物料已有入库记录，不能删除'
 
-        # 检查是否有出库明细
-        cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            return False, '该物料已有出库记录，不能删除'
+            cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
+            if cursor.fetchone()[0] > 0:
+                return False, '该物料已有出库记录，不能删除'
 
-        # 检查是否有库存记录
-        cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
-        if cursor.fetchone()[0] > 0:
-            conn.close()
-            return False, '该物料已有库存记录，不能删除'
+            cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
+            if cursor.fetchone()[0] > 0:
+                return False, '该物料已有库存记录，不能删除'
 
-        cursor.execute("DELETE FROM material WHERE id = ?", (material_id,))
-        conn.commit()
-        conn.close()
+            cursor.execute("DELETE FROM material WHERE id = ?", (material_id,))
+            conn.commit()
+
         return True, '删除成功'
 
     @staticmethod
     def import_materials(data):
-        """Import materials from list of dictionaries"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        success = 0
-        failed = 0
-        errors = []
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            success = 0
+            failed = 0
+            errors = []
 
-        for idx, row in enumerate(data):
-            try:
-                code = row.get('code')
-                name = row.get('name')
-                if not name:
-                    errors.append(f"Row {idx + 2}: Missing name")
+            for idx, row in enumerate(data):
+                try:
+                    code = row.get('code')
+                    name = row.get('name')
+                    if not name:
+                        errors.append(f"Row {idx + 2}: Missing name")
+                        failed += 1
+                        continue
+
+                    if not code:
+                        errors.append(f"Row {idx + 2}: Missing code")
+                        failed += 1
+                        continue
+
+                    spec = row.get('spec')
+                    unit = row.get('unit', '个')
+
+                    category_code = row.get('category_code')
+                    if not category_code and len(str(code)) >= 4:
+                        potential_category = str(code)[:4]
+                        cursor.execute("SELECT code FROM material_category WHERE code = ?", (potential_category,))
+                        if cursor.fetchone():
+                            category_code = potential_category
+
+                    manufacturer = row.get('manufacturer')
+                    storage_condition = row.get('storage_condition', '常温')
+                    shelf_life = row.get('shelf_life')
+                    remark = row.get('remark')
+
+                    is_reusable = MaterialService._is_reusable_material(name)
+
+                    cursor.execute(
+                        """
+                        INSERT INTO material (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable)
+                    )
+                    conn.commit()
+                    success += 1
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: {str(e)}")
                     failed += 1
-                    continue
 
-                if not code:
-                    errors.append(f"Row {idx + 2}: Missing code")
-                    failed += 1
-                    continue
-
-                spec = row.get('spec')
-                unit = row.get('unit', '个')
-
-                # Auto-match category by first 4 digits of code
-                category_code = row.get('category_code')
-                if not category_code and len(str(code)) >= 4:
-                    potential_category = str(code)[:4]
-                    cursor.execute("SELECT code FROM material_category WHERE code = ?", (potential_category,))
-                    if cursor.fetchone():
-                        category_code = potential_category
-
-                manufacturer = row.get('manufacturer')
-                storage_condition = row.get('storage_condition', '常温')
-                shelf_life = row.get('shelf_life')
-                remark = row.get('remark')
-
-                # Auto-detect is_reusable based on material name
-                is_reusable = MaterialService._is_reusable_material(name)
-
-                # Use code from Excel directly
-                cursor.execute(
-                    """
-                    INSERT INTO material (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (code, name, spec, unit, category_code, manufacturer, storage_condition, shelf_life, remark, is_reusable)
-                )
-                conn.commit()
-                success += 1
-            except Exception as e:
-                errors.append(f"Row {idx + 2}: {str(e)}")
-                failed += 1
-
-        conn.close()
         return {'success': success, 'failed': failed, 'errors': errors}
 
     @staticmethod
     def import_categories(data):
-        """Import categories (major) from list of dictionaries"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        success = 0
-        failed = 0
-        errors = []
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            success = 0
+            failed = 0
+            errors = []
 
-        for idx, row in enumerate(data):
-            try:
-                # Support both position-based (col1, col2) and header-based keys
-                raw_code = row.get('col1') or row.get('代码') or row.get('code') or ''
-                code = str(int(raw_code)).strip() if raw_code else ''
-                name = str(row.get('col2') or row.get('名称') or row.get('name') or '').strip()
+            for idx, row in enumerate(data):
+                try:
+                    raw_code = row.get('col1') or row.get('代码') or row.get('code') or ''
+                    code = str(int(raw_code)).strip() if raw_code else ''
+                    name = str(row.get('col2') or row.get('名称') or row.get('name') or '').strip()
 
-                if not code or not name:
-                    errors.append(f"Row {idx + 1}: Missing code or name")
+                    if not code or not name:
+                        errors.append(f"Row {idx + 1}: Missing code or name")
+                        failed += 1
+                        continue
+
+                    if len(code) != 2:
+                        errors.append(f"Row {idx + 1}: Code '{code}' must be 2 digits")
+                        failed += 1
+                        continue
+
+                    cursor.execute("SELECT id FROM material_category WHERE code = ?", (code,))
+                    if cursor.fetchone():
+                        errors.append(f"Row {idx + 1}: Code '{code}' already exists")
+                        failed += 1
+                        continue
+
+                    cursor.execute(
+                        "INSERT INTO material_category (code, name, parent_code, level) VALUES (?, ?, ?, ?)",
+                        (code, name, None, 1)
+                    )
+                    conn.commit()
+                    success += 1
+                except Exception as e:
+                    errors.append(f"Row {idx + 1}: {str(e)}")
                     failed += 1
-                    continue
 
-                if len(code) != 2:
-                    errors.append(f"Row {idx + 1}: Code '{code}' must be 2 digits")
-                    failed += 1
-                    continue
-
-                # Check if code already exists
-                cursor.execute("SELECT id FROM material_category WHERE code = ?", (code,))
-                if cursor.fetchone():
-                    errors.append(f"Row {idx + 1}: Code '{code}' already exists")
-                    failed += 1
-                    continue
-
-                cursor.execute(
-                    "INSERT INTO material_category (code, name, parent_code, level) VALUES (?, ?, ?, ?)",
-                    (code, name, None, 1)
-                )
-                conn.commit()
-                success += 1
-            except Exception as e:
-                errors.append(f"Row {idx + 1}: {str(e)}")
-                failed += 1
-
-        conn.close()
         return {'success': success, 'failed': failed, 'errors': errors}
 
     @staticmethod
     def import_minor_categories(data):
-        """Import minor categories from list of dictionaries with header row"""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        success = 0
-        failed = 0
-        errors = []
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            success = 0
+            failed = 0
+            errors = []
 
-        for idx, row in enumerate(data):
-            try:
-                # Support various column name formats: 编码/代码/code/col1
-                raw_code = row.get('编码') or row.get('代码') or row.get('code') or row.get('col1') or ''
-                name = row.get('名称') or row.get('name') or row.get('col2') or ''
+            for idx, row in enumerate(data):
+                try:
+                    raw_code = row.get('编码') or row.get('代码') or row.get('code') or row.get('col1') or ''
+                    name = row.get('名称') or row.get('name') or row.get('col2') or ''
 
-                if not raw_code or not name:
-                    errors.append(f"Row {idx + 2}: Missing code or name")
+                    if not raw_code or not name:
+                        errors.append(f"Row {idx + 2}: Missing code or name")
+                        failed += 1
+                        continue
+
+                    code_str = str(raw_code).strip()
+
+                    if len(code_str) < 2:
+                        errors.append(f"Row {idx + 2}: Code '{code_str}' is invalid")
+                        failed += 1
+                        continue
+
+                    major_code = code_str[:2]
+
+                    cursor.execute("SELECT id FROM material_category WHERE code = ? AND level = 1", (major_code,))
+                    parent = cursor.fetchone()
+                    if not parent:
+                        errors.append(f"Row {idx + 2}: Major category '{major_code}' not found")
+                        failed += 1
+                        continue
+
+                    cursor.execute("SELECT id FROM material_category WHERE code = ?", (code_str,))
+                    if cursor.fetchone():
+                        errors.append(f"Row {idx + 2}: Code '{code_str}' already exists")
+                        failed += 1
+                        continue
+
+                    cursor.execute(
+                        "INSERT INTO material_category (code, name, parent_code, level) VALUES (?, ?, ?, ?)",
+                        (code_str, name, major_code, 2)
+                    )
+                    conn.commit()
+                    success += 1
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: {str(e)}")
                     failed += 1
-                    continue
 
-                # Convert to string, preserve leading zeros
-                code_str = str(raw_code).strip()
-
-                # Extract major code from first 2 digits
-                if len(code_str) < 2:
-                    errors.append(f"Row {idx + 2}: Code '{code_str}' is invalid")
-                    failed += 1
-                    continue
-
-                major_code = code_str[:2]
-
-                # Find parent category
-                cursor.execute("SELECT id FROM material_category WHERE code = ? AND level = 1", (major_code,))
-                parent = cursor.fetchone()
-                if not parent:
-                    errors.append(f"Row {idx + 2}: Major category '{major_code}' not found")
-                    failed += 1
-                    continue
-
-                # Check if code already exists
-                cursor.execute("SELECT id FROM material_category WHERE code = ?", (code_str,))
-                if cursor.fetchone():
-                    errors.append(f"Row {idx + 2}: Code '{code_str}' already exists")
-                    failed += 1
-                    continue
-
-                cursor.execute(
-                    "INSERT INTO material_category (code, name, parent_code, level) VALUES (?, ?, ?, ?)",
-                    (code_str, name, major_code, 2)
-                )
-                conn.commit()
-                success += 1
-            except Exception as e:
-                errors.append(f"Row {idx + 2}: {str(e)}")
-                failed += 1
-
-        conn.close()
         return {'success': success, 'failed': failed, 'errors': errors}

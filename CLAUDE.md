@@ -98,9 +98,10 @@ const data = await apiRequest('/in-orders/detail?page=1');  // 正确
 ## 数据库
 
 ```
-conn = get_db_connection()
-cursor = conn.cursor()
-# 使用 cursor.execute()，操作后 conn.commit() 再 conn.close()
+with get_db_connection() as conn:
+    cursor = conn.cursor()
+    # 操作后自动 conn.commit()
+# 异常时 conn 自动关闭，无需手动 close()
 # sqlite3.Row 不支持 .get()，用 row['col'] 直接访问
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
 ```

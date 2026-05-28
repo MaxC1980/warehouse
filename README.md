@@ -28,7 +28,7 @@ python app.py
 |---------|------|
 | `routes/` | Flask Blueprint 端点 |
 | `services/` | 业务逻辑层 |
-| `database.py` | SQLite 连接管理 |
+| `database.py` | SQLite 连接管理（`@contextmanager` 自动关闭连接） |
 | `templates/` | Jinja2 页面模板 |
 | `static/js/app.js` | 前端 API 请求封装（`apiRequest()` 自动前缀 `/api`） |
 | `db/warehouse.db` | SQLite 数据库文件 |
