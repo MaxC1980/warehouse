@@ -211,7 +211,7 @@ function renderInventory(inventory) {
                 <td>${item.batch_no || '-'}</td>
                 <td>${item.production_date || '-'}</td>
                 <td>${item.expiry_date || '-'}</td>
-                <td>${item.quantity}</td>
+                <td>${Number(item.quantity).toFixed(2)}</td>
                 <td>${item.pending_in || 0}</td>
                 <td>${item.pending_out || 0}</td>
                 <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${item.status}</span></td>
@@ -225,7 +225,7 @@ function renderInventory(inventory) {
                 <td>${item.manufacturer || ''}</td>
                 <td>${item.spec || ''}</td>
                 <td>${item.unit}</td>
-                <td>${item.quantity}</td>
+                <td>${Number(item.quantity).toFixed(2)}</td>
                 <td>${item.pending_in || 0}</td>
                 <td>${item.pending_out || 0}</td>
             </tr>

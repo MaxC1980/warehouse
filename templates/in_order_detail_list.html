@@ -115,7 +115,7 @@ function renderOrders(orders) {
                         <td>${item.manufacturer || ''}</td>
                         <td>${item.spec || ''}</td>
                         <td>${item.unit || ''}</td>
-                        <td>${item.quantity || 0}</td>
+                        <td>${item.quantity != null ? Number(item.quantity).toFixed(2) : '0.00'}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.production_date || ''}</td>
                         <td>${item.expiry_date || ''}</td>
@@ -129,7 +129,7 @@ function renderOrders(orders) {
                         <td>${item.manufacturer || ''}</td>
                         <td>${item.spec || ''}</td>
                         <td>${item.unit || ''}</td>
-                        <td>${item.quantity || 0}</td>
+                        <td>${item.quantity != null ? Number(item.quantity).toFixed(2) : '0.00'}</td>
                         <td>${item.batch_no || ''}</td>
                         <td>${item.production_date || ''}</td>
                         <td>${item.expiry_date || ''}</td>

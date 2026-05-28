@@ -104,7 +104,7 @@ function renderReport(items) {
             <td>${item.manufacturer || ''}</td>
             <td>${item.spec || ''}</td>
             <td>${item.unit}</td>
-            <td>${item.quantity}</td>
+            <td>${Number(item.quantity).toFixed(2)}</td>
             <td>${item.safety_stock}</td>
             <td><span class="status ${item.status === '低于安全库存' ? 'warning' : ''}">${item.status}</span></td>
         </tr>
