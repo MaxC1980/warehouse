@@ -300,7 +300,7 @@ document.getElementById('import-form').addEventListener('submit', async function
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const response = await fetch('/api/import/minor-categories', { method: 'POST', body: formData });
+    const response = await fetch('/api/import/minor-categories', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     const result = await response.json();
     if (result) {
         if (result.error) {

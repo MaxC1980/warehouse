@@ -259,7 +259,8 @@ document.getElementById('import-form').addEventListener('submit', async function
 
     const response = await fetch('/api/import/inventory', {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
 
     const result = await response.json();
