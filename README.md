@@ -47,6 +47,12 @@ python app.py
 
 **注意：** 修改表结构后需删除 `db/warehouse.db` 重建，或手动 `ALTER TABLE`。
 
+## 安全机制
+
+- **SECRET_KEY**：每次启动随机生成，重启后 session 失效。持久化需设环境变量 `SECRET_KEY`
+- **API 鉴权**：所有 `/api/` 路由必须登录（`before_request` 钩子全局检查）
+- **CSRF 防护**：POST/PUT/DELETE/PATCH 请求必须携带 `X-Requested-With: XMLHttpRequest` header
+
 ## 注意事项
 
 1. SQL LIKE 写法：`code LIKE '0103%'`（前缀匹配），`name LIKE '%关键词%'`（模糊匹配）

@@ -106,6 +106,12 @@ with get_db_connection() as conn:
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
 ```
 
+## 安全
+
+- `SECRET_KEY`：不硬编码，每次启动随机生成（`secrets.token_hex(32)`），重启后 session 失效。设环境变量 `SECRET_KEY` 可持久化
+- 全局鉴权：`before_request` 对所有 `/api/` 检查 `session['user_id']`（排除 `/api/auth/login`）
+- CSRF：POST/PUT/DELETE/PATCH 必须带 `X-Requested-With: XMLHttpRequest` header，否则 403
+
 ## 注意
 
 1. 修改表结构后需手动 `ALTER TABLE` 或删除 `db/warehouse.db`
