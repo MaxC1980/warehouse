@@ -53,6 +53,12 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@app.before_request
+def require_login_for_api():
+    if request.path.startswith('/api/') and request.path != '/api/auth/login':
+        if 'user_id' not in session:
+            return jsonify({'error': 'Unauthorized'}), 401
+
 # Page routes
 @app.route('/')
 def index():
