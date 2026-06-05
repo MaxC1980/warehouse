@@ -62,14 +62,14 @@ async function loadStats() {
         const inEl = document.getElementById('pending-in-count');
         inEl.textContent = inOrders.total;
         if (inOrders.total > 0) {
-            inEl.innerHTML = `<a href="/in-orders">${inOrders.total}</a>`;
+            inEl.innerHTML = `<a href="/in-orders">${escapeHtml(inOrders.total)}</a>`;
         }
     }
     if (outOrders) {
         const outEl = document.getElementById('pending-out-count');
         outEl.textContent = outOrders.total;
         if (outOrders.total > 0) {
-            outEl.innerHTML = `<a href="/out-orders">${outOrders.total}</a>`;
+            outEl.innerHTML = `<a href="/out-orders">${escapeHtml(outOrders.total)}</a>`;
         }
     }
 }

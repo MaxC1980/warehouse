@@ -7,7 +7,8 @@ class ReportService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            offset = (page - 1) * per_page
+            if per_page is not None:
+                offset = (page - 1) * per_page
 
             where_clauses = []
             params = []
@@ -60,9 +61,9 @@ class ReportService:
                 {where_sql}
                 GROUP BY m.id
                 ORDER BY m.code
-                LIMIT ? OFFSET ?
+                {"LIMIT ? OFFSET ?" if per_page is not None else ""}
                 """,
-                params + [per_page, offset]
+                params + ([per_page, offset] if per_page is not None else [])
             )
             report_data = [dict(row) for row in cursor.fetchall()]
 
@@ -73,7 +74,8 @@ class ReportService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            offset = (page - 1) * per_page
+            if per_page is not None:
+                offset = (page - 1) * per_page
 
             where_clauses = []
             params = []
@@ -127,9 +129,9 @@ class ReportService:
                 LEFT JOIN user u ON o.operator_id = u.id
                 {where_sql}
                 ORDER BY o.receiver_date DESC
-                LIMIT ? OFFSET ?
+                {"LIMIT ? OFFSET ?" if per_page is not None else ""}
                 """,
-                params + [per_page, offset]
+                params + ([per_page, offset] if per_page is not None else [])
             )
             report_data = [dict(row) for row in cursor.fetchall()]
 
@@ -140,7 +142,8 @@ class ReportService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            offset = (page - 1) * per_page
+            if per_page is not None:
+                offset = (page - 1) * per_page
 
             where_clauses = []
             params = []
@@ -193,9 +196,9 @@ class ReportService:
                 LEFT JOIN user u ON o.operator_id = u.id
                 {where_sql}
                 ORDER BY o.receiver_date DESC
-                LIMIT ? OFFSET ?
+                {"LIMIT ? OFFSET ?" if per_page is not None else ""}
                 """,
-                params + [per_page, offset]
+                params + ([per_page, offset] if per_page is not None else [])
             )
             report_data = [dict(row) for row in cursor.fetchall()]
 
@@ -313,9 +316,13 @@ class ReportService:
 
     @staticmethod
     def get_stock_flow_report(page=1, per_page=100, date_from=None, date_to=None, keyword=None, major_category=None, minor_category=None, hide_zero=False, hide_no_change=False):
+        if not date_from or not date_to:
+            raise ValueError('date_from 和 date_to 不能为空')
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            offset = (page - 1) * per_page
+            if per_page is not None:
+                offset = (page - 1) * per_page
 
             where_clauses = []
             params = []
@@ -374,7 +381,10 @@ class ReportService:
             if filter_conditions:
                 data_sql += " WHERE " + " AND ".join(filter_conditions)
 
-            data_sql += " ORDER BY material_code LIMIT ? OFFSET ?"
+            if per_page is not None:
+                data_sql += " ORDER BY material_code LIMIT ? OFFSET ?"
+            else:
+                data_sql += " ORDER BY material_code"
 
             count_sql = f"SELECT COUNT(*) FROM ({inner_sql}) t"
             if filter_conditions:
@@ -384,7 +394,7 @@ class ReportService:
             cursor.execute(count_sql, date_params + params)
             total = cursor.fetchone()[0]
 
-            cursor.execute(data_sql, date_params + params + [per_page, offset])
+            cursor.execute(data_sql, date_params + params + ([per_page, offset] if per_page is not None else []))
 
             report_data = []
             for row in cursor.fetchall():

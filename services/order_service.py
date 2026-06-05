@@ -53,7 +53,9 @@ class OrderService:
             cursor.execute(
                 f"""
                 SELECT
-                    o.*,
+                    o.id, o.order_no, o.supplier_id, o.operator_id, o.status,
+                    o.remark, o.receiver, o.purpose, o.receiver_date,
+                    o.created_at, o.approved_at, o.approved_by,
                     s.name as supplier_name,
                     u.username as operator_name
                 FROM in_order o
@@ -77,7 +79,9 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    o.*,
+                    o.id, o.order_no, o.supplier_id, o.operator_id, o.status,
+                    o.remark, o.receiver, o.purpose, o.receiver_date,
+                    o.created_at, o.approved_at, o.approved_by,
                     s.name as supplier_name,
                     u.username as operator_name,
                     a.username as approved_by_name
@@ -97,7 +101,8 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    i.*,
+                    i.id, i.order_id, i.material_id, i.batch_no,
+                    i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
                     m.code as material_code,
                     m.name as material_name,
                     m.manufacturer,
@@ -363,7 +368,9 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    i.*,
+                    i.id, i.order_id, i.material_id, i.batch_no, i.unit_price,
+                    i.remark, i.requested_quantity, i.actual_quantity,
+                    i.initial_gross_weight, i.shipment_info,
                     m.code as material_code,
                     m.name as material_name,
                     m.manufacturer,
@@ -673,7 +680,8 @@ class OrderService:
             cursor.execute(
                 f"""
                 SELECT
-                    i.*,
+                    i.id, i.order_id, i.material_id, i.batch_no,
+                    i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,
@@ -705,7 +713,8 @@ class OrderService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            offset = (page - 1) * per_page
+            if per_page is not None:
+                offset = (page - 1) * per_page
 
             order_where_clauses = []
             order_params = []
@@ -758,9 +767,9 @@ class OrderService:
                 INNER JOIN material m ON i.material_id = m.id
                 {where_sql}
                 ORDER BY o.created_at DESC, i.id
-                LIMIT ? OFFSET ?
+                {"LIMIT ? OFFSET ?" if per_page is not None else ""}
                 """,
-                all_params + [per_page, offset]
+                all_params + ([per_page, offset] if per_page is not None else [])
             )
             paginated_items = [dict(row) for row in cursor.fetchall()]
 
@@ -791,7 +800,9 @@ class OrderService:
             cursor.execute(
                 f"""
                 SELECT
-                    i.*,
+                    i.id, i.order_id, i.material_id, i.batch_no, i.unit_price,
+                    i.remark, i.requested_quantity, i.actual_quantity,
+                    i.initial_gross_weight, i.shipment_info,
                     m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
                 FROM out_order_item i
                 JOIN material m ON i.material_id = m.id
@@ -960,7 +971,9 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    r.*,
+                    r.id, r.order_no, r.related_out_order_id, r.department,
+                    r.receiver, r.receiver_date, r.operator_id, r.status,
+                    r.remark, r.created_at, r.approved_at, r.approved_by,
                     o.order_no as out_order_no,
                     u.username as operator_name,
                     a.username as approved_by_name
@@ -980,13 +993,13 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    ri.*,
+                    ri.id, ri.return_order_id, ri.out_order_item_id, ri.material_id,
+                    ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,
                     m.unit,
-                    rw.initial_gross_weight,
-                    ri.actual_net_weight
+                    rw.initial_gross_weight
                 FROM return_order_item ri
                 LEFT JOIN material m ON ri.material_id = m.id
                 LEFT JOIN reusable_material_weight rw ON ri.out_order_item_id = rw.out_order_item_id
@@ -1012,7 +1025,7 @@ class OrderService:
                         (related_out_order_id,)
                     )
                     if cursor.fetchone()['count'] > 0:
-                        raise Exception("该出库单已有审核通过的退库单,不允许再次退库")
+                        raise ValueError("该出库单已有审核通过的退库单，不允许再次退库")
 
                 order_no = OrderService._generate_return_order_no()
 
@@ -1027,6 +1040,13 @@ class OrderService:
 
                 if items:
                     for item in items:
+                        cursor.execute(
+                            "SELECT 1 FROM out_order_item WHERE id = ? AND order_id = ?",
+                            (item['out_order_item_id'], related_out_order_id)
+                        )
+                        if not cursor.fetchone():
+                            raise ValueError('出库单明细不属于该出库单')
+
                         cursor.execute(
                             """
                             INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)
@@ -1130,7 +1150,7 @@ class OrderService:
                         (order['related_out_order_id'], order_id)
                     )
                     if cursor.fetchone()[0] > 0:
-                        return False, '该出库单已有审核通过的退库单，不能重复审核'
+                        return False
 
                 cursor.execute("SELECT id, return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight FROM return_order_item WHERE return_order_id = ?", (order_id,))
                 items = [dict(row) for row in cursor.fetchall()]
@@ -1164,6 +1184,9 @@ class OrderService:
                         net_weight = actual_net_weight if actual_net_weight > 0 else 0
                         return_weight = initial_weight - net_weight
 
+                    if net_weight < 0:
+                        raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
+
                     cursor.execute(
                         """UPDATE reusable_material_weight
                            SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
@@ -1177,6 +1200,8 @@ class OrderService:
                     original_qty = ooi['actual_quantity'] if ooi else 0
 
                     remaining = original_qty - net_weight
+                    if remaining < 0:
+                        raise ValueError('剩余库存不能为负数，请检查净用量是否超过出库数量')
 
                     cursor.execute(
                         "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
@@ -1232,7 +1257,9 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    r.*,
+                    r.id, r.order_no, r.related_out_order_id, r.department,
+                    r.receiver, r.receiver_date, r.operator_id, r.status,
+                    r.remark, r.created_at, r.approved_at, r.approved_by,
                     o.order_no as out_order_no,
                     u.username as operator_name,
                     a.username as approved_by_name
@@ -1324,7 +1351,10 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    w.*,
+                    w.id, w.out_order_item_id, w.material_id,
+                    w.initial_gross_weight, w.initial_weight_time, w.initial_operator_id,
+                    w.return_gross_weight, w.return_weight_time, w.return_operator_id,
+                    w.actual_net_weight, w.status, w.remark,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,
@@ -1364,7 +1394,10 @@ class OrderService:
             cursor.execute(
                 f"""
                 SELECT
-                    w.*,
+                    w.id, w.out_order_item_id, w.material_id,
+                    w.initial_gross_weight, w.initial_weight_time, w.initial_operator_id,
+                    w.return_gross_weight, w.return_weight_time, w.return_operator_id,
+                    w.actual_net_weight, w.status, w.remark,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,
@@ -1374,13 +1407,14 @@ class OrderService:
                     oi.order_id,
                     o.order_no as out_order_no,
                     o.receiver as initial_operator_name,
-                    r.receiver as return_operator_name
+                    (SELECT r.receiver FROM return_order_item roi
+                     JOIN return_order r ON r.id = roi.return_order_id AND r.status = 'approved'
+                     WHERE roi.out_order_item_id = w.out_order_item_id
+                     LIMIT 1) as return_operator_name
                 FROM reusable_material_weight w
                 JOIN material m ON w.material_id = m.id
                 JOIN out_order_item oi ON w.out_order_item_id = oi.id
                 JOIN out_order o ON oi.order_id = o.id
-                LEFT JOIN return_order_item roi ON roi.out_order_item_id = w.out_order_item_id
-                LEFT JOIN return_order r ON r.id = roi.return_order_id AND r.status = 'approved'
                 WHERE 1=1 {where_sql}
                 ORDER BY w.id DESC
                 LIMIT ? OFFSET ?
@@ -1399,7 +1433,10 @@ class OrderService:
             cursor.execute(
                 """
                 SELECT
-                    w.*,
+                    w.id, w.out_order_item_id, w.material_id,
+                    w.initial_gross_weight, w.initial_weight_time, w.initial_operator_id,
+                    w.return_gross_weight, w.return_weight_time, w.return_operator_id,
+                    w.actual_net_weight, w.status, w.remark,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,

@@ -141,7 +141,7 @@ async function loadSuppliers() {
     if (data && data.items) {
         const select = document.getElementById('supplier-select');
         data.items.forEach(s => {
-            select.innerHTML += '<option value="' + s.id + '">' + s.name + '</option>';
+            select.innerHTML += '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
         });
     }
 }
@@ -175,17 +175,17 @@ async function loadOrder() {
                     '<td><span class="material-brand"></span></td>' +
                     '<td><span class="material-spec"></span></td>' +
                     '<td><span class="material-unit"></span></td>' +
-                    '<td><input type="text" name="batch_no" class="batch-no" value="' + (item.batch_no || '') + '" ' + dis + '></td>' +
-                    '<td><input type="date" name="production_date" class="production-date" value="' + (item.production_date || '') + '" ' + dis + '></td>' +
-                    '<td><input type="date" name="expiry_date" class="expiry-date" value="' + (item.expiry_date || '') + '" ' + dis + '></td>' +
-                    '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + item.quantity + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
-                    '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + (item.unit_price || '') + '" ' + dis + '></td>' +
+                    '<td><input type="text" name="batch_no" class="batch-no" value="' + escapeHtml(item.batch_no) + '" ' + dis + '></td>' +
+                    '<td><input type="date" name="production_date" class="production-date" value="' + escapeHtml(item.production_date) + '" ' + dis + '></td>' +
+                    '<td><input type="date" name="expiry_date" class="expiry-date" value="' + escapeHtml(item.expiry_date) + '" ' + dis + '></td>' +
+                    '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + escapeHtml(item.quantity) + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
+                    '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + escapeHtml(item.unit_price) + '" ' + dis + '></td>' +
                     '<td>' + (isEditable ? '<button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
                 tbody.appendChild(tr);
                 const select = tr.querySelector('.material-select');
                 materialsData.forEach(m => {
                     const selected = m.id === item.material_id ? 'selected' : '';
-                    select.innerHTML += '<option value="' + m.id + '" ' + selected + '>' + m.code + ' - ' + m.name + '</option>';
+                    select.innerHTML += '<option value="' + escapeHtml(m.id) + '" ' + selected + '>' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
                 });
                 if (item.material_id) {
                     select.value = item.material_id;
@@ -248,7 +248,7 @@ async function loadMaterials() {
         materialsData = data.items;
         document.querySelectorAll('.material-select').forEach(select => {
             materialsData.forEach(m => {
-                select.innerHTML += '<option value="' + m.id + '">' + m.code + ' - ' + m.name + '</option>';
+                select.innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
             });
         });
     }
@@ -296,7 +296,7 @@ async function loadMaterialsForNewRow(row) {
     if (materialsData.length > 0) {
         row.querySelector('.material-select').innerHTML = '<option value="">请选择</option>';
         materialsData.forEach(m => {
-            row.querySelector('.material-select').innerHTML += '<option value="' + m.id + '">' + m.code + ' - ' + m.name + '</option>';
+            row.querySelector('.material-select').innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
         });
     } else {
         const data = await apiRequest('/materials?per_page=1000');
@@ -304,7 +304,7 @@ async function loadMaterialsForNewRow(row) {
             materialsData = data.items;
             row.querySelector('.material-select').innerHTML = '<option value="">请选择</option>';
             materialsData.forEach(m => {
-                row.querySelector('.material-select').innerHTML += '<option value="' + m.id + '">' + m.code + ' - ' + m.name + '</option>';
+                row.querySelector('.material-select').innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
             });
         }
     }
@@ -389,7 +389,7 @@ async function loadEmployees() {
     if (data) {
         const select = document.getElementById('receiver-select');
         data.items.forEach(e => {
-            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+            select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
         });
     }
 }
@@ -447,7 +447,7 @@ async function loadModalCategories() {
     const majorSelect = document.getElementById('modal-major-category');
     majorSelect.innerHTML = '<option value="">全部大类</option>';
     categoriesData.filter(c => c.level === 1).forEach(c => {
-        majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
     });
     document.getElementById('modal-minor-category').innerHTML = '<option value="">全部小类</option>';
 }
@@ -458,7 +458,7 @@ function onMajorCategoryChange() {
     minorSelect.innerHTML = '<option value="">全部小类</option>';
     if (majorCode) {
         categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
-            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
         });
     }
 }
@@ -485,13 +485,13 @@ async function loadMaterialModal() {
     tbody.innerHTML = data.items.map(item => {
         const checked = modalSelected.has(item.id) ? 'checked' : '';
         return `<tr onclick="toggleMaterialSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
-            <td><input type="checkbox" data-id="${item.id}" data-code="${item.code}" data-name="${item.name}" data-spec="${item.spec || ''}" data-manufacturer="${item.manufacturer || ''}" data-unit="${item.unit || ''}" data-category="${item.category_name || ''}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
-            <td>${item.code}</td>
-            <td>${item.name}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.spec || ''}</td>
-            <td>${item.unit || ''}</td>
-            <td>${item.category_name || ''}</td>
+            <td><input type="checkbox" data-id="${escapeHtml(item.id)}" data-code="${escapeHtml(item.code)}" data-name="${escapeHtml(item.name)}" data-spec="${escapeHtml(item.spec)}" data-manufacturer="${escapeHtml(item.manufacturer)}" data-unit="${escapeHtml(item.unit)}" data-category="${escapeHtml(item.category_name)}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
+            <td>${escapeHtml(item.code)}</td>
+            <td>${escapeHtml(item.name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.category_name)}</td>
         </tr>`;
     }).join('');
 
@@ -553,7 +553,7 @@ function confirmMaterialSelection() {
         // Add all materials to select
         materialsData.forEach(m => {
             const selected = m.id === id ? 'selected' : '';
-            select.innerHTML += `<option value="${m.id}" ${selected}>${m.code} - ${m.name}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(m.id)}" ${selected}>${escapeHtml(m.code)} - ${escapeHtml(m.name)}</option>`;
         });
         select.value = id;
         updateMaterialInfo(select);

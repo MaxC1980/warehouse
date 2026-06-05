@@ -89,8 +89,8 @@ async function loadMajorCategories() {
         newParentSelect.innerHTML = '<option value="">请选择大类</option>';
 
         majorCategories.forEach(cat => {
-            filterSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
-            newParentSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            filterSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+            newParentSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
         });
 
         loadCategories();
@@ -154,9 +154,9 @@ function renderCategories() {
             if (c.has_materials) {
                 html += `
                     <tr>
-                        <td>${major ? major.name : ''}</td>
-                        <td>${c.code}</td>
-                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td>${major ? escapeHtml(major.name) : ''}</td>
+                        <td>${escapeHtml(c.code)}</td>
+                        <td><input type="text" id="edit-name" value="${escapeHtml(c.name)}"></td>
                         <td>
                             <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
                             <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
@@ -169,12 +169,12 @@ function renderCategories() {
                         <td>
                             <select id="edit-parent-code" onchange="generateEditCode()">
                                 ${allCategories.filter(m => m.level === 1).map(m =>
-                                    `<option value="${m.code}" ${m.code === c.parent_code ? 'selected' : ''}>${m.name}</option>`
+                                    `<option value="${escapeHtml(m.code)}" ${m.code === c.parent_code ? 'selected' : ''}>${escapeHtml(m.name)}</option>`
                                 ).join('')}
                             </select>
                         </td>
-                        <td><input type="text" id="edit-code" value="${c.code}" maxlength="4"></td>
-                        <td><input type="text" id="edit-name" value="${c.name}"></td>
+                        <td><input type="text" id="edit-code" value="${escapeHtml(c.code)}" maxlength="4"></td>
+                        <td><input type="text" id="edit-name" value="${escapeHtml(c.name)}"></td>
                         <td>
                             <button onclick="saveEdit(${c.id})" class="btn btn-sm btn-primary">保存</button>
                             <button onclick="cancelEdit()" class="btn btn-sm btn-secondary">取消</button>
@@ -185,12 +185,12 @@ function renderCategories() {
         } else {
             html += `
                 <tr>
-                    <td>${major ? major.name : ''}</td>
-                    <td>${c.code}</td>
-                    <td>${c.name}</td>
+                    <td>${major ? escapeHtml(major.name) : ''}</td>
+                    <td>${escapeHtml(c.code)}</td>
+                    <td>${escapeHtml(c.name)}</td>
                     <td>
-                        ${currentPermissionLevel >= 2 ? `<button onclick="startEdit(${c.id})" class="btn btn-sm">编辑</button>` : ''}
-                        ${currentPermissionLevel >= 2 ? `<button onclick="deleteCategory(${c.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                        ${currentPermissionLevel >= 2 ? `<button onclick="startEdit(${escapeHtml(c.id)})" class="btn btn-sm">编辑</button>` : ''}
+                        ${currentPermissionLevel >= 2 ? `<button onclick="deleteCategory(${escapeHtml(c.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
                         ${c.has_materials ? '<span class="text-muted">已引用</span>' : ''}
                     </td>
                 </tr>

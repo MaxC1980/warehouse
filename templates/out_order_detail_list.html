@@ -120,7 +120,7 @@ async function loadReceivers() {
     if (data) {
         const select = document.getElementById('receiver-filter');
         data.items.forEach(e => {
-            select.innerHTML += '<option value="' + e.name + '">' + e.name + '</option>';
+            select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
         });
     }
 }
@@ -142,40 +142,40 @@ function renderOrders(orders) {
     orders.forEach(o => {
         if (!o.items || o.items.length === 0) {
             html += `<tr>
-                <td>${o.department || ''}</td>
-                <td>${o.receiver || ''}</td>
-                <td>${o.purpose || ''}</td>
-                <td>${o.receiver_date || ''}</td>
+                <td>${escapeHtml(o.department)}</td>
+                <td>${escapeHtml(o.receiver)}</td>
+                <td>${escapeHtml(o.purpose)}</td>
+                <td>${escapeHtml(o.receiver_date)}</td>
                 <td colspan="4"></td>
                 <td></td>
-                <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+                <td><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
             </tr>`;
         } else {
             o.items.forEach((item, idx) => {
                 if (idx === 0) {
                     html += `<tr>
-                        <td rowspan="${o.items.length}">${o.department || ''}</td>
-                        <td rowspan="${o.items.length}">${o.receiver || ''}</td>
-                        <td rowspan="${o.items.length}">${o.purpose || ''}</td>
-                        <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
-                        <td>${item.material_code || ''}</td>
-                        <td>${item.material_name || ''}</td>
-                        <td>${item.manufacturer || ''}</td>
-                        <td>${item.spec || ''}</td>
-                        <td>${item.unit || ''}</td>
-                        <td>${item.batch_no || ''}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.department)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.receiver)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.purpose)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.receiver_date)}</td>
+                        <td>${escapeHtml(item.material_code)}</td>
+                        <td>${escapeHtml(item.material_name)}</td>
+                        <td>${escapeHtml(item.manufacturer)}</td>
+                        <td>${escapeHtml(item.spec)}</td>
+                        <td>${escapeHtml(item.unit)}</td>
+                        <td>${escapeHtml(item.batch_no)}</td>
                         <td>${item.actual_quantity != null ? Number(item.actual_quantity).toFixed(2) : '0.00'}</td>
                         <td>${item.initial_gross_weight != null ? Number(item.initial_gross_weight).toFixed(2) : ''}</td>
-                        <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+                        <td rowspan="${o.items.length}"><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
                     </tr>`;
                 } else {
                     html += `<tr>
-                        <td>${item.material_code || ''}</td>
-                        <td>${item.material_name || ''}</td>
-                        <td>${item.manufacturer || ''}</td>
-                        <td>${item.spec || ''}</td>
-                        <td>${item.unit || ''}</td>
-                        <td>${item.batch_no || ''}</td>
+                        <td>${escapeHtml(item.material_code)}</td>
+                        <td>${escapeHtml(item.material_name)}</td>
+                        <td>${escapeHtml(item.manufacturer)}</td>
+                        <td>${escapeHtml(item.spec)}</td>
+                        <td>${escapeHtml(item.unit)}</td>
+                        <td>${escapeHtml(item.batch_no)}</td>
                         <td>${item.actual_quantity != null ? Number(item.actual_quantity).toFixed(2) : '0.00'}</td>
                         <td>${item.initial_gross_weight != null ? Number(item.initial_gross_weight).toFixed(2) : ''}</td>
                     </tr>`;

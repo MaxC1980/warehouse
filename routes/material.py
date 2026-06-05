@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, session
 from services.material_service import MaterialService
+from utils.pagination import get_per_page
 
 material_bp = Blueprint('material', __name__)
 
@@ -60,7 +61,7 @@ def delete_category(category_id):
 @material_bp.route('/materials', methods=['GET'])
 def get_materials():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page(max_value=1000)
     category_code = request.args.get('category_code')
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')

@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify
 from services.inventory_service import InventoryService
+from utils.pagination import get_per_page
 
 inventory_bp = Blueprint('inventory', __name__)
 
 @inventory_bp.route('/inventory', methods=['GET'])
 def get_inventory():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     keyword = request.args.get('keyword')
     summary = request.args.get('summary', type=bool, default=False)
     category_code = request.args.get('category_code')
@@ -46,7 +47,7 @@ def get_inventory_for_select():
     category_code = request.args.get('category_code')
     keyword = request.args.get('keyword')
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 50, type=int)
+    per_page = get_per_page(default=50)
 
     items, total = InventoryService.get_inventory_for_select(
         category_code=category_code,

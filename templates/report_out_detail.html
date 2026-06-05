@@ -77,18 +77,18 @@ function renderReport(items) {
     }
     tbody.innerHTML = items.map(item => `
         <tr>
-            <td>${item.order_no}</td>
-            <td>${item.created_at}</td>
-            <td>${item.department || ''}</td>
-            <td>${item.material_code}</td>
-            <td>${item.material_name}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.spec || ''}</td>
-            <td>${item.batch_no || ''}</td>
+            <td>${escapeHtml(item.order_no)}</td>
+            <td>${escapeHtml(item.created_at)}</td>
+            <td>${escapeHtml(item.department)}</td>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.batch_no)}</td>
             <td>${Number(item.actual_quantity).toFixed(2)}</td>
             <td>${Number(item.unit_price).toFixed(2)}</td>
             <td>${Number(item.amount).toFixed(2)}</td>
-            <td>${item.operator || ''}</td>
+            <td>${escapeHtml(item.operator)}</td>
         </tr>
     `).join('');
 }
@@ -99,7 +99,6 @@ function exportExcel() {
     let url = '/api/reports/out-detail/export?';
     if (dateFrom) url += 'date_from=' + dateFrom + '&';
     if (dateTo) url += 'date_to=' + dateTo;
-    url += 'per_page=10000';
     window.location.href = url;
 }
 

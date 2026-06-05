@@ -230,28 +230,28 @@ function addItemRow(data) {
     if (isReusable) {
         // 可回用物料：实际用量=库存数量（自动填，只读），毛重手工输入且必须>=库存数量
         col7 = '<span style="color:#999;">-</span><input type="hidden" class="requested-quantity" value="0">';
-        col8 = `<input type="number" class="actual-quantity" value="${data.actual_quantity || 0}" readonly style="width:80px; background:#f5f5f5;">`;
+        col8 = `<input type="number" class="actual-quantity" value="${escapeHtml(data.actual_quantity)}" readonly style="width:80px; background:#f5f5f5;">`;
         col9 = canEdit
-            ? `<input type="number" class="initial-weight" step="0.01" value="${data.initial_gross_weight || ''}" placeholder="毛重" style="width:80px;">`
-            : (data.initial_gross_weight ? data.initial_gross_weight : '-');
+            ? `<input type="number" class="initial-weight" step="0.01" value="${escapeHtml(data.initial_gross_weight)}" placeholder="毛重" style="width:80px;">`
+            : (data.initial_gross_weight ? escapeHtml(data.initial_gross_weight) : '-');
         col10 = canEdit
-            ? `<input type="text" class="shipment-info" value="${data.shipment_info || ''}" placeholder="实发信息" style="width:100px;">`
-            : (data.shipment_info || '-');
+            ? `<input type="text" class="shipment-info" value="${escapeHtml(data.shipment_info)}" placeholder="实发信息" style="width:100px;">`
+            : (escapeHtml(data.shipment_info) || '-');
     } else {
         // 普通物料：毛重和实发信息显示"-"
-        col7 = `<input type="number" class="requested-quantity" step="0.01" value="${data.requested_quantity || 0}" ${disabledAttr} style="width:80px;">`;
-        col8 = `<input type="number" class="actual-quantity" step="0.01" value="${data.actual_quantity || 0}" ${disabledAttr} style="width:80px;">`;
+        col7 = `<input type="number" class="requested-quantity" step="0.01" value="${escapeHtml(data.requested_quantity)}" ${disabledAttr} style="width:80px;">`;
+        col8 = `<input type="number" class="actual-quantity" step="0.01" value="${escapeHtml(data.actual_quantity)}" ${disabledAttr} style="width:80px;">`;
         col9 = '<span style="color:#999;">-</span><input type="hidden" class="initial-weight" value="">';
         col10 = '<span style="color:#999;">-</span><input type="hidden" class="shipment-info" value="">';
     }
 
     tr.innerHTML = `
-        <td>${data.material_code}</td>
-        <td>${data.material_name}</td>
-        <td>${data.material_manufacturer || ''}</td>
-        <td>${data.material_spec || ''}</td>
-        <td>${data.unit || ''}</td>
-        <td>${data.batch_no || ''}</td>
+        <td>${escapeHtml(data.material_code)}</td>
+        <td>${escapeHtml(data.material_name)}</td>
+        <td>${escapeHtml(data.material_manufacturer)}</td>
+        <td>${escapeHtml(data.material_spec)}</td>
+        <td>${escapeHtml(data.unit)}</td>
+        <td>${escapeHtml(data.batch_no)}</td>
         <td>${col7}</td>
         <td>${col8}</td>
         <td>${col9}</td>
@@ -291,7 +291,7 @@ async function loadCategories() {
     if (data && Array.isArray(data)) {
         modalCategoriesData = data;
         data.filter(c => c.level === 1).forEach(c => {
-            majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+            majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
         });
     }
 }
@@ -302,7 +302,7 @@ function onMajorCategoryChange() {
     minorSelect.innerHTML = '<option value="">全部小类</option>';
     if (majorCode) {
         modalCategoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
-            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
         });
     }
 }
@@ -332,15 +332,15 @@ async function loadInventoryModal() {
         const checked = modalSelected.has(key) ? 'checked' : '';
         const isReusable = item.material_is_reusable == 1 ? '1' : '0';
         return `<tr onclick="toggleSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
-            <td><input type="checkbox" data-key="${key}" data-material-id="${item.material_id}" data-batch-no="${item.batch_no}" data-material-code="${item.material_code}" data-material-name="${item.material_name}" data-material-spec="${item.material_spec || ''}" data-manufacturer="${item.manufacturer || ''}" data-unit="${item.unit || ''}" data-available-qty="${item.available_qty}" data-reusable="${isReusable}" onclick="event.stopPropagation(); toggleSelect(this)" ${checked}></td>
-            <td>${item.material_code}</td>
-            <td>${item.material_name}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.material_spec || ''}</td>
-            <td>${item.unit || ''}</td>
-            <td>${item.batch_no || ''}</td>
-            <td>${item.expiry_date || ''}</td>
-            <td>${item.available_qty || 0}</td>
+            <td><input type="checkbox" data-key="${escapeHtml(key)}" data-material-id="${escapeHtml(item.material_id)}" data-batch-no="${escapeHtml(item.batch_no)}" data-material-code="${escapeHtml(item.material_code)}" data-material-name="${escapeHtml(item.material_name)}" data-material-spec="${escapeHtml(item.material_spec)}" data-manufacturer="${escapeHtml(item.manufacturer)}" data-unit="${escapeHtml(item.unit)}" data-available-qty="${escapeHtml(item.available_qty)}" data-reusable="${escapeHtml(isReusable)}" onclick="event.stopPropagation(); toggleSelect(this)" ${checked}></td>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.material_spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.batch_no)}</td>
+            <td>${escapeHtml(item.expiry_date)}</td>
+            <td>${escapeHtml(item.available_qty)}</td>
             <td>${isReusable === '1' ? '✓' : ''}</td>
         </tr>`;
     }).join('');
@@ -495,7 +495,7 @@ async function loadEmployees() {
         const select = document.getElementById('receiver-select');
         employeesData.forEach(e => {
             const selected = e.name === currentUsername ? 'selected' : '';
-            select.innerHTML += '<option value="' + e.name + '" ' + selected + '>' + e.name + '</option>';
+            select.innerHTML += '<option value="' + escapeHtml(e.name) + '" ' + selected + '>' + escapeHtml(e.name) + '</option>';
             if (e.name === currentUsername && e.department) {
                 document.getElementById('department').value = e.department;
             }

@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify, session
 from services.employee_service import EmployeeService
+from utils.pagination import get_per_page
 
 employee_bp = Blueprint('employee', __name__)
 
 @employee_bp.route('/employees', methods=['GET'])
 def get_employees():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     keyword = request.args.get('keyword')
 
     employees, total = EmployeeService.get_all_employees(

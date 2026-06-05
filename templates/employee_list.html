@@ -65,13 +65,13 @@ function renderEmployees(employees) {
     }
     tbody.innerHTML = employees.map(e => `
         <tr>
-            <td>${e.name}</td>
-            <td>${e.department || ''}</td>
-            <td>${e.phone || ''}</td>
-            <td>${e.remark || ''}</td>
+            <td>${escapeHtml(e.name)}</td>
+            <td>${escapeHtml(e.department)}</td>
+            <td>${escapeHtml(e.phone)}</td>
+            <td>${escapeHtml(e.remark)}</td>
             <td>
-                ${currentPermissionLevel >= 2 ? `<a href="/employees/${e.id}/edit" class="btn btn-sm">编辑</a>` : ''}
-                ${currentPermissionLevel >= 2 ? `<button onclick="deleteEmployee(${e.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                ${currentPermissionLevel >= 2 ? `<a href="/employees/${escapeHtml(e.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${currentPermissionLevel >= 2 ? `<button onclick="deleteEmployee(${escapeHtml(e.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');

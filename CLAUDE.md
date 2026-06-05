@@ -81,10 +81,12 @@ python app.py      # 生产环境（端口5000，用 waitress）
 
 ## 架构
 
+- **create_app.py** - 应用工厂，`app.py` 和 `run.py` 调用 `create_app(config_class)`
 - **Routes** (`routes/`) - Flask Blueprint 端点
 - **Services** (`services/`) - 业务逻辑
 - **Database** (`database.py`) - SQLite 连接，`get_db_connection()`
 - **Templates** (`templates/`) - Jinja2 模板
+- **utils/pagination.py** - `get_per_page(default, max_value)` 分页上限工具
 
 ## API 调用
 
@@ -111,6 +113,9 @@ with get_db_connection() as conn:
 - `SECRET_KEY`：不硬编码，每次启动随机生成（`secrets.token_hex(32)`），重启后 session 失效。设环境变量 `SECRET_KEY` 可持久化
 - 全局鉴权：`before_request` 对所有 `/api/` 检查 `session['user_id']`（排除 `/api/auth/login`）
 - CSRF：POST/PUT/DELETE/PATCH 必须带 `X-Requested-With: XMLHttpRequest` header，否则 403
+- XSS：所有 innerHTML 模板字面量中的数据库字段必须用 `escapeHtml()` 包裹（函数在 `static/js/app.js`）
+- 登录限流：IP + 账号双维度，5 次失败锁定 15 分钟
+- 异常处理：业务校验用 `raise ValueError(msg)`，Route 层 `except ValueError` 返回 400；`except Exception` 返回通用 500，不暴露内部信息
 
 ## 注意
 
@@ -120,6 +125,7 @@ with get_db_connection() as conn:
 4. 禁止使用`select *`
 5. 不用外键约束，引用检查在业务层（Service）手动做
 6. 下拉框onchange()就load数据
+7. innerHTML 中的数据库字段必须用 `escapeHtml()` 转义，禁止裸 `${var}` 直接拼接
 
 ## 调试
 

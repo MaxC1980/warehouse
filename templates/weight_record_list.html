@@ -87,21 +87,21 @@ function renderTable(items) {
             'returned': '<span style="color:#52c41a;">已退回</span>'
         };
         return `<tr>
-            <td><a href="/out-orders/${item.order_id}/detail">${item.out_order_no || '-'}</a></td>
-            <td>${item.material_code || ''}</td>
-            <td>${item.material_name || ''}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.spec || ''}</td>
-            <td>${item.unit || ''}</td>
-            <td>${item.batch_no || ''}</td>
+            <td><a href="/out-orders/${escapeHtml(item.order_id)}/detail">${escapeHtml(item.out_order_no) || '-'}</a></td>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.batch_no)}</td>
             <td>${item.initial_gross_weight != null ? Number(item.initial_gross_weight).toFixed(2) : '-'}</td>
             <td>${item.return_gross_weight != null ? Number(item.return_gross_weight).toFixed(2) : '-'}</td>
             <td>${item.actual_net_weight != null ? Number(item.actual_net_weight).toFixed(2) : '-'}</td>
-            <td>${statusMap[item.status] || item.status || '-'}</td>
-            <td>${item.initial_weight_time ? item.initial_weight_time.substring(0, 16) : '-'}</td>
-            <td>${item.return_weight_time ? item.return_weight_time.substring(0, 16) : '-'}</td>
-            <td>${item.initial_operator_name || '-'}</td>
-            <td>${item.return_operator_name || '-'}</td>
+            <td>${statusMap[item.status] || escapeHtml(item.status) || '-'}</td>
+            <td>${escapeHtml(item.initial_weight_time ? item.initial_weight_time.substring(0, 16) : '-')}</td>
+            <td>${escapeHtml(item.return_weight_time ? item.return_weight_time.substring(0, 16) : '-')}</td>
+            <td>${escapeHtml(item.initial_operator_name) || '-'}</td>
+            <td>${escapeHtml(item.return_operator_name) || '-'}</td>
         </tr>`;
     }).join('');
 }
@@ -111,17 +111,17 @@ function renderPagination(total, page, perPage) {
     const pagination = document.getElementById('pagination');
 
     if (totalPages <= 1) {
-        pagination.innerHTML = `<span>共 ${total} 条记录</span>`;
+        pagination.innerHTML = `<span>共 ${escapeHtml(total)} 条记录</span>`;
         return;
     }
 
     let html = '';
     if (page > 1) {
-        html += `<button onclick="goToPage(${page - 1})">上一页</button>`;
+        html += `<button onclick="goToPage(${escapeHtml(page - 1)})">上一页</button>`;
     }
-    html += `<span>第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    html += `<span>第 ${escapeHtml(page)} / ${escapeHtml(totalPages)} 页，共 ${escapeHtml(total)} 条</span>`;
     if (page < totalPages) {
-        html += `<button onclick="goToPage(${page + 1})">下一页</button>`;
+        html += `<button onclick="goToPage(${escapeHtml(page + 1)})">下一页</button>`;
     }
     pagination.innerHTML = html;
 }

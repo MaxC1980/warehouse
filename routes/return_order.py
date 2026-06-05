@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify, session
 from services.order_service import OrderService
 from services.auth_service import AuthService
+from utils.pagination import get_per_page
 
 return_order_bp = Blueprint('return_order', __name__)
 
 @return_order_bp.route('/return-orders', methods=['GET'])
 def get_return_orders():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -55,16 +56,21 @@ def create_return_order():
     if not data.get('receiver'):
         return jsonify({'error': '请填写退库人'}), 400
 
-    order = OrderService.create_return_order(
-        related_out_order_id=data.get('related_out_order_id'),
-        department=data.get('department'),
-        receiver=data.get('receiver'),
-        receiver_date=data.get('receiver_date'),
-        operator_id=operator_id,
-        remark=data.get('remark'),
-        items=data.get('items', [])
-    )
-    return jsonify(order), 201
+    try:
+        order = OrderService.create_return_order(
+            related_out_order_id=data.get('related_out_order_id'),
+            department=data.get('department'),
+            receiver=data.get('receiver'),
+            receiver_date=data.get('receiver_date'),
+            operator_id=operator_id,
+            remark=data.get('remark'),
+            items=data.get('items', [])
+        )
+        return jsonify(order), 201
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception:
+        return jsonify({'error': '服务器内部错误'}), 500
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['PUT'])
 def update_return_order(order_id):
@@ -116,8 +122,10 @@ def approve_return_order(order_id):
         if result is False:
             return jsonify({'error': '该出库单已有审核通过的退库单，不能重复审核'}), 400
         return jsonify(result)
-    except Exception as e:
+    except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except Exception:
+        return jsonify({'error': '服务器内部错误'}), 500
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])
 def get_return_orders_by_out_order(out_order_id):

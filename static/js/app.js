@@ -32,6 +32,12 @@ async function apiRequest(url, options = {}) {
     }
 }
 
+// HTML转义防XSS
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // Format date for display
 function formatDate(dateStr) {
     if (!dateStr) return '';

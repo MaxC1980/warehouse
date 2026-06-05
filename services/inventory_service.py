@@ -22,7 +22,7 @@ def _expiry_matches_filter(expiry_date, status):
             expiry = datetime.strptime(expiry_date, '%Y-%m-%d').date()
         else:
             expiry = expiry_date
-    except:
+    except Exception:
         return False
 
     today = date.today()
@@ -108,7 +108,7 @@ class InventoryService:
 
             where_sql = "WHERE " + " AND ".join(where_clauses)
 
-            total_quantity = InventoryService.get_inventory_totals(where_sql, params, summary)
+            total_quantity = InventoryService.get_inventory_totals(cursor, where_sql, params, summary)
 
             if summary:
                 cursor.execute("""
@@ -273,7 +273,7 @@ class InventoryService:
                             if isinstance(expiry, str):
                                 try:
                                     expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date()
-                                except:
+                                except Exception:
                                     expiry_date = None
                             else:
                                 expiry_date = expiry
@@ -332,21 +332,19 @@ class InventoryService:
             return inventory, total, total_quantity
 
     @staticmethod
-    def get_inventory_totals(where_sql, params, summary=False):
+    def get_inventory_totals(cursor, where_sql, params, summary=False):
         """Get total quantity sum for inventory"""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"""
-                SELECT COALESCE(SUM(i.quantity), 0) as total_quantity
-                FROM inventory i
-                JOIN material m ON i.material_id = m.id
-                {where_sql}
-                """,
-                params
-            )
-            result = cursor.fetchone()
-            return result['total_quantity'] if result else 0
+        cursor.execute(
+            f"""
+            SELECT COALESCE(SUM(i.quantity), 0) as total_quantity
+            FROM inventory i
+            JOIN material m ON i.material_id = m.id
+            {where_sql}
+            """,
+            params
+        )
+        result = cursor.fetchone()
+        return result['total_quantity'] if result else 0
 
     @staticmethod
     def get_inventory_by_material(material_id):
@@ -499,7 +497,7 @@ class InventoryService:
                     else:
                         try:
                             quantity = float(quantity)
-                        except:
+                        except Exception:
                             raise ValueError(f"数量必须是数字，当前值: {quantity}")
 
                     if not batch_no:

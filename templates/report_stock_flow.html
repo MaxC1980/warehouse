@@ -71,7 +71,7 @@ async function loadCategories() {
     categoriesData = data || [];
     const majorSelect = document.getElementById('search-major-category');
     categoriesData.filter(c => c.level === 1).forEach(c => {
-        majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
     });
 }
 
@@ -81,7 +81,7 @@ function onMajorChange() {
     minorSelect.innerHTML = '<option value="">全部小类</option>';
     if (majorCode) {
         categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
-            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
         });
     }
 }
@@ -138,16 +138,16 @@ function renderReport(items) {
     }
     tbody.innerHTML = items.map(item => `
         <tr class="${item.closing_qty < 0 ? 'warning-row' : ''}">
-            <td>${item.material_code}</td>
-            <td>${item.material_name}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.spec || ''}</td>
-            <td>${item.unit}</td>
-            <td>${item.opening_qty}</td>
-            <td>${item.in_qty}</td>
-            <td>${item.out_qty}</td>
-            <td>${item.return_qty}</td>
-            <td class="${item.closing_qty < 0 ? 'warning' : ''}">${item.closing_qty}</td>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.opening_qty)}</td>
+            <td>${escapeHtml(item.in_qty)}</td>
+            <td>${escapeHtml(item.out_qty)}</td>
+            <td>${escapeHtml(item.return_qty)}</td>
+            <td class="${item.closing_qty < 0 ? 'warning' : ''}">${escapeHtml(item.closing_qty)}</td>
         </tr>
     `).join('');
 }

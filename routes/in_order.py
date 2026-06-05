@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify, session
 from services.order_service import OrderService
 from services.auth_service import AuthService
+from utils.pagination import get_per_page
 
 in_order_bp = Blueprint('in_order', __name__)
 
 @in_order_bp.route('/in-orders', methods=['GET'])
 def get_in_orders():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -104,7 +105,7 @@ def approve_in_order(order_id):
 @in_order_bp.route('/in-orders/detail', methods=['GET'])
 def get_in_orders_with_details():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')

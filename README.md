@@ -52,6 +52,8 @@ python app.py
 - **SECRET_KEY**：每次启动随机生成，重启后 session 失效。持久化需设环境变量 `SECRET_KEY`
 - **API 鉴权**：所有 `/api/` 路由必须登录（`before_request` 钩子全局检查）
 - **CSRF 防护**：POST/PUT/DELETE/PATCH 请求必须携带 `X-Requested-With: XMLHttpRequest` header
+- **XSS 防护**：所有 innerHTML 输出点使用 `escapeHtml()` 转义数据库字段
+- **登录限流**：IP + 账号双维度，5 次失败锁定 15 分钟
 
 ## 注意事项
 

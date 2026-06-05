@@ -92,37 +92,37 @@ function renderOrders(orders) {
     orders.forEach(o => {
         if (!o.items || o.items.length === 0) {
             html += `<tr>
-                <td><a href="/return-orders/${o.order_id}/detail">${o.order_no}</a></td>
-                <td>${o.out_order_no || ''}</td>
-                <td>${o.department || ''}</td>
-                <td>${o.receiver || ''}</td>
-                <td>${o.receiver_date || ''}</td>
+                <td><a href="/return-orders/${escapeHtml(o.order_id)}/detail">${escapeHtml(o.order_no)}</a></td>
+                <td>${escapeHtml(o.out_order_no)}</td>
+                <td>${escapeHtml(o.department)}</td>
+                <td>${escapeHtml(o.receiver)}</td>
+                <td>${escapeHtml(o.receiver_date)}</td>
                 <td colspan="5"></td>
-                <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+                <td><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
             </tr>`;
         } else {
             o.items.forEach((item, idx) => {
                 if (idx === 0) {
                     html += `<tr>
-                        <td rowspan="${o.items.length}"><a href="/return-orders/${o.order_id}/detail">${o.order_no}</a></td>
-                        <td rowspan="${o.items.length}">${o.out_order_no || ''}</td>
-                        <td rowspan="${o.items.length}">${o.department || ''}</td>
-                        <td rowspan="${o.items.length}">${o.receiver || ''}</td>
-                        <td rowspan="${o.items.length}">${o.receiver_date || ''}</td>
-                        <td>${item.material_code || ''}</td>
-                        <td>${item.manufacturer || ''}</td>
-                        <td>${item.material_name || ''}</td>
-                        <td>${item.batch_no || ''}</td>
+                        <td rowspan="${o.items.length}"><a href="/return-orders/${escapeHtml(o.order_id)}/detail">${escapeHtml(o.order_no)}</a></td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.out_order_no)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.department)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.receiver)}</td>
+                        <td rowspan="${o.items.length}">${escapeHtml(o.receiver_date)}</td>
+                        <td>${escapeHtml(item.material_code)}</td>
+                        <td>${escapeHtml(item.manufacturer)}</td>
+                        <td>${escapeHtml(item.material_name)}</td>
+                        <td>${escapeHtml(item.batch_no)}</td>
                         <td>${item.return_gross_weight != null ? Number(item.return_gross_weight).toFixed(2) : ''}</td>
                         <td>${item.actual_net_weight != null ? Number(item.actual_net_weight).toFixed(2) : ''}</td>
-                        <td rowspan="${o.items.length}"><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
+                        <td rowspan="${o.items.length}"><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
                     </tr>`;
                 } else {
                     html += `<tr>
-                        <td>${item.material_code || ''}</td>
-                        <td>${item.manufacturer || ''}</td>
-                        <td>${item.material_name || ''}</td>
-                        <td>${item.batch_no || ''}</td>
+                        <td>${escapeHtml(item.material_code)}</td>
+                        <td>${escapeHtml(item.manufacturer)}</td>
+                        <td>${escapeHtml(item.material_name)}</td>
+                        <td>${escapeHtml(item.batch_no)}</td>
                         <td>${item.return_gross_weight != null ? Number(item.return_gross_weight).toFixed(2) : ''}</td>
                         <td>${item.actual_net_weight != null ? Number(item.actual_net_weight).toFixed(2) : ''}</td>
                     </tr>`;

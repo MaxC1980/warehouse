@@ -33,6 +33,10 @@ class TestBase(unittest.TestCase):
         if os.path.exists(TestConfig.TEST_DB_DIR):
             shutil.rmtree(TestConfig.TEST_DB_DIR)
 
+    def _auth_headers(self):
+        """Return headers with X-Requested-With for CSRF protection"""
+        return {'X-Requested-With': 'XMLHttpRequest'}
+
 
 class TestAuthAPI(TestBase):
 
@@ -40,8 +44,8 @@ class TestAuthAPI(TestBase):
         """登录成功"""
         resp = self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data['username'], 'admin')
@@ -52,20 +56,20 @@ class TestAuthAPI(TestBase):
         resp = self.client.post('/api/auth/login', json={
             'username': 'admin',
             'password': 'wrong'
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 401)
 
     def test_login_missing_fields(self):
         """缺少用户名或密码"""
         resp = self.client.post('/api/auth/login', json={
             'username': 'admin'
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 400)
 
     def test_current_user_not_logged_in(self):
         """未登录获取当前用户"""
         # 登出以确保未登录状态
-        self.client.post('/api/auth/logout')
+        self.client.post('/api/auth/logout', headers=self._auth_headers())
         resp = self.client.get('/api/auth/current_user')
         self.assertEqual(resp.status_code, 401)
 
@@ -73,8 +77,8 @@ class TestAuthAPI(TestBase):
         """登录后获取当前用户"""
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
         resp = self.client.get('/api/auth/current_user')
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
@@ -84,9 +88,9 @@ class TestAuthAPI(TestBase):
         """登出"""
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
-        resp = self.client.post('/api/auth/logout')
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
+        resp = self.client.post('/api/auth/logout', headers=self._auth_headers())
         self.assertEqual(resp.status_code, 200)
         # 登出后再访问需要重新登录
         resp = self.client.get('/api/auth/current_user')
@@ -99,8 +103,8 @@ class TestMaterialAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_get_materials(self):
         """获取物料列表"""
@@ -124,8 +128,8 @@ class TestInventoryAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_get_inventory(self):
         """获取库存列表"""
@@ -142,7 +146,7 @@ class TestInventoryAPI(TestBase):
             'code': 'TEST-X-001',
             'unit': '个',
             'category_code': '0101'
-        })
+        }, headers=self._auth_headers())
         material_id = resp.get_json()['id']
 
         resp = self.client.get(f'/api/inventory/{material_id}')
@@ -156,8 +160,8 @@ class TestInOrderAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_get_in_orders(self):
         """获取入库单列表"""
@@ -173,7 +177,7 @@ class TestInOrderAPI(TestBase):
             'name': '测试供应商-入',
             'contact': '张三',
             'phone': '13800138000'
-        })
+        }, headers=self._auth_headers())
         supplier_id = resp.get_json()['id']
 
         # 创建物料
@@ -182,7 +186,7 @@ class TestInOrderAPI(TestBase):
             'code': 'TEST-IN-001',
             'unit': '个',
             'category_code': '0101'
-        })
+        }, headers=self._auth_headers())
         material_id = resp.get_json()['id']
 
         # 创建入库单
@@ -197,7 +201,7 @@ class TestInOrderAPI(TestBase):
                 'quantity': 100,
                 'unit_price': 10.0
             }]
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
         self.assertEqual(data['remark'], 'API测试入库')
@@ -209,7 +213,7 @@ class TestInOrderAPI(TestBase):
             'name': '测试供应商-分页',
             'contact': '测试',
             'phone': '13800138001'
-        })
+        }, headers=self._auth_headers())
         supplier_id = resp.get_json()['id']
 
         # 创建10个物料
@@ -220,7 +224,7 @@ class TestInOrderAPI(TestBase):
                 'code': f'TEST-PAGE-{i:02d}',
                 'unit': '个',
                 'category_code': '0101'
-            })
+            }, headers=self._auth_headers())
             material_ids.append(resp.get_json()['id'])
 
         # 创建入库单 with 10 items
@@ -238,7 +242,7 @@ class TestInOrderAPI(TestBase):
             'operator_id': 1,
             'receiver': '分页测试',
             'items': items
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 201)
 
         # 查询 page 1, per_page=5
@@ -264,8 +268,8 @@ class TestOutOrderAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_get_out_orders(self):
         """获取出库单列表"""
@@ -281,7 +285,7 @@ class TestOutOrderAPI(TestBase):
             'name': '测试供应商-出',
             'contact': '李四',
             'phone': '13900139000'
-        })
+        }, headers=self._auth_headers())
         supplier_id = resp.get_json()['id']
 
         # 创建物料
@@ -290,7 +294,7 @@ class TestOutOrderAPI(TestBase):
             'code': 'TEST-OUT-001',
             'unit': '个',
             'category_code': '0101'
-        })
+        }, headers=self._auth_headers())
         material_id = resp.get_json()['id']
 
         # 创建入库单
@@ -304,11 +308,11 @@ class TestOutOrderAPI(TestBase):
                 'quantity': 100,
                 'unit_price': 10.0
             }]
-        })
+        }, headers=self._auth_headers())
         in_order_id = resp.get_json()['id']
 
         # 审核入库单
-        resp = self.client.post(f'/api/in-orders/{in_order_id}/approve')
+        resp = self.client.post(f'/api/in-orders/{in_order_id}/approve', headers=self._auth_headers())
         self.assertEqual(resp.status_code, 200)
 
         # 创建出库单
@@ -324,7 +328,7 @@ class TestOutOrderAPI(TestBase):
                 'actual_quantity': 50,
                 'requested_quantity': 50
             }]
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 201)
 
     def test_out_order_detail_pagination_by_items(self):
@@ -334,7 +338,7 @@ class TestOutOrderAPI(TestBase):
             'name': '测试供应商-出分页',
             'contact': '测试',
             'phone': '13800138002'
-        })
+        }, headers=self._auth_headers())
         supplier_id = resp.get_json()['id']
 
         # 创建10个物料
@@ -345,7 +349,7 @@ class TestOutOrderAPI(TestBase):
                 'code': f'TEST-OUT-PAGE-{i:02d}',
                 'unit': '个',
                 'category_code': '0101'
-            })
+            }, headers=self._auth_headers())
             material_ids.append(resp.get_json()['id'])
 
         # 创建入库单 with 10 items（审核通过）
@@ -363,9 +367,9 @@ class TestOutOrderAPI(TestBase):
             'operator_id': 1,
             'receiver': '出库分页测试',
             'items': items
-        })
+        }, headers=self._auth_headers())
         in_order_id = resp.get_json()['id']
-        resp = self.client.post(f'/api/in-orders/{in_order_id}/approve')
+        resp = self.client.post(f'/api/in-orders/{in_order_id}/approve', headers=self._auth_headers())
         self.assertEqual(resp.status_code, 200)
 
         # 创建出库单 with 10 items
@@ -385,7 +389,7 @@ class TestOutOrderAPI(TestBase):
             'operator_id': 1,
             'purpose': '出库分页测试用',
             'items': out_items
-        })
+        }, headers=self._auth_headers())
         self.assertEqual(resp.status_code, 201)
 
         # 查询 page 1, per_page=5
@@ -411,8 +415,8 @@ class TestReportAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_inventory_report(self):
         """库存汇总报表"""
@@ -436,8 +440,8 @@ class TestEmployeeAPI(TestBase):
         self.client = app.test_client()
         self.client.post('/api/auth/login', json={
             'username': 'admin',
-            'password': 'admin123'
-        })
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
 
     def test_get_employees(self):
         """获取员工列表"""

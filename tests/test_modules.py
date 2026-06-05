@@ -39,26 +39,23 @@ class TestBase(unittest.TestCase):
 class TestDatabase(TestBase):
 
     def test_db_connection(self):
-        conn = get_db_connection()
-        self.assertIsNotNone(conn)
-        conn.close()
+        with get_db_connection() as conn:
+            self.assertIsNotNone(conn)
 
     def test_user_table_exists(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")
-        result = cursor.fetchone()
-        self.assertIsNotNone(result)
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")
+            result = cursor.fetchone()
+            self.assertIsNotNone(result)
 
     def test_default_admin_user(self):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, username, password, created_at, permission_level FROM user WHERE username='admin'")
-        user = cursor.fetchone()
-        self.assertIsNotNone(user)
-        self.assertEqual(user['username'], 'admin')
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, username, password, created_at, permission_level FROM user WHERE username='admin'")
+            user = cursor.fetchone()
+            self.assertIsNotNone(user)
+            self.assertEqual(user['username'], 'admin')
 
 
 class TestMaterialService(TestBase):
@@ -319,19 +316,17 @@ class TestReusableMaterial(TestBase):
 
         # 可回用物料审核后库存扣减为0（和普通物料一样）
         # get_inventory_by_material有quantity>0过滤，用直接查询验证
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material_id, 'BATCH-GLUE-001'))
-        row = cursor.fetchone()
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material_id, 'BATCH-GLUE-001'))
+            row = cursor.fetchone()
         self.assertEqual(row['quantity'], 0)
 
         # 检查reusable_material_weight表有记录
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, return_gross_weight, return_weight_time, return_operator_id, actual_net_weight, status, remark FROM reusable_material_weight WHERE material_id = ?", (material_id,))
-        weight_record = cursor.fetchone()
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, return_gross_weight, return_weight_time, return_operator_id, actual_net_weight, status, remark FROM reusable_material_weight WHERE material_id = ?", (material_id,))
+            weight_record = cursor.fetchone()
         self.assertIsNotNone(weight_record)
         self.assertEqual(weight_record['initial_gross_weight'], 35.5)
         self.assertEqual(weight_record['status'], 'checked_out')
@@ -388,11 +383,10 @@ class TestReturnOrder(TestBase):
         )
 
         # 可回用物料出库后库存锁定为0
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material['id'], 'BATCH-B001'))
-        row = cursor.fetchone()
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT quantity FROM inventory WHERE material_id = ? AND batch_no = ?", (material['id'], 'BATCH-B001'))
+            row = cursor.fetchone()
         self.assertEqual(row['quantity'], 0)
 
         # 3. 创建退库单（退回毛重25.5，净用量=35.5-25.5=10）

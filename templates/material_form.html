@@ -89,7 +89,7 @@ async function loadCategories() {
         const select = document.getElementById('category-select');
         // 只显示大类 (level=1)
         categories.filter(c => c.level === 1).forEach(cat => {
-            select.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
         });
         select.addEventListener('change', loadMinorCategories);
     }
@@ -104,7 +104,7 @@ function loadMinorCategories() {
 
     // 只显示小类 (level=2) 且 parent_code 匹配
     allCategories.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
-        minorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+        minorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
     });
 }
 

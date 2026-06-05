@@ -57,7 +57,7 @@ async function loadCategories() {
     categoriesData = data || [];
     const majorSelect = document.getElementById('search-major-category');
     categoriesData.filter(c => c.level === 1).forEach(c => {
-        majorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+        majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
     });
 }
 
@@ -67,7 +67,7 @@ function onMajorChange() {
     minorSelect.innerHTML = '<option value="">全部小类</option>';
     if (majorCode) {
         categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
-            minorSelect.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
         });
     }
 }
@@ -99,14 +99,14 @@ function renderReport(items) {
     }
     tbody.innerHTML = items.map(item => `
         <tr class="${item.status === '低于安全库存' ? 'warning-row' : ''}">
-            <td>${item.material_code}</td>
-            <td>${item.material_name}</td>
-            <td>${item.manufacturer || ''}</td>
-            <td>${item.spec || ''}</td>
-            <td>${item.unit}</td>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
             <td>${Number(item.quantity).toFixed(2)}</td>
-            <td>${item.safety_stock}</td>
-            <td><span class="status ${item.status === '低于安全库存' ? 'warning' : ''}">${item.status}</span></td>
+            <td>${escapeHtml(item.safety_stock)}</td>
+            <td><span class="status ${item.status === '低于安全库存' ? 'warning' : ''}">${escapeHtml(item.status)}</span></td>
         </tr>
     `).join('');
 }

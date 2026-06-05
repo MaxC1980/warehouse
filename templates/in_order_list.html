@@ -82,19 +82,19 @@ function renderOrders(orders) {
     }
     tbody.innerHTML = orders.map(o => `
         <tr>
-            <td><a href="/in-orders/${o.id}/detail">${o.order_no}</a></td>
-            <td>${o.supplier_name || ''}</td>
-            <td>${o.receiver || ''}</td>
-            <td>${o.receiver_date || ''}</td>
-            <td>${o.purpose || ''}</td>
-            <td>${o.operator_name || ''}</td>
-            <td><span class="status ${o.status}">${getStatusText(o.status)}</span></td>
-            <td>${o.created_at}</td>
+            <td><a href="/in-orders/${escapeHtml(o.id)}/detail">${escapeHtml(o.order_no)}</a></td>
+            <td>${escapeHtml(o.supplier_name)}</td>
+            <td>${escapeHtml(o.receiver)}</td>
+            <td>${escapeHtml(o.receiver_date)}</td>
+            <td>${escapeHtml(o.purpose)}</td>
+            <td>${escapeHtml(o.operator_name)}</td>
+            <td><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
+            <td>${escapeHtml(o.created_at)}</td>
             <td>
                 ${o.status === 'pending' ? `
-                    ${currentPermissionLevel >= 2 ? `<a href="/in-orders/${o.id}/edit" class="btn btn-sm">编辑</a>` : ''}
-                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${o.id})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
-                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${o.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<a href="/in-orders/${escapeHtml(o.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : ''}
             </td>
         </tr>

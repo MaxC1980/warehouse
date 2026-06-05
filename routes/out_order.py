@@ -2,13 +2,14 @@ from flask import Blueprint, request, jsonify, session, make_response
 from services.order_service import OrderService
 from services.auth_service import AuthService
 from utils.excel_utils import export_to_excel
+from utils.pagination import get_per_page
 
 out_order_bp = Blueprint('out_order', __name__)
 
 @out_order_bp.route('/out-orders', methods=['GET'])
 def get_out_orders():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -111,13 +112,15 @@ def approve_out_order(order_id):
         if result:
             return jsonify(result)
         return jsonify({'error': 'Order not found or cannot be approved'}), 400
-    except Exception as e:
+    except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except Exception:
+        return jsonify({'error': '服务器内部错误'}), 500
 
 @out_order_bp.route('/out-orders/detail', methods=['GET'])
 def get_out_orders_with_details():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page(max_value=1000)
     status = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
@@ -154,7 +157,7 @@ def export_out_orders_detail():
 
     orders, _, _ = OrderService.get_out_orders_with_details(
         page=1,
-        per_page=10000,
+        per_page=None,
         status=status,
         start_date=start_date,
         end_date=end_date,
@@ -212,7 +215,7 @@ def get_out_order_item_weight(order_id, item_id):
 def get_weight_records():
     """获取所有称重记录"""
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page()
     status = request.args.get('status')
     keyword = request.args.get('keyword')
 

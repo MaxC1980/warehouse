@@ -78,7 +78,7 @@ async function loadCategories() {
     if (data) {
         categoriesData = data;
         data.filter(c => c.level === 1).forEach(cat => {
-            majorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+            majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.code)} - ${escapeHtml(cat.name)}</option>`;
         });
     }
     initialLoad = false; // 关闭首次加载标记，之后可以保存状态
@@ -117,7 +117,7 @@ function restoreFilterState() {
         const minorSelect = document.getElementById('minor-category');
         minorSelect.innerHTML = '<option value="">全部小类</option>';
         categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
-            minorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.code)} - ${escapeHtml(cat.name)}</option>`;
         });
         minorSelect.value = state.minorCategory || '';
     }
@@ -133,7 +133,7 @@ function onMajorCategoryChange() {
     minorSelect.innerHTML = '<option value="">全部小类</option>';
     if (majorCode) {
         categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
-            minorSelect.innerHTML += `<option value="${cat.code}">${cat.code} - ${cat.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.code)} - ${escapeHtml(cat.name)}</option>`;
         });
     }
     currentPage = 1;
@@ -169,18 +169,18 @@ function renderMaterials(materials) {
     }
     tbody.innerHTML = materials.map(m => `
         <tr>
-            <td>${m.code}</td>
-            <td>${m.name}</td>
-            <td>${m.spec || ''}</td>
-            <td>${m.category_name || ''}</td>
-            <td>${m.unit}</td>
-            <td>${m.manufacturer || ''}</td>
-            <td>${m.storage_condition || '常温'}</td>
-            <td>${m.shelf_life || '-'}</td>
-            <td>${m.remark || ''}</td>
+            <td>${escapeHtml(m.code)}</td>
+            <td>${escapeHtml(m.name)}</td>
+            <td>${escapeHtml(m.spec)}</td>
+            <td>${escapeHtml(m.category_name)}</td>
+            <td>${escapeHtml(m.unit)}</td>
+            <td>${escapeHtml(m.manufacturer)}</td>
+            <td>${escapeHtml(m.storage_condition) || '常温'}</td>
+            <td>${escapeHtml(m.shelf_life) || '-'}</td>
+            <td>${escapeHtml(m.remark)}</td>
             <td>
-                ${currentPermissionLevel >= 2 ? `<a href="/materials/${m.id}/edit" class="btn btn-sm">编辑</a>` : ''}
-                ${currentPermissionLevel >= 2 ? `<button onclick="deleteMaterial(${m.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                ${currentPermissionLevel >= 2 ? `<a href="/materials/${escapeHtml(m.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${currentPermissionLevel >= 2 ? `<button onclick="deleteMaterial(${escapeHtml(m.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');

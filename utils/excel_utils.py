@@ -34,7 +34,7 @@ def import_from_excel(file):
 
     # Header mapping: normalize Chinese headers to English keys
     header_map = {
-        '编码': 'code',
+        '编码': 'code', '代码': 'code',
         '物料名称': 'name', '货品名称': 'name', '物品名称': 'name', '名称': 'name',
         '规格型号': 'spec', '规格': 'spec',
         '单位': 'unit',
@@ -65,29 +65,6 @@ def import_from_excel(file):
                 row_data[normalized_key] = cell_value
         # Skip empty rows
         if any(v is not None for v in row_data.values()):
-            data.append(row_data)
-
-    return data
-
-def import_from_excel_by_position(file, num_columns, skip_header=True):
-    """Import data from Excel file using position-based columns
-    Returns list of dicts with keys 'col1', 'col2', etc."""
-    wb = load_workbook(file)
-    ws = wb.active
-
-    # Start from row 2 if skip_header, otherwise from row 1
-    start_row = 2 if skip_header else 1
-    data = []
-    for row_idx in range(start_row, ws.max_row + 1):
-        row_data = {}
-        has_value = False
-        for col_idx in range(1, num_columns + 1):
-            cell_value = ws.cell(row=row_idx, column=col_idx).value
-            row_data[f'col{col_idx}'] = cell_value
-            if cell_value is not None:
-                has_value = True
-        # Skip empty rows
-        if has_value:
             data.append(row_data)
 
     return data

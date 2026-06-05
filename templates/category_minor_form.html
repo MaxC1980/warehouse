@@ -42,7 +42,7 @@ async function loadMajorCategories() {
         const majorCategories = categories.filter(c => c.level === 1);
         const select = document.getElementById('parent-select');
         majorCategories.forEach(cat => {
-            select.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
         });
         return categories;
     }

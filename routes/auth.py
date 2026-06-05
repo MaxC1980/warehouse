@@ -1,10 +1,70 @@
 from flask import Blueprint, request, jsonify, session
 from services.auth_service import AuthService
+from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
 
+# Rate limiting by IP: {ip: [fail_count, lockout_until]}
+_login_attempts = {}
+# Account lockout: {username: [fail_count, lockout_until]}
+_account_attempts = {}
+MAX_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+def _check_rate_limit(ip):
+    now = datetime.now()
+    if ip in _login_attempts:
+        count, lockout_until = _login_attempts[ip]
+        if lockout_until and now < lockout_until:
+            return False, int((lockout_until - now).total_seconds())
+        if lockout_until and now >= lockout_until:
+            _login_attempts[ip] = [0, None]
+    return True, 0
+
+def _check_account_lock(username):
+    now = datetime.now()
+    if username in _account_attempts:
+        count, lockout_until = _account_attempts[username]
+        if lockout_until and now < lockout_until:
+            return False, int((lockout_until - now).total_seconds())
+        if lockout_until and now >= lockout_until:
+            _account_attempts[username] = [0, None]
+    return True, 0
+
+def _record_failure(ip, username):
+    now = datetime.now()
+    # IP
+    if ip not in _login_attempts:
+        _login_attempts[ip] = [1, None]
+    else:
+        count, _ = _login_attempts[ip]
+        count += 1
+        if count >= MAX_ATTEMPTS:
+            _login_attempts[ip] = [count, now + timedelta(minutes=LOCKOUT_MINUTES)]
+        else:
+            _login_attempts[ip] = [count, None]
+    # Account
+    if username not in _account_attempts:
+        _account_attempts[username] = [1, None]
+    else:
+        count, _ = _account_attempts[username]
+        count += 1
+        if count >= MAX_ATTEMPTS:
+            _account_attempts[username] = [count, now + timedelta(minutes=LOCKOUT_MINUTES)]
+        else:
+            _account_attempts[username] = [count, None]
+
+def _clear_failures(ip, username):
+    _login_attempts.pop(ip, None)
+    _account_attempts.pop(username, None)
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    ip = request.remote_addr
+    allowed, wait_seconds = _check_rate_limit(ip)
+    if not allowed:
+        return jsonify({'error': f'登录失败次数过多，请 {wait_seconds} 秒后重试'}), 429
+
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -12,8 +72,13 @@ def login():
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
 
+    allowed, wait_seconds = _check_account_lock(username)
+    if not allowed:
+        return jsonify({'error': f'该账号已锁定，请 {wait_seconds} 秒后重试'}), 429
+
     user = AuthService.authenticate(username, password)
     if user:
+        _clear_failures(ip, username)
         session['user_id'] = user['id']
         session['username'] = user['username']
         session['permission_level'] = user.get('permission_level', 1)
@@ -22,6 +87,7 @@ def login():
             'username': user['username'],
             'permission_level': user.get('permission_level', 1)
         })
+    _record_failure(ip, username)
     return jsonify({'error': 'Invalid credentials'}), 401
 
 @auth_bp.route('/logout', methods=['POST'])

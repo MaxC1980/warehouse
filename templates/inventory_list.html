@@ -85,7 +85,7 @@ async function loadCategories() {
         const majorSelect = document.getElementById('major-category');
         // Filter majors (level=1)
         categories.filter(c => c.level === 1).forEach(cat => {
-            majorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
         });
     }
 }
@@ -98,7 +98,7 @@ function onMajorCategoryChange() {
     if (majorCode) {
         // Filter minors by parent_code
         categories.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
-            minorSelect.innerHTML += `<option value="${cat.code}">${cat.name}</option>`;
+            minorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
         });
     }
     loadInventory();
@@ -203,28 +203,28 @@ function renderInventory(inventory) {
     if (currentMode === 'detail') {
         tbody.innerHTML = inventory.map(item => `
             <tr class="${item.status === '过期' ? 'expired-row' : ''}">
-                <td>${item.material_code}</td>
-                <td>${item.material_name}</td>
-                <td>${item.manufacturer || ''}</td>
-                <td>${item.spec || ''}</td>
-                <td>${item.unit}</td>
-                <td>${item.batch_no || '-'}</td>
-                <td>${item.production_date || '-'}</td>
-                <td>${item.expiry_date || '-'}</td>
+                <td>${escapeHtml(item.material_code)}</td>
+                <td>${escapeHtml(item.material_name)}</td>
+                <td>${escapeHtml(item.manufacturer)}</td>
+                <td>${escapeHtml(item.spec)}</td>
+                <td>${escapeHtml(item.unit)}</td>
+                <td>${escapeHtml(item.batch_no) || '-'}</td>
+                <td>${escapeHtml(item.production_date) || '-'}</td>
+                <td>${escapeHtml(item.expiry_date) || '-'}</td>
                 <td>${Number(item.quantity).toFixed(2)}</td>
                 <td>${item.pending_in || 0}</td>
                 <td>${item.pending_out || 0}</td>
-                <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${item.status}</span></td>
+                <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${escapeHtml(item.status)}</span></td>
             </tr>
         `).join('');
     } else {
         tbody.innerHTML = inventory.map(item => `
             <tr>
-                <td>${item.material_code}</td>
-                <td>${item.material_name}</td>
-                <td>${item.manufacturer || ''}</td>
-                <td>${item.spec || ''}</td>
-                <td>${item.unit}</td>
+                <td>${escapeHtml(item.material_code)}</td>
+                <td>${escapeHtml(item.material_name)}</td>
+                <td>${escapeHtml(item.manufacturer)}</td>
+                <td>${escapeHtml(item.spec)}</td>
+                <td>${escapeHtml(item.unit)}</td>
                 <td>${Number(item.quantity).toFixed(2)}</td>
                 <td>${item.pending_in || 0}</td>
                 <td>${item.pending_out || 0}</td>

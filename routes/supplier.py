@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify, session
 from services.supplier_service import SupplierService
+from utils.pagination import get_per_page
 
 supplier_bp = Blueprint('supplier', __name__)
 
 @supplier_bp.route('/suppliers', methods=['GET'])
 def get_suppliers():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
+    per_page = get_per_page(max_value=1000)
     keyword = request.args.get('keyword')
 
     suppliers, total = SupplierService.get_suppliers(

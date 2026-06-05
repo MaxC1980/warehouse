@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify, make_response
 from services.report_service import ReportService
 from utils.excel_utils import export_to_excel
+from utils.pagination import get_per_page
 
 report_bp = Blueprint('report', __name__)
 
 @report_bp.route('/reports/inventory', methods=['GET'])
 def get_inventory_report():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 100, type=int)
+    per_page = get_per_page(default=100, max_value=200)
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
@@ -29,7 +30,7 @@ def get_inventory_report():
 @report_bp.route('/reports/in-detail', methods=['GET'])
 def get_in_detail_report():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 100, type=int)
+    per_page = get_per_page(default=100, max_value=200)
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     material_id = request.args.get('material_id', type=int)
@@ -51,7 +52,7 @@ def get_in_detail_report():
 @report_bp.route('/reports/out-detail', methods=['GET'])
 def get_out_detail_report():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 100, type=int)
+    per_page = get_per_page(default=100, max_value=200)
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     material_id = request.args.get('material_id', type=int)
@@ -89,7 +90,7 @@ def export_inventory_report():
 
     report_data, _ = ReportService.get_inventory_report(
         page=1,
-        per_page=10000,
+        per_page=None,
         keyword=keyword,
         major_category=major_category,
         minor_category=minor_category
@@ -121,7 +122,7 @@ def export_in_detail_report():
 
     report_data, _ = ReportService.get_in_detail_report(
         page=1,
-        per_page=10000,
+        per_page=None,
         date_from=date_from,
         date_to=date_to,
         material_id=material_id
@@ -156,7 +157,7 @@ def export_out_detail_report():
 
     report_data, _ = ReportService.get_out_detail_report(
         page=1,
-        per_page=10000,
+        per_page=None,
         date_from=date_from,
         date_to=date_to,
         material_id=material_id
@@ -185,7 +186,7 @@ def export_out_detail_report():
 @report_bp.route('/reports/stock-flow', methods=['GET'])
 def get_stock_flow_report():
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 100, type=int)
+    per_page = get_per_page(default=100, max_value=200)
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     keyword = request.args.get('keyword')
@@ -194,17 +195,21 @@ def get_stock_flow_report():
     hide_zero = request.args.get('hide_zero') == '1'
     hide_no_change = request.args.get('hide_no_change') == '1'
 
-    report_data, total = ReportService.get_stock_flow_report(
-        page=page,
-        per_page=per_page,
-        date_from=date_from,
-        date_to=date_to,
-        keyword=keyword,
-        major_category=major_category,
-        minor_category=minor_category,
-        hide_zero=hide_zero,
-        hide_no_change=hide_no_change
-    )
+    try:
+        report_data, total = ReportService.get_stock_flow_report(
+            page=page,
+            per_page=per_page,
+            date_from=date_from,
+            date_to=date_to,
+            keyword=keyword,
+            major_category=major_category,
+            minor_category=minor_category,
+            hide_zero=hide_zero,
+            hide_no_change=hide_no_change
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
     return jsonify({
         'items': report_data,
         'total': total,
@@ -222,17 +227,20 @@ def export_stock_flow_report():
     hide_zero = request.args.get('hide_zero') == '1'
     hide_no_change = request.args.get('hide_no_change') == '1'
 
-    report_data, _ = ReportService.get_stock_flow_report(
-        page=1,
-        per_page=10000,
-        date_from=date_from,
-        date_to=date_to,
-        keyword=keyword,
-        major_category=major_category,
-        minor_category=minor_category,
-        hide_zero=hide_zero,
-        hide_no_change=hide_no_change
-    )
+    try:
+        report_data, _ = ReportService.get_stock_flow_report(
+            page=1,
+            per_page=None,
+            date_from=date_from,
+            date_to=date_to,
+            keyword=keyword,
+            major_category=major_category,
+            minor_category=minor_category,
+            hide_zero=hide_zero,
+            hide_no_change=hide_no_change
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
     columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '期初数', '入库数', '出库数', '退库数', '期末数']
     data = [[
