@@ -37,7 +37,7 @@
         <div class="action-buttons">
             {% if has_perm('in_order', 'edit') %}<a href="/in-orders/new" class="btn btn-primary">新建入库单</a>{% endif %}
             {% if has_perm('out_order', 'edit') %}<a href="/out-orders/new" class="btn btn-primary">新建出库单</a>{% endif %}
-            <a href="/inventory" class="btn btn-primary">库存查询</a>
+            {% if has_perm('inventory', 'view') %}<a href="/inventory" class="btn btn-primary">库存查询</a>{% endif %}
         </div>
     </div>
 </div>

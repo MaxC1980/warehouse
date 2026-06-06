@@ -30,14 +30,6 @@ def init_db():
             )
         ''')
 
-        # Add permission_level column if it doesn't exist (for existing databases)
-        cursor.execute("PRAGMA table_info(user)")
-        columns = [col[1] for col in cursor.fetchall()]
-        if 'permission_level' not in columns:
-            cursor.execute("ALTER TABLE user ADD COLUMN permission_level INTEGER DEFAULT 1")
-            # Set admin permission_level = 3
-            cursor.execute("UPDATE user SET permission_level = 3 WHERE username = 'admin'")
-
         # Employee table (经手人/领用人/退库人)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS employee (
@@ -367,19 +359,11 @@ def init_db():
                 cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
                                (viewer_role_id, row['id']))
 
-            # Migrate existing users to roles based on permission_level
-            cursor.execute("SELECT id, permission_level FROM user WHERE id NOT IN (SELECT user_id FROM user_role)")
+            # Migrate existing users without roles to viewer role
+            cursor.execute("SELECT id FROM user WHERE id NOT IN (SELECT user_id FROM user_role)")
             for user in cursor.fetchall():
-                level = user['permission_level'] or 1
-                if level >= 3:
-                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
-                                   (user['id'], admin_role_id))
-                elif level >= 2:
-                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
-                                   (user['id'], operator_role_id))
-                else:
-                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
-                                   (user['id'], viewer_role_id))
+                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                               (user['id'], viewer_role_id))
 
         # Create indexes
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_order_no ON in_order(order_no)')
@@ -453,40 +437,17 @@ def init_db():
             END
         ''')
 
-        # Insert default users if not exists and assign roles
-        # Level 1 (查看): view / view123
-        # Level 2 (编辑): edit / edit123
-        # Level 3 (管理): admin / admin123
+        # Insert admin user if not exists and assign admin role
         cursor.execute("SELECT id FROM user WHERE username = 'admin'")
         if not cursor.fetchone():
             cursor.execute(
-                "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
-                ('admin', 'admin12345', 3)
+                "INSERT INTO user (username, password) VALUES (?, ?)",
+                ('admin', 'admin12345')
             )
             admin_user_id = cursor.lastrowid
             if admin_role:
                 cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
                                (admin_user_id, admin_role['id']))
-        cursor.execute("SELECT id FROM user WHERE username = 'view'")
-        if not cursor.fetchone():
-            cursor.execute(
-                "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
-                ('view', 'view123', 1)
-            )
-            view_user_id = cursor.lastrowid
-            if viewer_role:
-                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
-                               (view_user_id, viewer_role['id']))
-        cursor.execute("SELECT id FROM user WHERE username = 'edit'")
-        if not cursor.fetchone():
-            cursor.execute(
-                "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
-                ('edit', 'edit123', 2)
-            )
-            edit_user_id = cursor.lastrowid
-            if operator_role:
-                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
-                               (edit_user_id, operator_role['id']))
 
         conn.commit()
 

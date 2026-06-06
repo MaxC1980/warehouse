@@ -454,6 +454,34 @@ class TestEmployeeAPI(TestBase):
 class TestRBACPermissions(TestBase):
     """RBAC 权限测试"""
 
+    def setUp(self):
+        super().setUp()
+        # 创建测试用户并分配角色
+        from database import get_db_connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # 创建 view 用户
+            cursor.execute("SELECT id FROM user WHERE username = 'view'")
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO user (username, password) VALUES (?, ?)", ('view', 'view123'))
+                view_user_id = cursor.lastrowid
+                cursor.execute("SELECT id FROM role WHERE name = '查看员'")
+                viewer_role = cursor.fetchone()
+                if viewer_role:
+                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                                   (view_user_id, viewer_role['id']))
+            # 创建 edit 用户
+            cursor.execute("SELECT id FROM user WHERE username = 'edit'")
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO user (username, password) VALUES (?, ?)", ('edit', 'edit123'))
+                edit_user_id = cursor.lastrowid
+                cursor.execute("SELECT id FROM role WHERE name = '操作员'")
+                operator_role = cursor.fetchone()
+                if operator_role:
+                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                                   (edit_user_id, operator_role['id']))
+            conn.commit()
+
     def test_login_returns_permissions(self):
         """登录应返回权限列表"""
         resp = self.client.post('/api/auth/login', json={

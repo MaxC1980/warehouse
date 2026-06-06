@@ -139,7 +139,8 @@ async function showUserRoles(userId, username) {
     const user = (await apiRequest('/admin/users')).find(u => u.id === userId);
     if (!user) return;
 
-    const currentRoles = allRoles.filter(r => user.roles && user.roles.includes(r.name));
+    const userRoleNames = user.roles ? user.roles.split(', ') : [];
+    const currentRoles = allRoles.filter(r => userRoleNames.includes(r.name));
     const currentRoleIds = currentRoles.map(r => r.id);
 
     let html = '<div class="modal" style="display:flex;" id="user-role-modal">';
