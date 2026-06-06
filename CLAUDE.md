@@ -87,6 +87,8 @@ python app.py      # 生产环境（端口5000，用 waitress）
 - **Database** (`database.py`) - SQLite 连接，`get_db_connection()`
 - **Templates** (`templates/`) - Jinja2 模板
 - **utils/pagination.py** - `get_per_page(default, max_value)` 分页上限工具
+- **utils/decorators.py** - `@require_permission(module, action)` 权限装饰器
+- **services/permission_service.py** - RBAC 权限服务（角色 CRUD、权限查询、用户分配）
 
 ## API 调用
 
@@ -107,6 +109,19 @@ with get_db_connection() as conn:
 # sqlite3.Row 不支持 .get()，用 row['col'] 直接访问
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
 ```
+
+## 权限（RBAC）
+
+基于角色的访问控制，替代旧的 3 级数值权限。
+
+- 4 张表：`role`、`user_role`、`permission`、`role_permission`
+- 29 条权限：13 模块 × 3 动作（view/edit/approve），部分模块只有 view 或 manage
+- 默认角色：管理员（全部）、操作员（view+edit）、查看员（仅 view）
+- 路由层：`@require_permission('module', 'action')` 装饰器
+- 页面层：`before_request` 路径映射拦截无权限页面
+- 模板层：`has_perm(module, 'action')` 控制菜单和按钮显隐
+- 管理页面：`/admin/roles-page`（角色管理）、`/admin/users-page`（用户管理）
+- 新增模块需改：`database.py`（种子数据）+ `create_app.py`（路径映射）+ `base.html`（菜单）+ 路由装饰器 + 模板按钮
 
 ## 安全
 
@@ -138,3 +153,4 @@ playwright-cli snapshot
 调试产物放 `debug/` 目录。
 
 ## 业务逻辑查看@docs/业务逻辑.md
+## 新增模块清单查看@docs/新增模块清单.md

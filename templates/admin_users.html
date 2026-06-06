@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>用户管理</h1>
+    <div class="page-actions">
+        <button onclick="showCreateForm()" class="btn btn-primary">新增用户</button>
+    </div>
+</div>
+
+<div id="create-form" style="display:none; margin-bottom:20px; padding:16px; border:1px solid #ddd; border-radius:8px;">
+    <h3>新增用户</h3>
+    <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="new-username" placeholder="登录用户名">
+    </div>
+    <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="new-password" placeholder="至少6位" minlength="6">
+    </div>
+    <div class="form-actions">
+        <button onclick="createUser()" class="btn btn-primary">创建</button>
+        <button onclick="hideCreateForm()" class="btn btn-secondary">取消</button>
+    </div>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>用户名</th>
+                <th>当前角色</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allRoles = [];
+
+async function loadUsers() {
+    const [users, roles] = await Promise.all([
+        apiRequest('/admin/users'),
+        apiRequest('/admin/roles')
+    ]);
+    if (roles) allRoles = roles;
+    renderUsers(users || []);
+}
+
+function renderUsers(users) {
+    const tbody = document.getElementById('users-tbody');
+    tbody.innerHTML = users.map(u => `
+        <tr>
+            <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml(u.roles || '无')}</td>
+            <td>
+                ${u.username !== 'admin' ? `<button onclick="showUserRoles(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm">分配角色</button>` : ''}
+                <button onclick="showResetPassword(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm">重置密码</button>
+                ${u.username !== 'admin' ? `<button onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm btn-danger">删除</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showCreateForm() {
+    document.getElementById('create-form').style.display = 'block';
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('new-username').focus();
+}
+
+function hideCreateForm() {
+    document.getElementById('create-form').style.display = 'none';
+}
+
+async function createUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value.trim();
+
+    if (!username || !password) { alert('请填写用户名和密码'); return; }
+    if (password.length < 6) { alert('密码长度不能少于6位'); return; }
+
+    const result = await apiRequest('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify({ username, password })
+    });
+    if (result) {
+        hideCreateForm();
+        loadUsers();
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`确定要删除用户"${username}"吗？`)) return;
+    const result = await apiRequest(`/admin/users/${userId}`, { method: 'DELETE' });
+    if (result) loadUsers();
+}
+
+function showResetPassword(userId, username) {
+    let html = '<div class="modal" style="display:flex;" id="reset-pwd-modal">';
+    html += '<div class="modal-content" style="max-width:400px;">';
+    html += `<h3>重置 ${escapeHtml(username)} 的密码</h3>`;
+    html += '<div class="form-group"><label>新密码</label><input type="password" id="reset-pwd-input" placeholder="至少6位" minlength="6"></div>';
+    html += '<div class="form-actions">';
+    html += `<button onclick="resetPassword(${userId})" class="btn btn-primary">确定</button>`;
+    html += '<button onclick="closeResetPwdModal()" class="btn btn-secondary">取消</button>';
+    html += '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('reset-pwd-input').focus();
+}
+
+async function resetPassword(userId) {
+    const new_password = document.getElementById('reset-pwd-input').value.trim();
+    if (!new_password) { alert('请输入新密码'); return; }
+    if (new_password.length < 6) { alert('密码长度不能少于6位'); return; }
+
+    const result = await apiRequest(`/admin/users/${userId}/password`, {
+        method: 'PUT',
+        body: JSON.stringify({ new_password })
+    });
+    if (result) {
+        closeResetPwdModal();
+        alert('密码重置成功');
+    }
+}
+
+function closeResetPwdModal() {
+    const modal = document.getElementById('reset-pwd-modal');
+    if (modal) modal.remove();
+}
+
+async function showUserRoles(userId, username) {
+    const user = (await apiRequest('/admin/users')).find(u => u.id === userId);
+    if (!user) return;
+
+    const currentRoles = allRoles.filter(r => user.roles && user.roles.includes(r.name));
+    const currentRoleIds = currentRoles.map(r => r.id);
+
+    let html = '<div class="modal" style="display:flex;" id="user-role-modal">';
+    html += '<div class="modal-content" style="max-width:400px;">';
+    html += `<h3>为 ${escapeHtml(username)} 分配角色</h3>`;
+    allRoles.forEach(r => {
+        const checked = currentRoleIds.includes(r.id) ? 'checked' : '';
+        html += `<label style="display:block;margin:8px 0;"><input type="checkbox" class="user-role-cb" value="${r.id}" ${checked}> ${escapeHtml(r.name)} - ${escapeHtml(r.description || '')}</label>`;
+    });
+    html += '<div class="form-actions" style="margin-top:16px;">';
+    html += `<button onclick="saveUserRoles(${userId})" class="btn btn-primary">保存</button>`;
+    html += '<button onclick="closeUserRoleModal()" class="btn btn-secondary">取消</button>';
+    html += '</div></div></div>';
+
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function saveUserRoles(userId) {
+    const role_ids = Array.from(document.querySelectorAll('.user-role-cb:checked')).map(cb => parseInt(cb.value));
+    const result = await apiRequest(`/admin/users/${userId}/roles`, {
+        method: 'PUT',
+        body: JSON.stringify({ role_ids })
+    });
+    if (result) {
+        closeUserRoleModal();
+        loadUsers();
+    }
+}
+
+function closeUserRoleModal() {
+    const modal = document.getElementById('user-role-modal');
+    if (modal) modal.remove();
+}
+
+loadUsers();
+</script>
+{% endblock %}

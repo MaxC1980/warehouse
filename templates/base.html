@@ -15,52 +15,78 @@
         <div class="nav-brand">仓库管理系统</div>
         <div class="nav-links">
             <a href="/dashboard" class="nav-link">首页</a>
+            {% if has_perm('category_major', 'view') or has_perm('category_minor', 'view') or has_perm('material', 'view') or has_perm('supplier', 'view') or has_perm('employee', 'view') %}
             <div class="nav-dropdown">
                 <span class="nav-link">基本资料 ▾</span>
                 <div class="nav-dropdown-menu">
-                    <a href="/category-major">大类管理</a>
-                    <a href="/category-minor">小类管理</a>
-                    <a href="/materials">物料管理</a>
-                    <a href="/suppliers">供应商</a>
-                    <a href="/employees">员工管理</a>
+                    {% if has_perm('category_major', 'view') %}<a href="/category-major">大类管理</a>{% endif %}
+                    {% if has_perm('category_minor', 'view') %}<a href="/category-minor">小类管理</a>{% endif %}
+                    {% if has_perm('material', 'view') %}<a href="/materials">物料管理</a>{% endif %}
+                    {% if has_perm('supplier', 'view') %}<a href="/suppliers">供应商</a>{% endif %}
+                    {% if has_perm('employee', 'view') %}<a href="/employees">员工管理</a>{% endif %}
                 </div>
             </div>
+            {% endif %}
+            {% if has_perm('in_order', 'view') %}
             <div class="nav-dropdown">
                 <span class="nav-link">入库单 ▾</span>
                 <div class="nav-dropdown-menu">
-                    <a href="/in-orders/new">入库单新增</a>
+                    {% if has_perm('in_order', 'edit') %}<a href="/in-orders/new">入库单新增</a>{% endif %}
                     <a href="/in-orders">入库单管理</a>
                     <a href="/in-order-details">入库台账</a>
                 </div>
             </div>
+            {% endif %}
+            {% if has_perm('out_order', 'view') %}
             <div class="nav-dropdown">
                 <span class="nav-link">出库单 ▾</span>
                 <div class="nav-dropdown-menu">
-                    <a href="/out-orders/new">出库单新增</a>
+                    {% if has_perm('out_order', 'edit') %}<a href="/out-orders/new">出库单新增</a>{% endif %}
                     <a href="/out-orders">出库单管理</a>
                     <a href="/out-order-details">出库台账</a>
                 </div>
             </div>
+            {% endif %}
+            {% if has_perm('return_order', 'view') %}
             <div class="nav-dropdown">
                 <span class="nav-link">退库单 ▾</span>
                 <div class="nav-dropdown-menu">
-                    <a href="/return-orders/new">退库单新增</a>
+                    {% if has_perm('return_order', 'edit') %}<a href="/return-orders/new">退库单新增</a>{% endif %}
                     <a href="/return-orders">退库单管理</a>
                     <a href="/return-order-details">退库台账</a>
-                    <a href="/weight-records">称重记录</a>
                 </div>
             </div>
-            <a href="/inventory" class="nav-link">库存查询</a>
+            {% endif %}
+            {% if has_perm('inventory', 'view') or has_perm('weight_record', 'view') %}
             <div class="nav-dropdown">
-                <span class="nav-link">报表 ▾</span>
+                <span class="nav-link">日常查询 ▾</span>
                 <div class="nav-dropdown-menu">
-                    <a href="/reports/inventory">库存报表</a>
-                    <a href="/reports/stock-flow">出入库报表</a>
-                    <a href="/reports/in-detail">入库明细报表</a>
-                    <a href="/reports/out-detail">出库明细报表</a>
-                    <a href="/reports/summary">汇总统计</a>
+                    {% if has_perm('inventory', 'view') %}<a href="/inventory">库存查询</a>{% endif %}
+                    {% if has_perm('weight_record', 'view') %}<a href="/weight-records">称重记录</a>{% endif %}
                 </div>
             </div>
+            {% endif %}
+            {% if has_perm('report_inventory', 'view') or has_perm('report_stock_flow', 'view') or has_perm('report_in_detail', 'view') or has_perm('report_out_detail', 'view') or has_perm('report_summary', 'view') %}
+            <div class="nav-dropdown">
+                <span class="nav-link">报表分析 ▾</span>
+                <div class="nav-dropdown-menu">
+                    {% if has_perm('report_inventory', 'view') %}<a href="/reports/inventory">库存报表</a>{% endif %}
+                    {% if has_perm('report_stock_flow', 'view') %}<a href="/reports/stock-flow">出入库报表</a>{% endif %}
+                    {% if has_perm('report_in_detail', 'view') %}<a href="/reports/in-detail">入库明细报表</a>{% endif %}
+                    {% if has_perm('report_out_detail', 'view') %}<a href="/reports/out-detail">出库明细报表</a>{% endif %}
+                    {% if has_perm('report_summary', 'view') %}<a href="/reports/summary">汇总统计</a>{% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% if has_perm('admin_role', 'manage') or has_perm('admin_user', 'manage') %}
+            <div class="nav-dropdown">
+                <span class="nav-link">权限管理 ▾</span>
+                <div class="nav-dropdown-menu">
+                    {% if has_perm('admin_role', 'manage') %}<a href="/admin/roles-page">角色管理</a>{% endif %}
+                    {% if has_perm('admin_user', 'manage') %}<a href="/admin/users-page">用户管理</a>{% endif %}
+                </div>
+            </div>
+            {% endif %}
             <div class="nav-dropdown">
                 <span class="nav-user" style="cursor:pointer;">{{ session.username }} ▾</span>
                 <div class="nav-dropdown-menu">
@@ -75,6 +101,14 @@
     <main class="container">
         {% block content %}{% endblock %}
     </main>
+
+    <script>
+    // 权限检查函数（由后端 context_processor 注入）
+    const userPermissions = {{ user_permissions | tojson }};
+    function hasPerm(module, action) {
+        return userPermissions.some(p => p[0] === module && p[1] === action);
+    }
+    </script>
 
     {% block scripts %}{% endblock %}
 

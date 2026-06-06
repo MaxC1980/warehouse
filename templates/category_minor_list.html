@@ -6,8 +6,8 @@
 <div class="page-header">
     <h1>物料小类管理</h1>
     <div class="page-actions">
-        <button onclick="showAddRow()" class="btn btn-primary" id="add-btn">新增小类</button>
-        <button onclick="showImportModal()" class="btn btn-secondary" id="import-btn">Excel导入</button>
+        {% if has_perm('category_minor', 'edit') %}<button onclick="showAddRow()" class="btn btn-primary" id="add-btn">新增小类</button>{% endif %}
+        {% if has_perm('category_minor', 'edit') %}<button onclick="showImportModal()" class="btn btn-secondary" id="import-btn">Excel导入</button>{% endif %}
     </div>
 </div>
 
@@ -189,8 +189,8 @@ function renderCategories() {
                     <td>${escapeHtml(c.code)}</td>
                     <td>${escapeHtml(c.name)}</td>
                     <td>
-                        ${currentPermissionLevel >= 2 ? `<button onclick="startEdit(${escapeHtml(c.id)})" class="btn btn-sm">编辑</button>` : ''}
-                        ${currentPermissionLevel >= 2 ? `<button onclick="deleteCategory(${escapeHtml(c.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                        ${hasPerm('category_minor', 'edit') ? `<button onclick="startEdit(${escapeHtml(c.id)})" class="btn btn-sm">编辑</button>` : ''}
+                        ${hasPerm('category_minor', 'edit') ? `<button onclick="deleteCategory(${escapeHtml(c.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
                         ${c.has_materials ? '<span class="text-muted">已引用</span>' : ''}
                     </td>
                 </tr>
@@ -314,19 +314,6 @@ document.getElementById('import-form').addEventListener('submit', async function
 });
 
 loadMajorCategories();
-
-// Get permission level and hide buttons for read-only users
-let currentPermissionLevel = 1;
-(async () => {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser) {
-        currentPermissionLevel = currentUser.permission_level || 1;
-        if (currentPermissionLevel < 2) {
-            document.getElementById('add-btn').style.display = 'none';
-            document.getElementById('import-btn').style.display = 'none';
-        }
-    }
-})();
 </script>
 
 <style>

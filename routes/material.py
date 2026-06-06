@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from services.material_service import MaterialService
 from utils.pagination import get_per_page
+from utils.decorators import require_permission
 
 material_bp = Blueprint('material', __name__)
 
@@ -10,11 +11,8 @@ def get_categories():
     return jsonify(categories)
 
 @material_bp.route('/categories', methods=['POST'])
+@require_permission('category_major', 'edit')
 def create_category():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     category = MaterialService.create_category(
         code=data.get('code'),
@@ -25,11 +23,8 @@ def create_category():
     return jsonify(category), 201
 
 @material_bp.route('/categories/<int:category_id>', methods=['PUT'])
+@require_permission('category_major', 'edit')
 def update_category(category_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
     ok, category = MaterialService.update_category(
         category_id,
@@ -44,11 +39,8 @@ def update_category(category_id):
     return jsonify({'error': '分类不存在'}), 404
 
 @material_bp.route('/categories/<int:category_id>', methods=['DELETE'])
+@require_permission('category_major', 'edit')
 def delete_category(category_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     result = MaterialService.delete_category(category_id)
     if result == 'ok':
         return jsonify({'message': '分类已删除'})
@@ -90,11 +82,8 @@ def get_material(material_id):
     return jsonify({'error': 'Material not found'}), 404
 
 @material_bp.route('/materials', methods=['POST'])
+@require_permission('material', 'edit')
 def create_material():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     material = MaterialService.create_material(
         name=data.get('name'),
@@ -111,11 +100,8 @@ def create_material():
     return jsonify(material), 201
 
 @material_bp.route('/materials/<int:material_id>', methods=['PUT'])
+@require_permission('material', 'edit')
 def update_material(material_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
     material = MaterialService.update_material(material_id, data)
     if material:
@@ -123,11 +109,8 @@ def update_material(material_id):
     return jsonify({'error': 'Material not found'}), 404
 
 @material_bp.route('/materials/<int:material_id>', methods=['DELETE'])
+@require_permission('material', 'edit')
 def delete_material(material_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     result = MaterialService.delete_material(material_id)
     if result[0]:
         return jsonify({'message': result[1]})

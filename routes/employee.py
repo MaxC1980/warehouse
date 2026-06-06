@@ -1,5 +1,6 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from services.employee_service import EmployeeService
+from utils.decorators import require_permission
 from utils.pagination import get_per_page
 
 employee_bp = Blueprint('employee', __name__)
@@ -30,11 +31,8 @@ def get_employee(employee_id):
     return jsonify({'error': 'Employee not found'}), 404
 
 @employee_bp.route('/employees', methods=['POST'])
+@require_permission('employee', 'edit')
 def create_employee():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     employee = EmployeeService.create_employee(
         name=data.get('name'),
@@ -45,11 +43,8 @@ def create_employee():
     return jsonify(employee), 201
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['PUT'])
+@require_permission('employee', 'edit')
 def update_employee(employee_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
     employee = EmployeeService.update_employee(employee_id, data)
     if employee:
@@ -57,11 +52,8 @@ def update_employee(employee_id):
     return jsonify({'error': 'Employee not found'}), 404
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['DELETE'])
+@require_permission('employee', 'edit')
 def delete_employee(employee_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     success = EmployeeService.delete_employee(employee_id)
     if success:
         return jsonify({'message': 'Employee deleted'})

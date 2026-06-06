@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}角色管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>角色管理</h1>
+    <div class="page-actions">
+        <button onclick="showRoleForm()" class="btn btn-primary">新增角色</button>
+    </div>
+</div>
+
+<div id="role-form" style="display:none; margin-bottom:20px; padding:16px; border:1px solid #ddd; border-radius:8px;">
+    <h3 id="role-form-title">新增角色</h3>
+    <input type="hidden" id="edit-role-id">
+    <div class="form-group">
+        <label>角色名称</label>
+        <input type="text" id="role-name" placeholder="如：审核员">
+    </div>
+    <div class="form-group">
+        <label>描述</label>
+        <input type="text" id="role-desc" placeholder="角色描述">
+    </div>
+    <div class="form-group">
+        <label>权限</label>
+        <div id="permission-matrix"></div>
+    </div>
+    <div class="form-actions">
+        <button onclick="saveRole()" class="btn btn-primary">保存</button>
+        <button onclick="hideRoleForm()" class="btn btn-secondary">取消</button>
+    </div>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>角色名称</th>
+                <th>描述</th>
+                <th>权限数</th>
+                <th>类型</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="roles-tbody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allPermissions = [];
+let allRoles = [];
+
+async function loadRoles() {
+    const [roles, perms] = await Promise.all([
+        apiRequest('/admin/roles'),
+        apiRequest('/admin/permissions')
+    ]);
+    if (roles) allRoles = roles;
+    if (perms) allPermissions = perms;
+    renderRoles();
+}
+
+function renderRoles() {
+    const tbody = document.getElementById('roles-tbody');
+    tbody.innerHTML = allRoles.map(r => `
+        <tr>
+            <td>${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.description)}</td>
+            <td>${r.permissions ? r.permissions.length : 0}</td>
+            <td>${r.is_system ? '<span class="text-muted">系统内置</span>' : '自定义'}</td>
+            <td>
+                <button onclick="editRole(${r.id})" class="btn btn-sm">编辑</button>
+                ${!r.is_system ? `<button onclick="deleteRole(${r.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showRoleForm(role) {
+    document.getElementById('role-form').style.display = 'block';
+    document.getElementById('role-form-title').textContent = role ? '编辑角色' : '新增角色';
+    document.getElementById('edit-role-id').value = role ? role.id : '';
+    document.getElementById('role-name').value = role ? role.name : '';
+    document.getElementById('role-desc').value = role ? (role.description || '') : '';
+    renderPermissionMatrix(role ? role.permissions : []);
+}
+
+function hideRoleForm() {
+    document.getElementById('role-form').style.display = 'none';
+}
+
+function renderPermissionMatrix(selectedIds) {
+    const modules = {};
+    allPermissions.forEach(p => {
+        if (!modules[p.module]) modules[p.module] = [];
+        modules[p.module].push(p);
+    });
+
+    let html = '<table class="perm-matrix"><thead><tr><th>模块</th>';
+    const actions = ['view', 'edit', 'approve'];
+    const actionLabels = { view: '查看', edit: '编辑', approve: '审核' };
+    actions.forEach(a => html += `<th>${actionLabels[a]}</th>`);
+    html += '</tr></thead><tbody>';
+
+    const moduleLabels = {
+        dashboard: '首页', category_major: '大类管理', category_minor: '小类管理',
+        material: '物料管理', supplier: '供应商', employee: '员工管理',
+        in_order: '入库单', out_order: '出库单', return_order: '退库单',
+        inventory: '库存查询', weight_record: '称重记录',
+        report_inventory: '库存报表', report_stock_flow: '出入库报表',
+        report_in_detail: '入库明细报表', report_out_detail: '出库明细报表', report_summary: '汇总统计',
+        admin_role: '角色管理', admin_user: '用户管理'
+    };
+
+    Object.keys(modules).forEach(mod => {
+        html += `<tr><td>${moduleLabels[mod] || mod}</td>`;
+        actions.forEach(act => {
+            const perm = modules[mod].find(p => p.action === act);
+            if (perm) {
+                const checked = selectedIds.includes(perm.id) ? 'checked' : '';
+                html += `<td><input type="checkbox" class="perm-cb" value="${perm.id}" ${checked}></td>`;
+            } else {
+                html += '<td>-</td>';
+            }
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('permission-matrix').innerHTML = html;
+}
+
+async function saveRole() {
+    const id = document.getElementById('edit-role-id').value;
+    const name = document.getElementById('role-name').value.trim();
+    const description = document.getElementById('role-desc').value.trim();
+    const permission_ids = Array.from(document.querySelectorAll('.perm-cb:checked')).map(cb => parseInt(cb.value));
+
+    if (!name) { alert('请填写角色名称'); return; }
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/admin/roles/${id}` : '/admin/roles';
+
+    const result = await apiRequest(url, {
+        method,
+        body: JSON.stringify({ name, description, permission_ids })
+    });
+    if (result) {
+        hideRoleForm();
+        loadRoles();
+    }
+}
+
+async function editRole(id) {
+    const role = allRoles.find(r => r.id === id);
+    if (role) showRoleForm(role);
+}
+
+async function deleteRole(id) {
+    if (!confirm('确定要删除该角色吗？')) return;
+    const result = await apiRequest(`/admin/roles/${id}`, { method: 'DELETE' });
+    if (result) loadRoles();
+}
+
+loadRoles();
+
+const style = document.createElement('style');
+style.textContent = `
+.perm-matrix { border-collapse: collapse; width: 100%; }
+.perm-matrix th, .perm-matrix td { border: 1px solid #ddd; padding: 8px 12px; text-align: center; }
+.perm-matrix th { background: #f5f5f5; }
+.perm-matrix td:first-child { text-align: left; }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

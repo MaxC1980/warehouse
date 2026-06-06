@@ -3,6 +3,7 @@ from services.order_service import OrderService
 from services.auth_service import AuthService
 from utils.excel_utils import export_to_excel
 from utils.pagination import get_per_page
+from utils.decorators import require_permission
 
 out_order_bp = Blueprint('out_order', __name__)
 
@@ -36,11 +37,8 @@ def get_out_order(order_id):
     return jsonify({'error': 'Order not found'}), 404
 
 @out_order_bp.route('/out-orders', methods=['POST'])
+@require_permission('out_order', 'edit')
 def create_out_order():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     operator_id = session.get('user_id')
 
@@ -65,11 +63,8 @@ def create_out_order():
     return jsonify(order), 201
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['PUT'])
+@require_permission('out_order', 'edit')
 def update_out_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -87,22 +82,16 @@ def update_out_order(order_id):
     return jsonify({'error': 'Order not found'}), 404
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['DELETE'])
+@require_permission('out_order', 'edit')
 def delete_out_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     success = OrderService.delete_out_order(order_id)
     if success:
         return jsonify({'message': 'Order deleted'})
     return jsonify({'error': 'Order not found or cannot be deleted'}), 404
 
 @out_order_bp.route('/out-orders/<int:order_id>/approve', methods=['POST'])
+@require_permission('out_order', 'approve')
 def approve_out_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 3:
-        return jsonify({'error': '无审核权限'}), 403
-
     approved_by = session.get('user_id')
     data = request.get_json(silent=True) or {}
     weight_data = data.get('weight_data', [])  # [{out_order_item_id, initial_gross_weight}, ...]

@@ -40,6 +40,7 @@ python app.py
 - **退库管理** — 可回用物料退库，净用量自动计算
 - **库存查询** — 支持详情/汇总模式，按批次管理库存
 - **报表** — 库存汇总、入库明细、出库明细、出入库流水
+- **权限管理** — RBAC 角色权限控制，支持自定义角色和权限分配
 
 ## 数据库
 
@@ -54,6 +55,7 @@ python app.py
 - **CSRF 防护**：POST/PUT/DELETE/PATCH 请求必须携带 `X-Requested-With: XMLHttpRequest` header
 - **XSS 防护**：所有 innerHTML 输出点使用 `escapeHtml()` 转义数据库字段
 - **登录限流**：IP + 账号双维度，5 次失败锁定 15 分钟
+- **RBAC 权限**：基于角色的访问控制，页面+API 双层权限校验
 
 ## 注意事项
 

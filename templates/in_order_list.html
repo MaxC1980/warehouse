@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>入库单管理</h1>
     <div class="page-actions">
-        <a href="/in-orders/new" class="btn btn-primary">新建入库单</a>
+        {% if has_perm('in_order', 'edit') %}<a href="/in-orders/new" class="btn btn-primary">新建入库单</a>{% endif %}
     </div>
 </div>
 
@@ -92,9 +92,9 @@ function renderOrders(orders) {
             <td>${escapeHtml(o.created_at)}</td>
             <td>
                 ${o.status === 'pending' ? `
-                    ${currentPermissionLevel >= 2 ? `<a href="/in-orders/${escapeHtml(o.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
-                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
-                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                    ${hasPerm('in_order', 'edit') ? `<a href="/in-orders/${escapeHtml(o.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${hasPerm('in_order', 'approve') ? `<button onclick="approveOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${hasPerm('in_order', 'edit') ? `<button onclick="deleteOrder(${escapeHtml(o.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : ''}
             </td>
         </tr>
@@ -106,10 +106,8 @@ function getStatusText(status) {
     return map[status] || status;
 }
 
-let currentPermissionLevel = 1;
-
 async function approveOrder(id) {
-    if (currentPermissionLevel < 3) {
+    if (!hasPerm('in_order', 'approve')) {
         alert('无审核权限');
         return;
     }
@@ -124,7 +122,7 @@ async function approveOrder(id) {
 }
 
 async function deleteOrder(id) {
-    if (currentPermissionLevel < 2) {
+    if (!hasPerm('in_order', 'edit')) {
         alert('无删除权限');
         return;
     }
@@ -140,13 +138,5 @@ async function deleteOrder(id) {
 
 initDateRange('start-date', 'end-date', loadOrders);
 setThisMonth();
-
-// Get permission level
-(async () => {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser) {
-        currentPermissionLevel = currentUser.permission_level || 1;
-    }
-})();
 </script>
 {% endblock %}

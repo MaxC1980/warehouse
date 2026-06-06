@@ -245,6 +245,142 @@ def init_db():
             )
         ''')
 
+        # RBAC tables
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS role (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                is_system INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT (datetime('now', 'localtime'))
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_role (
+                user_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                PRIMARY KEY (user_id, role_id),
+                FOREIGN KEY (user_id) REFERENCES user(id),
+                FOREIGN KEY (role_id) REFERENCES role(id)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS permission (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                module TEXT NOT NULL,
+                action TEXT NOT NULL,
+                name TEXT NOT NULL,
+                UNIQUE(module, action)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS role_permission (
+                role_id INTEGER NOT NULL,
+                permission_id INTEGER NOT NULL,
+                PRIMARY KEY (role_id, permission_id),
+                FOREIGN KEY (role_id) REFERENCES role(id),
+                FOREIGN KEY (permission_id) REFERENCES permission(id)
+            )
+        ''')
+
+        # Seed permissions (24 records)
+        permissions = [
+            ('dashboard', 'view', '首页-查看'),
+            ('category_major', 'view', '大类管理-查看'), ('category_major', 'edit', '大类管理-编辑'),
+            ('category_minor', 'view', '小类管理-查看'), ('category_minor', 'edit', '小类管理-编辑'),
+            ('material', 'view', '物料管理-查看'), ('material', 'edit', '物料管理-编辑'),
+            ('supplier', 'view', '供应商-查看'), ('supplier', 'edit', '供应商-编辑'),
+            ('employee', 'view', '员工管理-查看'), ('employee', 'edit', '员工管理-编辑'),
+            ('in_order', 'view', '入库单-查看'), ('in_order', 'edit', '入库单-编辑'), ('in_order', 'approve', '入库单-审核'),
+            ('out_order', 'view', '出库单-查看'), ('out_order', 'edit', '出库单-编辑'), ('out_order', 'approve', '出库单-审核'),
+            ('return_order', 'view', '退库单-查看'), ('return_order', 'edit', '退库单-编辑'), ('return_order', 'approve', '退库单-审核'),
+            ('inventory', 'view', '日常查询-库存查询'),
+            ('weight_record', 'view', '日常查询-称重记录'),
+            ('report_inventory', 'view', '报表分析-库存报表'),
+            ('report_stock_flow', 'view', '报表分析-出入库报表'),
+            ('report_in_detail', 'view', '报表分析-入库明细报表'),
+            ('report_out_detail', 'view', '报表分析-出库明细报表'),
+            ('report_summary', 'view', '报表分析-汇总统计'),
+            ('admin_role', 'manage', '权限管理-角色管理'),
+            ('admin_user', 'manage', '权限管理-用户管理'),
+        ]
+        for module, action, name in permissions:
+            cursor.execute(
+                "INSERT OR IGNORE INTO permission (module, action, name) VALUES (?, ?, ?)",
+                (module, action, name)
+            )
+            cursor.execute(
+                "UPDATE permission SET name = ? WHERE module = ? AND action = ?",
+                (name, module, action)
+            )
+
+        # 清理已废弃的权限
+        valid_perms = {(m, a) for m, a, _ in permissions}
+        cursor.execute("SELECT id, module, action FROM permission")
+        for row in cursor.fetchall():
+            if (row['module'], row['action']) not in valid_perms:
+                cursor.execute("DELETE FROM role_permission WHERE permission_id = ?", (row['id'],))
+                cursor.execute("DELETE FROM permission WHERE id = ?", (row['id'],))
+
+        # Seed default roles
+        cursor.execute("SELECT id FROM role WHERE name = '管理员'")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO role (name, description, is_system) VALUES ('管理员', '拥有所有权限', 1)")
+        cursor.execute("SELECT id FROM role WHERE name = '操作员'")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO role (name, description, is_system) VALUES ('操作员', '查看+编辑，无审核权限', 1)")
+        cursor.execute("SELECT id FROM role WHERE name = '查看员'")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO role (name, description, is_system) VALUES ('查看员', '仅查看权限', 1)")
+
+        # Assign permissions to roles
+        cursor.execute("SELECT id FROM role WHERE name = '管理员'")
+        admin_role = cursor.fetchone()
+        cursor.execute("SELECT id FROM role WHERE name = '操作员'")
+        operator_role = cursor.fetchone()
+        cursor.execute("SELECT id FROM role WHERE name = '查看员'")
+        viewer_role = cursor.fetchone()
+
+        if admin_role and operator_role and viewer_role:
+            admin_role_id = admin_role['id']
+            operator_role_id = operator_role['id']
+            viewer_role_id = viewer_role['id']
+
+            # 管理员：全部权限（包括 admin.manage）
+            cursor.execute("SELECT id FROM permission")
+            for row in cursor.fetchall():
+                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
+                               (admin_role_id, row['id']))
+
+            # 操作员：view + edit（不含 approve）
+            cursor.execute("SELECT id FROM permission WHERE action != 'approve'")
+            for row in cursor.fetchall():
+                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
+                               (operator_role_id, row['id']))
+
+            # 查看员：仅 view
+            cursor.execute("SELECT id FROM permission WHERE action = 'view'")
+            for row in cursor.fetchall():
+                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
+                               (viewer_role_id, row['id']))
+
+            # Migrate existing users to roles based on permission_level
+            cursor.execute("SELECT id, permission_level FROM user WHERE id NOT IN (SELECT user_id FROM user_role)")
+            for user in cursor.fetchall():
+                level = user['permission_level'] or 1
+                if level >= 3:
+                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                                   (user['id'], admin_role_id))
+                elif level >= 2:
+                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                                   (user['id'], operator_role_id))
+                else:
+                    cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                                   (user['id'], viewer_role_id))
+
         # Create indexes
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_order_no ON in_order(order_no)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_order_no ON out_order(order_no)')
@@ -317,7 +453,7 @@ def init_db():
             END
         ''')
 
-        # Insert default users if not exists
+        # Insert default users if not exists and assign roles
         # Level 1 (查看): view / view123
         # Level 2 (编辑): edit / edit123
         # Level 3 (管理): admin / admin123
@@ -327,18 +463,30 @@ def init_db():
                 "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
                 ('admin', 'admin12345', 3)
             )
+            admin_user_id = cursor.lastrowid
+            if admin_role:
+                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                               (admin_user_id, admin_role['id']))
         cursor.execute("SELECT id FROM user WHERE username = 'view'")
         if not cursor.fetchone():
             cursor.execute(
                 "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
                 ('view', 'view123', 1)
             )
+            view_user_id = cursor.lastrowid
+            if viewer_role:
+                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                               (view_user_id, viewer_role['id']))
         cursor.execute("SELECT id FROM user WHERE username = 'edit'")
         if not cursor.fetchone():
             cursor.execute(
                 "INSERT INTO user (username, password, permission_level) VALUES (?, ?, ?)",
                 ('edit', 'edit123', 2)
             )
+            edit_user_id = cursor.lastrowid
+            if operator_role:
+                cursor.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)",
+                               (edit_user_id, operator_role['id']))
 
         conn.commit()
 

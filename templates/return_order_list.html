@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>退库单管理</h1>
     <div class="page-actions">
-        <a href="/return-orders/new" class="btn btn-primary">新建退库单</a>
+        {% if has_perm('return_order', 'edit') %}<a href="/return-orders/new" class="btn btn-primary">新建退库单</a>{% endif %}
     </div>
 </div>
 
@@ -93,9 +93,9 @@ function renderOrders(orders) {
             <td><span class="status ${escapeHtml(o.status)}">${getStatusText(o.status)}</span></td>
             <td>
                 ${o.status === 'pending' ? `
-                    ${currentPermissionLevel >= 2 ? `<a href="/return-orders/${escapeHtml(o.order_id)}/edit" class="btn btn-sm">编辑</a>` : ''}
-                    ${currentPermissionLevel >= 3 ? `<button onclick="approveOrder(${escapeHtml(o.order_id)})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
-                    ${currentPermissionLevel >= 2 ? `<button onclick="deleteOrder(${escapeHtml(o.order_id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                    ${hasPerm('return_order', 'edit') ? `<a href="/return-orders/${escapeHtml(o.order_id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                    ${hasPerm('return_order', 'approve') ? `<button onclick="approveOrder(${escapeHtml(o.order_id)})" class="btn btn-sm btn-success approve-btn">审核</button>` : ''}
+                    ${hasPerm('return_order', 'edit') ? `<button onclick="deleteOrder(${escapeHtml(o.order_id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
                 ` : ''}
             </td>
         </tr>`;
@@ -111,10 +111,8 @@ function getStatusText(status) {
     return map[status] || status;
 }
 
-let currentPermissionLevel = 1;
-
 async function deleteOrder(id) {
-    if (currentPermissionLevel < 2) {
+    if (!hasPerm('return_order', 'edit')) {
         alert('无删除权限');
         return;
     }
@@ -128,7 +126,7 @@ async function deleteOrder(id) {
 }
 
 async function approveOrder(id) {
-    if (currentPermissionLevel < 3) {
+    if (!hasPerm('return_order', 'approve')) {
         alert('无审核权限');
         return;
     }
@@ -145,13 +143,5 @@ async function approveOrder(id) {
 initDateRange('start-date', 'end-date', loadOrders);
 setThisMonth();
 loadOrders();
-
-// Get permission level
-(async () => {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser) {
-        currentPermissionLevel = currentUser.permission_level || 1;
-    }
-})();
 </script>
 {% endblock %}

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, session
 from services.order_service import OrderService
 from services.auth_service import AuthService
 from utils.pagination import get_per_page
+from utils.decorators import require_permission
 
 in_order_bp = Blueprint('in_order', __name__)
 
@@ -35,11 +36,8 @@ def get_in_order(order_id):
     return jsonify({'error': 'Order not found'}), 404
 
 @in_order_bp.route('/in-orders', methods=['POST'])
+@require_permission('in_order', 'edit')
 def create_in_order():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     operator_id = session.get('user_id')
 
@@ -61,11 +59,8 @@ def create_in_order():
     return jsonify(order), 201
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['PUT'])
+@require_permission('in_order', 'edit')
 def update_in_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -80,22 +75,16 @@ def update_in_order(order_id):
     return jsonify({'error': 'Order not found'}), 404
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['DELETE'])
+@require_permission('in_order', 'edit')
 def delete_in_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     success = OrderService.delete_in_order(order_id)
     if success:
         return jsonify({'message': 'Order deleted'})
     return jsonify({'error': 'Order not found or cannot be deleted'}), 404
 
 @in_order_bp.route('/in-orders/<int:order_id>/approve', methods=['POST'])
+@require_permission('in_order', 'approve')
 def approve_in_order(order_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 3:
-        return jsonify({'error': '无审核权限'}), 403
-
     approved_by = session.get('user_id')
     result = OrderService.approve_in_order(order_id, approved_by)
     if result:

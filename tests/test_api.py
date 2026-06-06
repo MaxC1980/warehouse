@@ -49,7 +49,7 @@ class TestAuthAPI(TestBase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(data['username'], 'admin')
-        self.assertEqual(data['permission_level'], 3)
+        self.assertIn('permissions', data)
 
     def test_login_invalid_password(self):
         """密码错误"""
@@ -449,6 +449,143 @@ class TestEmployeeAPI(TestBase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn('items', data)
+
+
+class TestRBACPermissions(TestBase):
+    """RBAC 权限测试"""
+
+    def test_login_returns_permissions(self):
+        """登录应返回权限列表"""
+        resp = self.client.post('/api/auth/login', json={
+            'username': 'admin',
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('permissions', data)
+        self.assertIsInstance(data['permissions'], list)
+        self.assertTrue(len(data['permissions']) > 0)
+
+    def test_current_user_returns_permissions(self):
+        """current_user 应返回权限列表"""
+        self.client.post('/api/auth/login', json={
+            'username': 'admin',
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/api/auth/current_user')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('permissions', data)
+
+    def test_view_user_cannot_create_material(self):
+        """查看用户无法创建物料"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.post('/api/materials', json={
+            'name': '测试', 'unit': '个'
+        }, headers=self._auth_headers())
+        self.assertEqual(resp.status_code, 403)
+
+    def test_view_user_cannot_delete_supplier(self):
+        """查看用户无法删除供应商"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.delete('/api/suppliers/1', headers=self._auth_headers())
+        self.assertEqual(resp.status_code, 403)
+
+    def test_view_user_can_view_materials(self):
+        """查看用户可以查看物料列表"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/api/materials')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_edit_user_can_create_material(self):
+        """编辑用户可以创建物料"""
+        self.client.post('/api/auth/login', json={
+            'username': 'edit',
+            'password': 'edit123'
+        }, headers=self._auth_headers())
+        resp = self.client.post('/api/materials', json={
+            'name': 'RBAC测试物料', 'unit': '个', 'category_code': '0101'
+        }, headers=self._auth_headers())
+        self.assertEqual(resp.status_code, 201)
+
+    def test_edit_user_cannot_approve_in_order(self):
+        """编辑用户无法审核入库单"""
+        self.client.post('/api/auth/login', json={
+            'username': 'edit',
+            'password': 'edit123'
+        }, headers=self._auth_headers())
+        resp = self.client.post('/api/in-orders/1/approve', headers=self._auth_headers())
+        self.assertEqual(resp.status_code, 403)
+
+    def test_view_user_cannot_access_edit_page(self):
+        """查看用户无法访问编辑页面（页面级权限）"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/materials/new')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_view_user_can_access_list_page(self):
+        """查看用户可以访问列表页面"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/materials')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_admin_can_access_role_page(self):
+        """管理员可以访问角色管理页面"""
+        self.client.post('/api/auth/login', json={
+            'username': 'admin',
+            'password': 'admin12345'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/admin/roles-page')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_view_user_cannot_access_role_page(self):
+        """查看用户无法访问角色管理页面"""
+        self.client.post('/api/auth/login', json={
+            'username': 'view',
+            'password': 'view123'
+        }, headers=self._auth_headers())
+        resp = self.client.get('/admin/roles-page')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_permission_service_get_user_permissions(self):
+        """权限服务能获取用户权限"""
+        from services.permission_service import PermissionService
+        perms = PermissionService.get_user_permissions(1)  # admin user
+        self.assertIsInstance(perms, set)
+        self.assertTrue(len(perms) > 0)
+        self.assertIn(('material', 'view'), perms)
+        self.assertIn(('in_order', 'approve'), perms)
+
+    def test_permission_service_has_permission(self):
+        """权限服务权限检查"""
+        from services.permission_service import PermissionService
+        self.assertTrue(PermissionService.has_permission(1, 'material', 'view'))
+        self.assertTrue(PermissionService.has_permission(1, 'in_order', 'approve'))
+
+    def test_permission_service_roles(self):
+        """权限服务角色管理"""
+        from services.permission_service import PermissionService
+        roles = PermissionService.get_all_roles()
+        self.assertTrue(len(roles) >= 3)
+        role_names = [r['name'] for r in roles]
+        self.assertIn('管理员', role_names)
+        self.assertIn('操作员', role_names)
+        self.assertIn('查看员', role_names)
 
 
 if __name__ == '__main__':

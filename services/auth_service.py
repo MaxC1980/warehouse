@@ -6,7 +6,7 @@ class AuthService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, username, permission_level FROM user WHERE username = ? AND password = ?",
+                "SELECT id, username FROM user WHERE username = ? AND password = ?",
                 (username, password)
             )
             user = cursor.fetchone()
@@ -14,8 +14,7 @@ class AuthService:
         if user:
             return {
                 'id': user['id'],
-                'username': user['username'],
-                'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
+                'username': user['username']
             }
         return None
 
@@ -24,7 +23,7 @@ class AuthService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, username, permission_level FROM user WHERE id = ?",
+                "SELECT id, username FROM user WHERE id = ?",
                 (user_id,)
             )
             user = cursor.fetchone()
@@ -32,8 +31,7 @@ class AuthService:
         if user:
             return {
                 'id': user['id'],
-                'username': user['username'],
-                'permission_level': user['permission_level'] if 'permission_level' in user.keys() else 1
+                'username': user['username']
             }
         return None
 

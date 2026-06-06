@@ -1,16 +1,14 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from services.material_service import MaterialService
 from services.inventory_service import InventoryService
 from utils.excel_utils import import_from_excel
+from utils.decorators import require_permission
 
 import_bp = Blueprint('import', __name__)
 
 @import_bp.route('/import/materials', methods=['POST'])
+@require_permission('material', 'edit')
 def import_materials():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无导入权限'}), 403
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -36,11 +34,8 @@ def import_materials():
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/inventory', methods=['POST'])
+@require_permission('material', 'edit')
 def import_inventory():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无导入权限'}), 403
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -66,11 +61,8 @@ def import_inventory():
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/categories', methods=['POST'])
+@require_permission('material', 'edit')
 def import_categories():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无导入权限'}), 403
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 
@@ -97,11 +89,8 @@ def import_categories():
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/minor-categories', methods=['POST'])
+@require_permission('material', 'edit')
 def import_minor_categories():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无导入权限'}), 403
-
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
 

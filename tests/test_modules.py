@@ -52,7 +52,7 @@ class TestDatabase(TestBase):
     def test_default_admin_user(self):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, username, password, created_at, permission_level FROM user WHERE username='admin'")
+            cursor.execute("SELECT id, username, password, created_at FROM user WHERE username='admin'")
             user = cursor.fetchone()
             self.assertIsNotNone(user)
             self.assertEqual(user['username'], 'admin')

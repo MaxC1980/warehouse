@@ -174,12 +174,12 @@ async function loadOrder() {
         if (order.status !== 'pending') {
             disableForm();
         } else {
-            // Show approve button only for permission_level >= 3
-            if (currentPermissionLevel >= 3) {
+            // Show approve button only if user has approve permission
+            if (hasPerm('out_order', 'approve')) {
                 document.getElementById('approve-btn').style.display = 'inline-block';
             }
-            // Disable form for permission_level < 2
-            if (currentPermissionLevel < 2) {
+            // Disable form if user has no edit permission
+            if (!hasPerm('out_order', 'edit')) {
                 disableForm();
             }
         }
@@ -191,7 +191,7 @@ async function approveOrder() {
         alert('请先保存后再审核');
         return;
     }
-    if (currentPermissionLevel < 3) {
+    if (!hasPerm('out_order', 'approve')) {
         alert('无审核权限');
         return;
     }
@@ -511,14 +511,11 @@ function onReceiverChange() {
     }
 }
 
-let currentPermissionLevel = 1;
 let currentUsername = '';
 
 (async function() {
-    // Get current user permission level and username
     const user = await apiRequest('/auth/current_user');
     if (user) {
-        currentPermissionLevel = user.permission_level || 1;
         currentUsername = user.username || '';
     }
 
@@ -528,8 +525,8 @@ let currentUsername = '';
         const d = new Date();
         const today = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
         document.getElementById('receiver_date').value = today;
-        // New order: hide save button if permission_level < 2
-        if (currentPermissionLevel < 2) {
+        // New order: hide save button if no edit permission
+        if (!hasPerm('out_order', 'edit')) {
             document.getElementById('save-btn').style.display = 'none';
             disableForm();
         }

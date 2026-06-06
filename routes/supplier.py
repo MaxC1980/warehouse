@@ -1,5 +1,6 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from services.supplier_service import SupplierService
+from utils.decorators import require_permission
 from utils.pagination import get_per_page
 
 supplier_bp = Blueprint('supplier', __name__)
@@ -30,11 +31,8 @@ def get_supplier(supplier_id):
     return jsonify({'error': 'Supplier not found'}), 404
 
 @supplier_bp.route('/suppliers', methods=['POST'])
+@require_permission('supplier', 'edit')
 def create_supplier():
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无创建权限'}), 403
-
     data = request.get_json()
     supplier = SupplierService.create_supplier(
         name=data.get('name'),
@@ -45,11 +43,8 @@ def create_supplier():
     return jsonify(supplier), 201
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['PUT'])
+@require_permission('supplier', 'edit')
 def update_supplier(supplier_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无编辑权限'}), 403
-
     data = request.get_json()
     supplier = SupplierService.update_supplier(supplier_id, data)
     if supplier:
@@ -57,11 +52,8 @@ def update_supplier(supplier_id):
     return jsonify({'error': 'Supplier not found'}), 404
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['DELETE'])
+@require_permission('supplier', 'edit')
 def delete_supplier(supplier_id):
-    permission_level = session.get('permission_level', 0)
-    if permission_level < 2:
-        return jsonify({'error': '无删除权限'}), 403
-
     success, msg = SupplierService.delete_supplier(supplier_id)
     if success:
         return jsonify({'message': 'Supplier deleted'})

@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, session
 from services.auth_service import AuthService
+from services.permission_service import PermissionService
 from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
@@ -81,11 +82,12 @@ def login():
         _clear_failures(ip, username)
         session['user_id'] = user['id']
         session['username'] = user['username']
-        session['permission_level'] = user.get('permission_level', 1)
+        perms = PermissionService.get_user_permissions(user['id'])
+        session['permissions'] = [list(p) for p in perms]
         return jsonify({
             'id': user['id'],
             'username': user['username'],
-            'permission_level': user.get('permission_level', 1)
+            'permissions': session['permissions']
         })
     _record_failure(ip, username)
     return jsonify({'error': 'Invalid credentials'}), 401
@@ -101,7 +103,7 @@ def current_user():
         return jsonify({
             'id': session['user_id'],
             'username': session['username'],
-            'permission_level': session.get('permission_level', 1)
+            'permissions': session.get('permissions', [])
         })
     return jsonify({'error': 'Not logged in'}), 401
 

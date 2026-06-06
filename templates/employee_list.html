@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>员工管理</h1>
     <div class="page-actions">
-        <a href="/employees/new" class="btn btn-primary" id="add-btn">新增员工</a>
+        {% if has_perm('employee', 'edit') %}<a href="/employees/new" class="btn btn-primary" id="add-btn">新增员工</a>{% endif %}
     </div>
 </div>
 
@@ -70,17 +70,15 @@ function renderEmployees(employees) {
             <td>${escapeHtml(e.phone)}</td>
             <td>${escapeHtml(e.remark)}</td>
             <td>
-                ${currentPermissionLevel >= 2 ? `<a href="/employees/${escapeHtml(e.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
-                ${currentPermissionLevel >= 2 ? `<button onclick="deleteEmployee(${escapeHtml(e.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                ${hasPerm('employee', 'edit') ? `<a href="/employees/${escapeHtml(e.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${hasPerm('employee', 'edit') ? `<button onclick="deleteEmployee(${escapeHtml(e.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');
 }
 
-let currentPermissionLevel = 1;
-
 async function deleteEmployee(id) {
-    if (currentPermissionLevel < 2) {
+    if (!hasPerm('employee', 'edit')) {
         alert('无删除权限');
         return;
     }
@@ -92,16 +90,5 @@ async function deleteEmployee(id) {
 }
 
 loadEmployees();
-
-// Get permission level and hide buttons for read-only users
-(async () => {
-    const currentUser = await apiRequest('/auth/current_user');
-    if (currentUser) {
-        currentPermissionLevel = currentUser.permission_level || 1;
-        if (currentPermissionLevel < 2) {
-            document.getElementById('add-btn').style.display = 'none';
-        }
-    }
-})();
 </script>
 {% endblock %}

@@ -20,8 +20,11 @@ def create_app(config_class):
     from routes.excel_import import import_bp
     from routes.return_order import return_order_bp
     from routes.employee import employee_bp
+    from routes.admin import admin_bp, admin_page_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(admin_bp, url_prefix='/api')
+    app.register_blueprint(admin_page_bp)
     app.register_blueprint(material_bp, url_prefix='/api')
     app.register_blueprint(supplier_bp, url_prefix='/api')
     app.register_blueprint(inventory_bp, url_prefix='/api')
@@ -43,6 +46,39 @@ def create_app(config_class):
             return f(*args, **kwargs)
         return decorated_function
 
+    # 页面权限映射：路径前缀 → (module, action)
+    # 列表/详情/只读页面需要 view，新增/编辑页面需要 edit
+    PAGE_PERMISSIONS = [
+        ('/materials/new', 'material', 'edit'),
+        ('/materials', 'material', 'view'),
+        ('/suppliers/new', 'supplier', 'edit'),
+        ('/suppliers', 'supplier', 'view'),
+        ('/employees/new', 'employee', 'edit'),
+        ('/employees', 'employee', 'view'),
+        ('/category-major/new', 'category_major', 'edit'),
+        ('/category-major', 'category_major', 'view'),
+        ('/category-minor/new', 'category_minor', 'edit'),
+        ('/category-minor', 'category_minor', 'view'),
+        ('/in-orders/new', 'in_order', 'edit'),
+        ('/in-orders', 'in_order', 'view'),
+        ('/in-order-details', 'in_order', 'view'),
+        ('/out-orders/new', 'out_order', 'edit'),
+        ('/out-orders', 'out_order', 'view'),
+        ('/out-order-details', 'out_order', 'view'),
+        ('/return-orders/new', 'return_order', 'edit'),
+        ('/return-orders', 'return_order', 'view'),
+        ('/return-order-details', 'return_order', 'view'),
+        ('/weight-records', 'weight_record', 'view'),
+        ('/inventory', 'inventory', 'view'),
+        ('/reports/inventory', 'report_inventory', 'view'),
+        ('/reports/stock-flow', 'report_stock_flow', 'view'),
+        ('/reports/in-detail', 'report_in_detail', 'view'),
+        ('/reports/out-detail', 'report_out_detail', 'view'),
+        ('/reports/summary', 'report_summary', 'view'),
+        ('/admin/roles', 'admin_role', 'manage'),
+        ('/admin/users', 'admin_user', 'manage'),
+    ]
+
     @app.before_request
     def require_login_for_api():
         if request.path.startswith('/api/') and request.path != '/api/auth/login':
@@ -51,6 +87,31 @@ def create_app(config_class):
             if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
                 if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
                     return jsonify({'error': 'Invalid request'}), 403
+
+    @app.before_request
+    def check_page_permission():
+        if request.path.startswith('/api/') or request.path in ('/login', '/'):
+            return
+        if 'user_id' not in session:
+            return
+        perms = set(tuple(p) for p in session.get('permissions', []))
+        for prefix, module, action in PAGE_PERMISSIONS:
+            if request.path.startswith(prefix):
+                if (module, action) not in perms:
+                    return '无权限访问', 403
+                break
+
+    @app.context_processor
+    def inject_permissions():
+        """将用户权限注入所有模板"""
+        if 'user_id' in session:
+            perms = [tuple(p) for p in session.get('permissions', [])]
+            perm_set = set(perms)
+            return {
+                'user_permissions': perms,
+                'has_perm': lambda m, a: (m, a) in perm_set
+            }
+        return {'user_permissions': [], 'has_perm': lambda m, a: False}
 
     # Page routes
     @app.route('/')

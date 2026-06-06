@@ -197,12 +197,12 @@ async function loadOrder() {
         if (order.status !== 'pending') {
             disableForm();
         } else {
-            // Show approve button only for permission_level >= 3
-            if (currentPermissionLevel >= 3) {
+            // Show approve button only if user has approve permission
+            if (hasPerm('in_order', 'approve')) {
                 document.getElementById('approve-btn').style.display = 'inline-block';
             }
-            // Disable form for permission_level < 2
-            if (currentPermissionLevel < 2) {
+            // Disable form if user has no edit permission
+            if (!hasPerm('in_order', 'edit')) {
                 disableForm();
             }
         }
@@ -214,7 +214,7 @@ async function approveOrder() {
         alert('请先保存后再审核');
         return;
     }
-    if (currentPermissionLevel < 3) {
+    if (!hasPerm('in_order', 'approve')) {
         alert('无审核权限');
         return;
     }
@@ -394,15 +394,7 @@ async function loadEmployees() {
     }
 }
 
-let currentPermissionLevel = 1;
-
 (async function() {
-    // Get current user permission level
-    const user = await apiRequest('/auth/current_user');
-    if (user) {
-        currentPermissionLevel = user.permission_level || 1;
-    }
-
     await loadSuppliers();
     await loadEmployees();
     await loadMaterials();
@@ -415,8 +407,8 @@ let currentPermissionLevel = 1;
     if (orderId) {
         await loadOrder();
     } else {
-        // New order: hide save button if permission_level < 2
-        if (currentPermissionLevel < 2) {
+        // New order: hide save button if no edit permission
+        if (!hasPerm('in_order', 'edit')) {
             document.getElementById('save-btn').style.display = 'none';
             disableForm();
         }
