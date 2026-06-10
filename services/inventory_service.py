@@ -1,5 +1,8 @@
+import logging
 from database import get_db_connection
 from datetime import date, datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_date(date_str):
@@ -23,6 +26,7 @@ def _expiry_matches_filter(expiry_date, status):
         else:
             expiry = expiry_date
     except Exception:
+        logger.debug('日期解析失败: %s', expiry_date)
         return False
 
     today = date.today()
@@ -403,8 +407,6 @@ class InventoryService:
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON")
-
             try:
                 if batch_no:
                     cursor.execute(
@@ -438,8 +440,6 @@ class InventoryService:
         """Reduce inventory for outbound - deduct from specified batch or oldest batch"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON")
-
             try:
                 if batch_no:
                     cursor.execute(

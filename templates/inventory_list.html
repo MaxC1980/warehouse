@@ -184,7 +184,7 @@ async function loadInventory(page = 1) {
         renderTableHeader();
         renderInventory(data.items);
         renderPagination('pagination', data.total, data.page, perPage, 'loadInventory');
-        document.getElementById('total-qty').textContent = data.total_quantity !== undefined ? data.total_quantity : '-';
+        document.getElementById('total-qty').textContent = data.total_quantity !== undefined ? Number(data.total_quantity).toFixed(2) : '-';
     }
 }
 
@@ -212,8 +212,8 @@ function renderInventory(inventory) {
                 <td>${escapeHtml(item.production_date) || '-'}</td>
                 <td>${escapeHtml(item.expiry_date) || '-'}</td>
                 <td>${Number(item.quantity).toFixed(2)}</td>
-                <td>${item.pending_in || 0}</td>
-                <td>${item.pending_out || 0}</td>
+                <td>${Number(item.pending_in || 0).toFixed(2)}</td>
+                <td>${Number(item.pending_out || 0).toFixed(2)}</td>
                 <td><span class="status ${item.status === '过期' ? 'expired' : ''}">${escapeHtml(item.status)}</span></td>
             </tr>
         `).join('');
@@ -226,8 +226,8 @@ function renderInventory(inventory) {
                 <td>${escapeHtml(item.spec)}</td>
                 <td>${escapeHtml(item.unit)}</td>
                 <td>${Number(item.quantity).toFixed(2)}</td>
-                <td>${item.pending_in || 0}</td>
-                <td>${item.pending_out || 0}</td>
+                <td>${Number(item.pending_in || 0).toFixed(2)}</td>
+                <td>${Number(item.pending_out || 0).toFixed(2)}</td>
             </tr>
         `).join('');
     }

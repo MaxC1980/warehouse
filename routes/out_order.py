@@ -1,6 +1,8 @@
+import logging
 from flask import Blueprint, request, jsonify, session, make_response
 from services.order_service import OrderService
-from services.auth_service import AuthService
+
+logger = logging.getLogger(__name__)
 from utils.excel_utils import export_to_excel
 from utils.pagination import get_per_page
 from utils.decorators import require_permission
@@ -103,7 +105,8 @@ def approve_out_order(order_id):
         return jsonify({'error': 'Order not found or cannot be approved'}), 400
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    except Exception:
+    except Exception as e:
+        logger.exception('审核出库单失败: order_id=%s', order_id)
         return jsonify({'error': '服务器内部错误'}), 500
 
 @out_order_bp.route('/out-orders/detail', methods=['GET'])

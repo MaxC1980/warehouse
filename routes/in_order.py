@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify, session
 from services.order_service import OrderService
-from services.auth_service import AuthService
 from utils.pagination import get_per_page
 from utils.decorators import require_permission
 

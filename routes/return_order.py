@@ -1,6 +1,8 @@
+import logging
 from flask import Blueprint, request, jsonify, session
 from services.order_service import OrderService
-from services.auth_service import AuthService
+
+logger = logging.getLogger(__name__)
 from utils.pagination import get_per_page
 from utils.decorators import require_permission
 
@@ -67,7 +69,8 @@ def create_return_order():
         return jsonify(order), 201
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    except Exception:
+    except Exception as e:
+        logger.exception('退库操作失败')
         return jsonify({'error': '服务器内部错误'}), 500
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['PUT'])
@@ -113,7 +116,8 @@ def approve_return_order(order_id):
         return jsonify(result)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
-    except Exception:
+    except Exception as e:
+        logger.exception('退库操作失败')
         return jsonify({'error': '服务器内部错误'}), 500
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])

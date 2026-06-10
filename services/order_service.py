@@ -238,8 +238,6 @@ class OrderService:
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON")
-
             try:
                 cursor.execute("SELECT id, order_no, supplier_id, operator_id, status, remark, receiver, purpose, receiver_date, created_at, approved_at, approved_by FROM in_order WHERE id = ?", (order_id,))
                 order = cursor.fetchone()
@@ -504,8 +502,6 @@ class OrderService:
             weight_map = {w['out_order_item_id']: w['initial_gross_weight'] for w in (weight_data or [])}
 
             try:
-                cursor.execute("PRAGMA foreign_keys = ON")
-
                 cursor.execute("SELECT id, order_no, operator_id, status, remark, purpose, created_at, approved_at, approved_by, department, receiver, receiver_date FROM out_order WHERE id = ?", (order_id,))
                 order = cursor.fetchone()
 
@@ -1136,8 +1132,6 @@ class OrderService:
             weight_map = {w['out_order_item_id']: w['return_gross_weight'] for w in (weight_data or [])}
 
             try:
-                cursor.execute("PRAGMA foreign_keys = ON")
-
                 cursor.execute("SELECT id, order_no, related_out_order_id, department, receiver, receiver_date, operator_id, status, remark, created_at, approved_at, approved_by FROM return_order WHERE id = ?", (order_id,))
                 order = cursor.fetchone()
 
@@ -1311,8 +1305,6 @@ class OrderService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("PRAGMA foreign_keys = ON")
-
                 cursor.execute(
                     "SELECT id, out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, return_gross_weight, return_weight_time, return_operator_id, actual_net_weight, status, remark FROM reusable_material_weight WHERE out_order_item_id = ?",
                     (out_order_item_id,)

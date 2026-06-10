@@ -1,6 +1,9 @@
+import logging
 from flask import Blueprint, request, jsonify
 from services.material_service import MaterialService
 from services.inventory_service import InventoryService
+
+logger = logging.getLogger(__name__)
 from utils.excel_utils import import_from_excel
 from utils.decorators import require_permission
 
@@ -30,7 +33,8 @@ def import_materials():
             'message': f'Import completed. {results["success"]} succeeded, {results["failed"]} failed.',
             'results': results
         })
-    except Exception:
+    except Exception as e:
+        logger.exception('Excel导入失败')
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/inventory', methods=['POST'])
@@ -57,7 +61,8 @@ def import_inventory():
             'message': f'Import completed. {results["success"]} succeeded, {results["failed"]} failed.',
             'results': results
         })
-    except Exception:
+    except Exception as e:
+        logger.exception('Excel导入失败')
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/categories', methods=['POST'])
@@ -85,7 +90,8 @@ def import_categories():
             'errors': results['errors'][:10] if results['errors'] else [],
             'total_errors': len(results['errors'])
         })
-    except Exception:
+    except Exception as e:
+        logger.exception('Excel导入失败')
         return jsonify({'error': '服务器内部错误'}), 500
 
 @import_bp.route('/import/minor-categories', methods=['POST'])
@@ -113,5 +119,6 @@ def import_minor_categories():
             'errors': results['errors'][:10] if results['errors'] else [],
             'total_errors': len(results['errors'])
         })
-    except Exception:
+    except Exception as e:
+        logger.exception('Excel导入失败')
         return jsonify({'error': '服务器内部错误'}), 500
