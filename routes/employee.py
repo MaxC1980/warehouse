@@ -33,7 +33,7 @@ def get_employee(employee_id):
 @employee_bp.route('/employees', methods=['POST'])
 @require_permission('employee', 'edit')
 def create_employee():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     employee = EmployeeService.create_employee(
         name=data.get('name'),
         department=data.get('department'),
@@ -45,7 +45,7 @@ def create_employee():
 @employee_bp.route('/employees/<int:employee_id>', methods=['PUT'])
 @require_permission('employee', 'edit')
 def update_employee(employee_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     employee = EmployeeService.update_employee(employee_id, data)
     if employee:
         return jsonify(employee)

@@ -13,7 +13,7 @@ def get_categories():
 @material_bp.route('/categories', methods=['POST'])
 @require_permission('category_major', 'edit')
 def create_category():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     category = MaterialService.create_category(
         code=data.get('code'),
         name=data.get('name'),
@@ -25,7 +25,7 @@ def create_category():
 @material_bp.route('/categories/<int:category_id>', methods=['PUT'])
 @require_permission('category_major', 'edit')
 def update_category(category_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     ok, category = MaterialService.update_category(
         category_id,
         code=data.get('code'),
@@ -84,7 +84,7 @@ def get_material(material_id):
 @material_bp.route('/materials', methods=['POST'])
 @require_permission('material', 'edit')
 def create_material():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     material = MaterialService.create_material(
         name=data.get('name'),
         spec=data.get('spec'),
@@ -102,7 +102,7 @@ def create_material():
 @material_bp.route('/materials/<int:material_id>', methods=['PUT'])
 @require_permission('material', 'edit')
 def update_material(material_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     material = MaterialService.update_material(material_id, data)
     if material:
         return jsonify(material)

@@ -41,7 +41,7 @@ def get_out_order(order_id):
 @out_order_bp.route('/out-orders', methods=['POST'])
 @require_permission('out_order', 'edit')
 def create_out_order():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     operator_id = session.get('user_id')
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -67,7 +67,7 @@ def create_out_order():
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['PUT'])
 @require_permission('out_order', 'edit')
 def update_out_order(order_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     if not data.get('items') or len(data.get('items', [])) == 0:
         return jsonify({'error': '请至少添加一条明细'}), 400

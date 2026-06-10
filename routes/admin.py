@@ -19,7 +19,7 @@ def get_roles():
 @admin_bp.route('/admin/roles', methods=['POST'])
 @require_permission('admin_role', 'manage')
 def create_role():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     name = data.get('name')
     description = data.get('description', '')
     permission_ids = data.get('permission_ids', [])
@@ -37,7 +37,7 @@ def create_role():
 @admin_bp.route('/admin/roles/<int:role_id>', methods=['PUT'])
 @require_permission('admin_role', 'manage')
 def update_role(role_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     name = data.get('name')
     description = data.get('description', '')
     permission_ids = data.get('permission_ids', [])
@@ -79,7 +79,7 @@ def get_users():
 @admin_bp.route('/admin/users', methods=['POST'])
 @require_permission('admin_user', 'manage')
 def create_user():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     username = data.get('username', '').strip()
     password = data.get('password', '').strip()
 
@@ -139,7 +139,7 @@ def delete_user(user_id):
 @admin_bp.route('/admin/users/<int:user_id>/password', methods=['PUT'])
 @require_permission('admin_user', 'manage')
 def reset_user_password(user_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     new_password = data.get('new_password', '').strip()
 
     if not new_password:
@@ -162,7 +162,7 @@ def reset_user_password(user_id):
 @admin_bp.route('/admin/users/<int:user_id>/roles', methods=['PUT'])
 @require_permission('admin_user', 'manage')
 def update_user_roles(user_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     role_ids = data.get('role_ids', [])
 
     with get_db_connection() as conn:

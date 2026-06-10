@@ -46,38 +46,50 @@ def create_app(config_class):
             return f(*args, **kwargs)
         return decorated_function
 
-    # 页面权限映射：路径前缀 → (module, action)
-    # 列表/详情/只读页面需要 view，新增/编辑页面需要 edit
-    PAGE_PERMISSIONS = [
-        ('/materials/new', 'material', 'edit'),
-        ('/materials', 'material', 'view'),
-        ('/suppliers/new', 'supplier', 'edit'),
-        ('/suppliers', 'supplier', 'view'),
-        ('/employees/new', 'employee', 'edit'),
-        ('/employees', 'employee', 'view'),
-        ('/category-major/new', 'category_major', 'edit'),
-        ('/category-major', 'category_major', 'view'),
-        ('/category-minor/new', 'category_minor', 'edit'),
-        ('/category-minor', 'category_minor', 'view'),
-        ('/in-orders/new', 'in_order', 'edit'),
-        ('/in-orders', 'in_order', 'view'),
-        ('/in-order-details', 'in_order', 'view'),
-        ('/out-orders/new', 'out_order', 'edit'),
-        ('/out-orders', 'out_order', 'view'),
-        ('/out-order-details', 'out_order', 'view'),
-        ('/return-orders/new', 'return_order', 'edit'),
-        ('/return-orders', 'return_order', 'view'),
-        ('/return-order-details', 'return_order', 'view'),
-        ('/weight-records', 'weight_record', 'view'),
-        ('/inventory', 'inventory', 'view'),
-        ('/reports/inventory', 'report_inventory', 'view'),
-        ('/reports/stock-flow', 'report_stock_flow', 'view'),
-        ('/reports/in-detail', 'report_in_detail', 'view'),
-        ('/reports/out-detail', 'report_out_detail', 'view'),
-        ('/reports/summary', 'report_summary', 'view'),
-        ('/admin/roles', 'admin_role', 'manage'),
-        ('/admin/users', 'admin_user', 'manage'),
-    ]
+    # 页面权限映射：endpoint → (module, action)
+    PAGE_ENDPOINT_PERMISSIONS = {
+        'dashboard': ('dashboard', 'view'),
+        'materials': ('material', 'view'),
+        'material_new': ('material', 'edit'),
+        'material_edit': ('material', 'edit'),
+        'inventory': ('inventory', 'view'),
+        'in_orders': ('in_order', 'view'),
+        'in_order_new': ('in_order', 'edit'),
+        'in_order_edit': ('in_order', 'edit'),
+        'in_order_detail': ('in_order', 'view'),
+        'in_order_details': ('in_order', 'view'),
+        'out_orders': ('out_order', 'view'),
+        'out_order_new': ('out_order', 'edit'),
+        'out_order_edit': ('out_order', 'edit'),
+        'out_order_detail': ('out_order', 'view'),
+        'out_order_print': ('out_order', 'view'),
+        'out_order_details': ('out_order', 'view'),
+        'suppliers': ('supplier', 'view'),
+        'supplier_new': ('supplier', 'edit'),
+        'supplier_edit': ('supplier', 'edit'),
+        'employees': ('employee', 'view'),
+        'employee_new': ('employee', 'edit'),
+        'employee_edit': ('employee', 'edit'),
+        'report_inventory': ('report_inventory', 'view'),
+        'report_in_detail': ('report_in_detail', 'view'),
+        'report_out_detail': ('report_out_detail', 'view'),
+        'report_summary': ('report_summary', 'view'),
+        'report_stock_flow': ('report_stock_flow', 'view'),
+        'category_major': ('category_major', 'view'),
+        'category_major_new': ('category_major', 'edit'),
+        'category_major_edit': ('category_major', 'edit'),
+        'category_minor': ('category_minor', 'view'),
+        'category_minor_new': ('category_minor', 'edit'),
+        'category_minor_edit': ('category_minor', 'edit'),
+        'return_orders': ('return_order', 'view'),
+        'return_order_new': ('return_order', 'edit'),
+        'return_order_edit': ('return_order', 'edit'),
+        'return_order_detail': ('return_order', 'view'),
+        'return_order_details': ('return_order', 'view'),
+        'weight_records': ('weight_record', 'view'),
+        'roles_page': ('admin_role', 'manage'),
+        'users_page': ('admin_user', 'manage'),
+    }
 
     @app.before_request
     def require_login_for_api():
@@ -94,12 +106,12 @@ def create_app(config_class):
             return
         if 'user_id' not in session:
             return
+        required = PAGE_ENDPOINT_PERMISSIONS.get(request.endpoint)
+        if not required:
+            return
         perms = set(tuple(p) for p in session.get('permissions', []))
-        for prefix, module, action in PAGE_PERMISSIONS:
-            if request.path.startswith(prefix):
-                if (module, action) not in perms:
-                    return '无权限访问', 403
-                break
+        if required not in perms:
+            return '无权限访问', 403
 
     @app.context_processor
     def inject_permissions():

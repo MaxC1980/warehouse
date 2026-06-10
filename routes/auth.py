@@ -66,7 +66,7 @@ def login():
     if not allowed:
         return jsonify({'error': f'登录失败次数过多，请 {wait_seconds} 秒后重试'}), 429
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     username = data.get('username')
     password = data.get('password')
 
@@ -112,7 +112,7 @@ def change_password():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in'}), 401
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     old_password = data.get('old_password')
     new_password = data.get('new_password')
 

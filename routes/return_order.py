@@ -44,7 +44,7 @@ def get_return_order(order_id):
 @return_order_bp.route('/return-orders', methods=['POST'])
 @require_permission('return_order', 'edit')
 def create_return_order():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     operator_id = session.get('user_id')
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -76,7 +76,7 @@ def create_return_order():
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['PUT'])
 @require_permission('return_order', 'edit')
 def update_return_order(order_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     if not data.get('items') or len(data.get('items', [])) == 0:
         return jsonify({'error': '请至少添加一条明细'}), 400

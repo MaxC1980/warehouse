@@ -37,7 +37,7 @@ def get_in_order(order_id):
 @in_order_bp.route('/in-orders', methods=['POST'])
 @require_permission('in_order', 'edit')
 def create_in_order():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     operator_id = session.get('user_id')
 
     if not data.get('items') or len(data.get('items', [])) == 0:
@@ -60,7 +60,7 @@ def create_in_order():
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['PUT'])
 @require_permission('in_order', 'edit')
 def update_in_order(order_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     if not data.get('items') or len(data.get('items', [])) == 0:
         return jsonify({'error': '请至少添加一条明细'}), 400

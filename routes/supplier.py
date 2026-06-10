@@ -33,7 +33,7 @@ def get_supplier(supplier_id):
 @supplier_bp.route('/suppliers', methods=['POST'])
 @require_permission('supplier', 'edit')
 def create_supplier():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     supplier = SupplierService.create_supplier(
         name=data.get('name'),
         contact=data.get('contact'),
@@ -45,7 +45,7 @@ def create_supplier():
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['PUT'])
 @require_permission('supplier', 'edit')
 def update_supplier(supplier_id):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     supplier = SupplierService.update_supplier(supplier_id, data)
     if supplier:
         return jsonify(supplier)
