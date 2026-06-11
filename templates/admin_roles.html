@@ -31,7 +31,7 @@
     </div>
 </div>
 
-<div class="data-table">
+<div class="data-table" id="roles-table">
     <table>
         <thead>
             <tr>
@@ -80,6 +80,7 @@ function renderRoles() {
 
 function showRoleForm(role) {
     document.getElementById('role-form').style.display = 'block';
+    document.getElementById('roles-table').style.display = 'none';
     document.getElementById('role-form-title').textContent = role ? '编辑角色' : '新增角色';
     document.getElementById('edit-role-id').value = role ? role.id : '';
     document.getElementById('role-name').value = role ? role.name : '';
@@ -89,6 +90,7 @@ function showRoleForm(role) {
 
 function hideRoleForm() {
     document.getElementById('role-form').style.display = 'none';
+    document.getElementById('roles-table').style.display = '';
 }
 
 function renderPermissionMatrix(selectedIds) {
@@ -99,8 +101,8 @@ function renderPermissionMatrix(selectedIds) {
     });
 
     let html = '<table class="perm-matrix"><thead><tr><th>模块</th>';
-    const actions = ['view', 'edit', 'approve'];
-    const actionLabels = { view: '查看', edit: '编辑', approve: '审核' };
+    const actions = ['view', 'edit', 'approve', 'manage'];
+    const actionLabels = { view: '查看', edit: '编辑', approve: '审核', manage: '管理' };
     actions.forEach(a => html += `<th>${actionLabels[a]}</th>`);
     html += '</tr></thead><tbody>';
 
@@ -115,9 +117,11 @@ function renderPermissionMatrix(selectedIds) {
     };
 
     Object.keys(modules).forEach(mod => {
+        const modPerms = modules[mod];
+        const modActions = modPerms.map(p => p.action);
         html += `<tr><td>${moduleLabels[mod] || mod}</td>`;
         actions.forEach(act => {
-            const perm = modules[mod].find(p => p.action === act);
+            const perm = modPerms.find(p => p.action === act);
             if (perm) {
                 const checked = selectedIds.includes(perm.id) ? 'checked' : '';
                 html += `<td><input type="checkbox" class="perm-cb" value="${perm.id}" ${checked}></td>`;
