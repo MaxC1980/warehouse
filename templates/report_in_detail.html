@@ -65,7 +65,7 @@ async function loadReport(page = 1) {
     const data = await apiRequest(`/reports/in-detail?${params}`);
     if (data) {
         renderReport(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadReport');
+        renderPagination('pagination', data.total, data.page, perPage, loadReport);
     }
 }
 

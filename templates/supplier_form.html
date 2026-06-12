@@ -36,18 +36,16 @@
 
 {% block scripts %}
 <script>
-const supplierId = {{ supplier_id if supplier_id else 'null' }};
+const supplierId = {{ supplier_id | default(none) | tojson }};
 
 async function loadSupplier() {
     if (!supplierId) return;
     const supplier = await apiRequest(`/suppliers/${supplierId}`);
-    if (supplier) {
-        const form = document.getElementById('supplier-form');
-        form.name.value = supplier.name;
-        form.contact.value = supplier.contact || '';
-        form.phone.value = supplier.phone || '';
-        form.address.value = supplier.address || '';
-    }
+    const form = document.getElementById('supplier-form');
+    form.name.value = supplier.name;
+    form.contact.value = supplier.contact || '';
+    form.phone.value = supplier.phone || '';
+    form.address.value = supplier.address || '';
 }
 
 async function handleSubmit(e) {
@@ -63,10 +61,8 @@ async function handleSubmit(e) {
     const url = supplierId ? `/suppliers/${supplierId}` : '/suppliers';
     const method = supplierId ? 'PUT' : 'POST';
 
-    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
-    if (result) {
-        window.location.href = '/suppliers';
-    }
+    await apiRequest(url, { method, body: JSON.stringify(data) });
+    window.location.href = '/suppliers';
 }
 
 loadSupplier();

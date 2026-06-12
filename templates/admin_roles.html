@@ -57,8 +57,8 @@ async function loadRoles() {
         apiRequest('/admin/roles'),
         apiRequest('/admin/permissions')
     ]);
-    if (roles) allRoles = roles;
-    if (perms) allPermissions = perms;
+    allRoles = roles;
+    allPermissions = perms;
     renderRoles();
 }
 
@@ -71,7 +71,7 @@ function renderRoles() {
             <td>${r.permissions ? r.permissions.length : 0}</td>
             <td>${r.is_system ? '<span class="text-muted">系统内置</span>' : '自定义'}</td>
             <td>
-                <button onclick="editRole(${r.id})" class="btn btn-sm">编辑</button>
+                ${!r.is_system ? `<button onclick="editRole(${r.id})" class="btn btn-sm">编辑</button>` : ''}
                 ${!r.is_system ? `<button onclick="deleteRole(${r.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>

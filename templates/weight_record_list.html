@@ -71,7 +71,7 @@ async function loadData() {
     if (!data) return;
 
     renderTable(data.items);
-    renderPagination(data.total, data.page, perPage);
+    renderPagination('pagination', data.total, data.page, perPage, goToPage);
 }
 
 function renderTable(items) {
@@ -104,26 +104,6 @@ function renderTable(items) {
             <td>${escapeHtml(item.return_operator_name) || '-'}</td>
         </tr>`;
     }).join('');
-}
-
-function renderPagination(total, page, perPage) {
-    const totalPages = Math.ceil(total / perPage);
-    const pagination = document.getElementById('pagination');
-
-    if (totalPages <= 1) {
-        pagination.innerHTML = `<span>共 ${escapeHtml(total)} 条记录</span>`;
-        return;
-    }
-
-    let html = '';
-    if (page > 1) {
-        html += `<button onclick="goToPage(${escapeHtml(page - 1)})">上一页</button>`;
-    }
-    html += `<span>第 ${escapeHtml(page)} / ${escapeHtml(totalPages)} 页，共 ${escapeHtml(total)} 条</span>`;
-    if (page < totalPages) {
-        html += `<button onclick="goToPage(${escapeHtml(page + 1)})">下一页</button>`;
-    }
-    pagination.innerHTML = html;
 }
 
 function goToPage(page) {

@@ -6,6 +6,7 @@ from utils.pagination import get_per_page
 supplier_bp = Blueprint('supplier', __name__)
 
 @supplier_bp.route('/suppliers', methods=['GET'])
+@require_permission('supplier', 'view')
 def get_suppliers():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -24,11 +25,12 @@ def get_suppliers():
     })
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['GET'])
+@require_permission('supplier', 'view')
 def get_supplier(supplier_id):
     supplier = SupplierService.get_supplier_by_id(supplier_id)
     if supplier:
         return jsonify(supplier)
-    return jsonify({'error': 'Supplier not found'}), 404
+    return jsonify({'error': '供应商不存在'}), 404
 
 @supplier_bp.route('/suppliers', methods=['POST'])
 @require_permission('supplier', 'edit')
@@ -49,12 +51,12 @@ def update_supplier(supplier_id):
     supplier = SupplierService.update_supplier(supplier_id, data)
     if supplier:
         return jsonify(supplier)
-    return jsonify({'error': 'Supplier not found'}), 404
+    return jsonify({'error': '供应商不存在'}), 404
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['DELETE'])
 @require_permission('supplier', 'edit')
 def delete_supplier(supplier_id):
     success, msg = SupplierService.delete_supplier(supplier_id)
     if success:
-        return jsonify({'message': 'Supplier deleted'})
+        return jsonify({'message': '供应商已删除'})
     return jsonify({'error': msg}), 400

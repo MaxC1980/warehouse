@@ -51,10 +51,8 @@ async function loadSuppliers(page = 1) {
     if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest(`/suppliers?${params}`);
-    if (data) {
-        renderSuppliers(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadSuppliers');
-    }
+    renderSuppliers(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadSuppliers);
 }
 
 function renderSuppliers(suppliers) {
@@ -83,10 +81,8 @@ async function deleteSupplier(id) {
         return;
     }
     if (!confirm('确定要删除该供应商吗？')) return;
-    const result = await apiRequest(`/suppliers/${id}`, { method: 'DELETE' });
-    if (result) {
-        loadSuppliers(currentPage);
-    }
+    await apiRequest(`/suppliers/${id}`, { method: 'DELETE' });
+    loadSuppliers(currentPage);
 }
 
 loadSuppliers();

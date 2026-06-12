@@ -44,18 +44,16 @@
 
 {% block scripts %}
 <script>
-const employeeId = {{ employee_id if employee_id else 'null' }};
+const employeeId = {{ employee_id | default(none) | tojson }};
 
 async function loadEmployee() {
     if (!employeeId) return;
     const employee = await apiRequest(`/employees/${employeeId}`);
-    if (employee) {
-        const form = document.getElementById('employee-form');
-        form.name.value = employee.name;
-        form.department.value = employee.department || '';
-        form.phone.value = employee.phone || '';
-        form.remark.value = employee.remark || '';
-    }
+    const form = document.getElementById('employee-form');
+    form.name.value = employee.name;
+    form.department.value = employee.department || '';
+    form.phone.value = employee.phone || '';
+    form.remark.value = employee.remark || '';
 }
 
 async function handleSubmit(e) {
@@ -71,10 +69,8 @@ async function handleSubmit(e) {
     const url = employeeId ? `/employees/${employeeId}` : '/employees';
     const method = employeeId ? 'PUT' : 'POST';
 
-    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
-    if (result) {
-        window.location.href = '/employees';
-    }
+    await apiRequest(url, { method, body: JSON.stringify(data) });
+    window.location.href = '/employees';
 }
 
 loadEmployee();

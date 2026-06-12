@@ -1,4 +1,5 @@
 from database import get_db_connection
+from utils.sql import escape_like
 
 class EmployeeService:
     @staticmethod
@@ -11,8 +12,9 @@ class EmployeeService:
             where_clauses = []
             params = []
             if keyword:
-                where_clauses.append("(name LIKE ? OR department LIKE ? OR phone LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(name LIKE ? ESCAPE '\\' OR department LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 

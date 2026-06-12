@@ -30,8 +30,10 @@ def create_role():
     try:
         role_id = PermissionService.create_role(name, description, permission_ids)
         return jsonify({'id': role_id, 'message': '角色创建成功'}), 201
-    except Exception as e:
+    except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    except Exception:
+        return jsonify({'error': '创建角色失败'}), 500
 
 
 @admin_bp.route('/admin/roles/<int:role_id>', methods=['PUT'])

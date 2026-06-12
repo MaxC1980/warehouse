@@ -71,7 +71,7 @@ def login():
     password = data.get('password')
 
     if not username or not password:
-        return jsonify({'error': 'Username and password are required'}), 400
+        return jsonify({'error': '用户名和密码不能为空'}), 400
 
     allowed, wait_seconds = _check_account_lock(username)
     if not allowed:
@@ -90,12 +90,12 @@ def login():
             'permissions': session['permissions']
         })
     _record_failure(ip, username)
-    return jsonify({'error': 'Invalid credentials'}), 401
+    return jsonify({'error': '用户名或密码错误'}), 401
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     session.clear()
-    return jsonify({'message': 'Logged out successfully'})
+    return jsonify({'message': '退出成功'})
 
 @auth_bp.route('/current_user', methods=['GET'])
 def current_user():
@@ -105,12 +105,12 @@ def current_user():
             'username': session['username'],
             'permissions': session.get('permissions', [])
         })
-    return jsonify({'error': 'Not logged in'}), 401
+    return jsonify({'error': '未登录'}), 401
 
 @auth_bp.route('/change_password', methods=['POST'])
 def change_password():
     if 'user_id' not in session:
-        return jsonify({'error': 'Not logged in'}), 401
+        return jsonify({'error': '未登录'}), 401
 
     data = request.get_json(silent=True) or {}
     old_password = data.get('old_password')

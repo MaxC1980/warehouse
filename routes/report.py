@@ -2,10 +2,12 @@ from flask import Blueprint, request, jsonify, make_response
 from services.report_service import ReportService
 from utils.excel_utils import export_to_excel
 from utils.pagination import get_per_page
+from utils.decorators import require_permission
 
 report_bp = Blueprint('report', __name__)
 
 @report_bp.route('/reports/inventory', methods=['GET'])
+@require_permission('report_inventory', 'view')
 def get_inventory_report():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(default=100, max_value=200)
@@ -28,6 +30,7 @@ def get_inventory_report():
     })
 
 @report_bp.route('/reports/in-detail', methods=['GET'])
+@require_permission('report_in_detail', 'view')
 def get_in_detail_report():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(default=100, max_value=200)
@@ -50,6 +53,7 @@ def get_in_detail_report():
     })
 
 @report_bp.route('/reports/out-detail', methods=['GET'])
+@require_permission('report_out_detail', 'view')
 def get_out_detail_report():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(default=100, max_value=200)
@@ -72,6 +76,7 @@ def get_out_detail_report():
     })
 
 @report_bp.route('/reports/summary', methods=['GET'])
+@require_permission('report_summary', 'view')
 def get_summary_report():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -83,6 +88,7 @@ def get_summary_report():
     return jsonify(report_data)
 
 @report_bp.route('/reports/inventory/export', methods=['GET'])
+@require_permission('report_inventory', 'view')
 def export_inventory_report():
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')
@@ -115,6 +121,7 @@ def export_inventory_report():
     return response
 
 @report_bp.route('/reports/in-detail/export', methods=['GET'])
+@require_permission('report_in_detail', 'view')
 def export_in_detail_report():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -150,6 +157,7 @@ def export_in_detail_report():
     return response
 
 @report_bp.route('/reports/out-detail/export', methods=['GET'])
+@require_permission('report_out_detail', 'view')
 def export_out_detail_report():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -184,6 +192,7 @@ def export_out_detail_report():
     return response
 
 @report_bp.route('/reports/stock-flow', methods=['GET'])
+@require_permission('report_stock_flow', 'view')
 def get_stock_flow_report():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(default=100, max_value=200)
@@ -218,6 +227,7 @@ def get_stock_flow_report():
     })
 
 @report_bp.route('/reports/stock-flow/export', methods=['GET'])
+@require_permission('report_stock_flow', 'view')
 def export_stock_flow_report():
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')

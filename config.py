@@ -11,6 +11,7 @@ class Config:
     # Upload settings
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
     ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
     # Default: debug off for safety
     DEBUG = False

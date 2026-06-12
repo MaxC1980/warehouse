@@ -341,23 +341,22 @@ def init_db():
             operator_role_id = operator_role['id']
             viewer_role_id = viewer_role['id']
 
-            # 管理员：全部权限（包括 admin.manage）
-            cursor.execute("SELECT id FROM permission")
-            for row in cursor.fetchall():
-                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
-                               (admin_role_id, row['id']))
+            # 系统角色权限按定义补齐（新增权限自动分配，不删除已有）
+            def _ensure_role_perms(role_id, perm_filter):
+                cursor.execute("SELECT permission_id FROM role_permission WHERE role_id = ?", (role_id,))
+                existing = {row['permission_id'] for row in cursor.fetchall()}
+                cursor.execute(f"SELECT id FROM permission WHERE {perm_filter}")
+                for row in cursor.fetchall():
+                    if row['id'] not in existing:
+                        cursor.execute("INSERT INTO role_permission (role_id, permission_id) VALUES (?, ?)",
+                                       (role_id, row['id']))
 
-            # 操作员：view + edit（不含 approve）
-            cursor.execute("SELECT id FROM permission WHERE action != 'approve'")
-            for row in cursor.fetchall():
-                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
-                               (operator_role_id, row['id']))
-
+            # 管理员：全部权限
+            _ensure_role_perms(admin_role_id, '1=1')
+            # 操作员：view + edit（不含 approve、manage）
+            _ensure_role_perms(operator_role_id, "action IN ('view', 'edit')")
             # 查看员：仅 view
-            cursor.execute("SELECT id FROM permission WHERE action = 'view'")
-            for row in cursor.fetchall():
-                cursor.execute("INSERT OR IGNORE INTO role_permission (role_id, permission_id) VALUES (?, ?)",
-                               (viewer_role_id, row['id']))
+            _ensure_role_perms(viewer_role_id, "action = 'view'")
 
             # Migrate existing users without roles to viewer role
             cursor.execute("SELECT id FROM user WHERE id NOT IN (SELECT user_id FROM user_role)")

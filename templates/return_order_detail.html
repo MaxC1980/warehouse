@@ -94,8 +94,8 @@
 
     <div class="form-actions">
         {% if order.status == 'pending' %}
-        <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
-        <button type="button" onclick="approveOrder()" class="btn btn-success">审核</button>
+        {% if has_perm('return_order', 'edit') %}<button type="submit" class="btn btn-primary" id="save-btn">保存</button>{% endif %}
+        {% if has_perm('return_order', 'approve') %}<button type="button" onclick="approveOrder()" class="btn btn-success">审核</button>{% endif %}
         {% endif %}
         <a href="/return-orders" class="btn btn-secondary">返回列表</a>
     </div>
@@ -160,7 +160,7 @@
 {% block scripts %}
 <script>
 const orderId = {{ order.id }};
-const orderStatus = '{{ order.status }}';
+const orderStatus = {{ order.status | tojson }};
 let isModified = false;
 
 function markModified() { isModified = true; }
@@ -210,10 +210,8 @@ document.getElementById('order-form').addEventListener('submit', async (e) => {
     };
 
     const result = await apiRequest(`/return-orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
-    if (result) {
-        alert('保存成功');
-        location.reload();
-    }
+    alert('保存成功');
+    location.reload();
 });
 
 async function approveOrder() {
@@ -255,24 +253,16 @@ async function approveOrder() {
         items: items
     };
 
-    const saveResult = await apiRequest(`/return-orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
-    if (!saveResult) {
-        alert('保存失败');
-        return;
-    }
+    await apiRequest(`/return-orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
 
     // Then approve
-    const approveResult = await apiRequest(`/return-orders/${orderId}/approve`, {
+    await apiRequest(`/return-orders/${orderId}/approve`, {
         method: 'POST',
         body: JSON.stringify({ weight_data: weightData })
     });
 
-    if (approveResult) {
-        alert('审核成功');
-        location.reload();
-    } else {
-        alert('审核失败');
-    }
+    alert('审核成功');
+    location.reload();
 }
 </script>
 {% endblock %}

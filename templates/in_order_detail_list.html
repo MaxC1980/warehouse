@@ -75,7 +75,7 @@ async function loadOrders(page = 1) {
     const data = await apiRequest(`/in-orders/detail?${params}`);
     if (data) {
         renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+        renderPagination('pagination', data.total, data.page, perPage, loadOrders);
     }
 }
 
@@ -143,7 +143,7 @@ function renderOrders(orders) {
 
 function getStatusText(status) {
     const map = { pending: '待审核', approved: '已审核', cancelled: '已取消' };
-    return map[status] || status;
+    return map[status] || escapeHtml(status);
 }
 
 setThisMonth();

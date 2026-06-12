@@ -92,7 +92,7 @@ async function loadOrders(page = 1) {
         document.getElementById('page-total').textContent = '0';
         document.getElementById('grand-total').textContent = data.grand_total || 0;
         renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+        renderPagination('pagination', data.total, data.page, perPage, loadOrders);
     }
 }
 
@@ -103,7 +103,7 @@ function exportExcel() {
     const endDate = document.getElementById('end-date').value;
     const keyword = document.getElementById('search-keyword').value.trim();
 
-    const params = new URLSearchParams({ page: 1, per_page: 10000 });
+    const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (receiver) params.append('receiver', receiver);
     if (startDate) params.append('start_date', startDate);
@@ -200,7 +200,7 @@ function getStatusText(status) {
         approved: '已审核',
         completed: '已完成'
     };
-    return map[status] || status;
+    return map[status] || escapeHtml(status);
 }
 
 setThisMonth();

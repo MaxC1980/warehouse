@@ -28,18 +28,16 @@
 
 {% block scripts %}
 <script>
-const categoryId = {{ category_id if category_id else 'null' }};
+const categoryId = {{ category_id | default(none) | tojson }};
 
 async function loadCategory() {
     if (!categoryId) return;
     const categories = await apiRequest('/categories');
-    if (categories) {
-        const category = categories.find(c => c.id === categoryId);
-        if (category) {
-            const form = document.getElementById('category-form');
-            form.code.value = category.code;
-            form.name.value = category.name;
-        }
+    const category = categories.find(c => c.id === categoryId);
+    if (category) {
+        const form = document.getElementById('category-form');
+        form.code.value = category.code;
+        form.name.value = category.name;
     }
 }
 
@@ -57,9 +55,7 @@ async function handleSubmit(e) {
     const method = categoryId ? 'PUT' : 'POST';
 
     const result = await apiRequest(url, { method, body: JSON.stringify(data) });
-    if (result) {
-        window.location.href = '/category-major';
-    }
+    window.location.href = '/category-major';
 }
 
 loadCategory();

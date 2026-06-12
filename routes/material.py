@@ -6,6 +6,7 @@ from utils.decorators import require_permission
 material_bp = Blueprint('material', __name__)
 
 @material_bp.route('/categories', methods=['GET'])
+@require_permission('material', 'view')
 def get_categories():
     categories = MaterialService.get_all_categories()
     return jsonify(categories)
@@ -51,6 +52,7 @@ def delete_category(category_id):
     return jsonify({'error': '分类不存在'}), 404
 
 @material_bp.route('/materials', methods=['GET'])
+@require_permission('material', 'view')
 def get_materials():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -75,11 +77,12 @@ def get_materials():
     })
 
 @material_bp.route('/materials/<int:material_id>', methods=['GET'])
+@require_permission('material', 'view')
 def get_material(material_id):
     material = MaterialService.get_material_by_id(material_id)
     if material:
         return jsonify(material)
-    return jsonify({'error': 'Material not found'}), 404
+    return jsonify({'error': '物料不存在'}), 404
 
 @material_bp.route('/materials', methods=['POST'])
 @require_permission('material', 'edit')
@@ -106,7 +109,7 @@ def update_material(material_id):
     material = MaterialService.update_material(material_id, data)
     if material:
         return jsonify(material)
-    return jsonify({'error': 'Material not found'}), 404
+    return jsonify({'error': '物料不存在'}), 404
 
 @material_bp.route('/materials/<int:material_id>', methods=['DELETE'])
 @require_permission('material', 'edit')

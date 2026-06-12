@@ -6,6 +6,7 @@ from utils.decorators import require_permission
 in_order_bp = Blueprint('in_order', __name__)
 
 @in_order_bp.route('/in-orders', methods=['GET'])
+@require_permission('in_order', 'view')
 def get_in_orders():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -28,11 +29,12 @@ def get_in_orders():
     })
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['GET'])
+@require_permission('in_order', 'view')
 def get_in_order(order_id):
     order = OrderService.get_in_order_by_id(order_id)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '入库单不存在'}), 404
 
 @in_order_bp.route('/in-orders', methods=['POST'])
 @require_permission('in_order', 'edit')
@@ -71,15 +73,15 @@ def update_in_order(order_id):
     order = OrderService.update_in_order(order_id, data)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '入库单不存在'}), 404
 
 @in_order_bp.route('/in-orders/<int:order_id>', methods=['DELETE'])
 @require_permission('in_order', 'edit')
 def delete_in_order(order_id):
     success = OrderService.delete_in_order(order_id)
     if success:
-        return jsonify({'message': 'Order deleted'})
-    return jsonify({'error': 'Order not found or cannot be deleted'}), 404
+        return jsonify({'message': '入库单已删除'})
+    return jsonify({'error': '入库单不存在或无法删除'}), 404
 
 @in_order_bp.route('/in-orders/<int:order_id>/approve', methods=['POST'])
 @require_permission('in_order', 'approve')
@@ -88,9 +90,10 @@ def approve_in_order(order_id):
     result = OrderService.approve_in_order(order_id, approved_by)
     if result:
         return jsonify(result)
-    return jsonify({'error': 'Order not found or cannot be approved'}), 400
+    return jsonify({'error': '入库单不存在或无法审核'}), 400
 
 @in_order_bp.route('/in-orders/detail', methods=['GET'])
+@require_permission('in_order', 'view')
 def get_in_orders_with_details():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()

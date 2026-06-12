@@ -184,7 +184,7 @@ def create_app(config_class):
         from services.order_service import OrderService
         order = OrderService.get_in_order_by_id(order_id)
         if not order:
-            return 'Order not found', 404
+            return '订单不存在', 404
         return render_template('in_order_detail.html', order=order)
 
     @app.route('/in-order-details')
@@ -213,9 +213,8 @@ def create_app(config_class):
         from services.order_service import OrderService
         order = OrderService.get_out_order_by_id(order_id)
         if not order:
-            return 'Order not found', 404
-        from services.order_service import OrderService as OS
-        related_returns, _ = OS.get_return_orders_by_out_order(order_id)
+            return '订单不存在', 404
+        related_returns, _ = OrderService.get_return_orders_by_out_order(order_id)
         return render_template('out_order_detail.html', order=order, related_returns=related_returns)
 
     @app.route('/out-orders/<int:order_id>/print')
@@ -224,7 +223,7 @@ def create_app(config_class):
         from services.order_service import OrderService
         order = OrderService.get_out_order_by_id(order_id)
         if not order:
-            return 'Order not found', 404
+            return '订单不存在', 404
         return render_template('out_order_print.html', order=order)
 
     @app.route('/out-order-details')
@@ -338,7 +337,7 @@ def create_app(config_class):
         from services.order_service import OrderService
         order = OrderService.get_return_order_by_id(order_id)
         if not order:
-            return 'Order not found', 404
+            return '订单不存在', 404
         return render_template('return_order_detail.html', order=order)
 
     @app.route('/return-order-details')

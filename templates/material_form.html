@@ -79,20 +79,18 @@
 
 {% block scripts %}
 <script>
-const materialId = {{ material_id if material_id else 'null' }};
+const materialId = {{ material_id | default(none) | tojson }};
 let allCategories = [];
 
 async function loadCategories() {
     const categories = await apiRequest('/categories');
-    if (categories) {
-        allCategories = categories;
-        const select = document.getElementById('category-select');
-        // 只显示大类 (level=1)
-        categories.filter(c => c.level === 1).forEach(cat => {
-            select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
-        });
-        select.addEventListener('change', loadMinorCategories);
-    }
+    allCategories = categories;
+    const select = document.getElementById('category-select');
+    // 只显示大类 (level=1)
+    categories.filter(c => c.level === 1).forEach(cat => {
+        select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+    });
+    select.addEventListener('change', loadMinorCategories);
 }
 
 function loadMinorCategories() {
@@ -111,37 +109,35 @@ function loadMinorCategories() {
 async function loadMaterial() {
     if (!materialId) return;
     const material = await apiRequest(`/materials/${materialId}`);
-    if (material) {
-        const form = document.getElementById('material-form');
-        document.getElementById('material-code').value = material.code || '';
-        form.name.value = material.name;
-        form.spec.value = material.spec || '';
-        form.unit.value = material.unit;
-        form.manufacturer.value = material.manufacturer || '';
-        form.storage_condition.value = material.storage_condition || '常温';
-        form.shelf_life.value = material.shelf_life || '';
-        form.safety_stock.value = material.safety_stock || 0;
-        form.remark.value = material.remark || '';
-        document.getElementById('is_reusable').checked = material.is_reusable === 1;
+    const form = document.getElementById('material-form');
+    document.getElementById('material-code').value = material.code || '';
+    form.name.value = material.name;
+    form.spec.value = material.spec || '';
+    form.unit.value = material.unit;
+    form.manufacturer.value = material.manufacturer || '';
+    form.storage_condition.value = material.storage_condition || '常温';
+    form.shelf_life.value = material.shelf_life || '';
+    form.safety_stock.value = material.safety_stock || 0;
+    form.remark.value = material.remark || '';
+    document.getElementById('is_reusable').checked = material.is_reusable === 1;
 
-        // 如果有引用记录，禁用分类选择
-        if (material.has_references) {
-            document.getElementById('category-select').disabled = true;
-            document.getElementById('minor-category-select').disabled = true;
-        }
+    // 如果有引用记录，禁用分类选择
+    if (material.has_references) {
+        document.getElementById('category-select').disabled = true;
+        document.getElementById('minor-category-select').disabled = true;
+    }
 
-        // 如果有分类，回填大类和小类
-        if (material.category_code) {
-            const category = allCategories.find(c => c.code === material.category_code);
-            if (category) {
-                if (category.level === 1) {
-                    form.category_code.value = category.code;
-                    loadMinorCategories();
-                } else if (category.level === 2) {
-                    form.category_code.value = category.parent_code;
-                    loadMinorCategories();
-                    form.minor_category_code.value = category.code;
-                }
+    // 如果有分类，回填大类和小类
+    if (material.category_code) {
+        const category = allCategories.find(c => c.code === material.category_code);
+        if (category) {
+            if (category.level === 1) {
+                form.category_code.value = category.code;
+                loadMinorCategories();
+            } else if (category.level === 2) {
+                form.category_code.value = category.parent_code;
+                loadMinorCategories();
+                form.minor_category_code.value = category.code;
             }
         }
     }
@@ -166,10 +162,8 @@ async function handleSubmit(e) {
     const url = materialId ? `/materials/${materialId}` : '/materials';
     const method = materialId ? 'PUT' : 'POST';
 
-    const result = await apiRequest(url, { method, body: JSON.stringify(data) });
-    if (result) {
-        window.location.href = '/materials';
-    }
+    await apiRequest(url, { method, body: JSON.stringify(data) });
+    window.location.href = '/materials';
 }
 
 (async () => {

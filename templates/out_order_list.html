@@ -68,10 +68,8 @@ async function loadOrders(page = 1) {
     if (endDate) params.append('end_date', endDate);
 
     const data = await apiRequest(`/out-orders?${params}`);
-    if (data) {
-        renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
-    }
+    renderOrders(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadOrders);
 }
 
 function renderOrders(orders) {
@@ -107,7 +105,7 @@ function getStatusText(status) {
         approved: '已审核',
         completed: '已完成'
     };
-    return map[status] || status;
+    return map[status] || escapeHtml(status);
 }
 
 async function approveOrder(id) {
@@ -116,13 +114,9 @@ async function approveOrder(id) {
         return;
     }
     if (!confirm('确定要审核通过该出库单吗？')) return;
-    const result = await apiRequest(`/out-orders/${id}/approve`, { method: 'POST' });
-    if (result) {
-        alert('审核成功');
-        loadOrders(currentPage);
-    } else {
-        alert('审核失败，库存可能不足');
-    }
+    await apiRequest(`/out-orders/${id}/approve`, { method: 'POST' });
+    alert('审核成功');
+    loadOrders(currentPage);
 }
 
 async function deleteOrder(id) {
@@ -131,13 +125,9 @@ async function deleteOrder(id) {
         return;
     }
     if (!confirm('确定要删除该出库单吗？')) return;
-    const result = await apiRequest(`/out-orders/${id}`, { method: 'DELETE' });
-    if (result) {
-        alert('删除成功');
-        loadOrders(currentPage);
-    } else {
-        alert('删除失败');
-    }
+    await apiRequest(`/out-orders/${id}`, { method: 'DELETE' });
+    alert('删除成功');
+    loadOrders(currentPage);
 }
 
 initDateRange('start-date', 'end-date', loadOrders);

@@ -71,11 +71,9 @@ async function loadCategories(page = 1) {
     currentPage = page;
     perPage = parseInt(document.getElementById('per-page').value);
     const data = await apiRequest('/categories');
-    if (data) {
-        categories = data.filter(c => c.level === 1);
-        renderCategories();
-        renderPagination('pagination', categories.length, currentPage, perPage, 'loadCategories');
-    }
+    categories = data.filter(c => c.level === 1);
+    renderCategories();
+    renderPagination('pagination', categories.length, currentPage, perPage, loadCategories);
 }
 
 function checkCodeUnique(code, mode) {
@@ -167,10 +165,8 @@ async function saveNew() {
         method: 'POST',
         body: JSON.stringify({ code, name, level: 1, parent_code: null })
     });
-    if (result) {
-        hideAddRow();
-        loadCategories();
-    }
+    hideAddRow();
+    loadCategories();
 }
 
 function startEdit(id) {
@@ -201,18 +197,14 @@ async function saveEdit(id) {
         method: 'PUT',
         body: JSON.stringify(body)
     });
-    if (result) {
-        editingId = null;
-        loadCategories();
-    }
+    editingId = null;
+    loadCategories();
 }
 
 async function deleteCategory(id) {
     if (!confirm('确定要删除该大类吗？')) return;
     const result = await apiRequest(`/categories/${id}`, { method: 'DELETE' });
-    if (result) {
-        loadCategories();
-    }
+    loadCategories();
 }
 
 function showImportModal() {
@@ -228,16 +220,14 @@ document.getElementById('import-form').addEventListener('submit', async function
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const response = await fetch('/api/import/categories', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    const result = await response.json();
-    if (result) {
-        if (result.error) {
-            alert(result.error);
-        } else {
-            alert(result.message);
-            hideImportModal();
-            loadCategories();
-        }
+
+    try {
+        const result = await apiRequest('/import/categories', { method: 'POST', body: formData });
+        alert(result.message);
+        hideImportModal();
+        loadCategories();
+    } catch (e) {
+        // apiRequest 已弹窗提示错误
     }
 });
 

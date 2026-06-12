@@ -1,4 +1,5 @@
 from database import get_db_connection
+from utils.sql import escape_like
 
 class MaterialService:
     REUSABLE_KEYWORDS = ['胶水', '锡膏']
@@ -156,8 +157,9 @@ class MaterialService:
                 params.append(minor_category)
 
             if keyword:
-                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             where_sql = ""
             if where_clauses:
@@ -227,7 +229,10 @@ class MaterialService:
                 )
                 last_code = cursor.fetchone()
                 if last_code:
-                    seq = int(last_code['code'][-4:]) + 1
+                    try:
+                        seq = int(last_code['code'][-4:]) + 1
+                    except ValueError:
+                        seq = 1
                 else:
                     seq = 1
                 code = category_code + str(seq).zfill(4)
@@ -235,7 +240,10 @@ class MaterialService:
                 cursor.execute("SELECT code FROM material ORDER BY code DESC LIMIT 1")
                 last_code = cursor.fetchone()
                 if last_code:
-                    seq = int(last_code['code']) + 1
+                    try:
+                        seq = int(last_code['code']) + 1
+                    except ValueError:
+                        seq = 1
                 else:
                     seq = 1
                 code = str(seq).zfill(8)

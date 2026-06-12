@@ -114,7 +114,7 @@
 
 {% block scripts %}
 <script>
-const orderId = {{ order_id if order_id else 'null' }};
+const orderId = {{ order_id | default(none) | tojson }};
 let isModified = false;
 
 function markModified() { isModified = true; }
@@ -122,66 +122,62 @@ function markModified() { isModified = true; }
 async function loadOrder() {
     if (!orderId) return;
     const order = await apiRequest('/out-orders/' + orderId);
-    if (order) {
-        document.getElementById('page-title').textContent = '编辑出库单 - ' + order.order_no;
-        document.getElementById('department').value = order.department || '';
-        document.getElementById('receiver-select').value = order.receiver || '';
-        document.getElementById('receiver_date').value = order.receiver_date || '';
-        document.querySelector('input[name="remark"]').value = order.remark || '';
-        document.getElementById('purpose').value = order.purpose || '';
+    document.getElementById('page-title').textContent = '编辑出库单 - ' + order.order_no;
+    document.getElementById('department').value = order.department || '';
+    document.getElementById('receiver-select').value = order.receiver || '';
+    document.getElementById('receiver_date').value = order.receiver_date || '';
+    document.querySelector('input[name="remark"]').value = order.remark || '';
+    document.getElementById('purpose').value = order.purpose || '';
 
-        if (order.items && order.items.length > 0) {
-            const tbody = document.getElementById('items-tbody');
-            tbody.innerHTML = '';
-            const isEditable = order.status === 'pending';
+    if (order.items && order.items.length > 0) {
+        const tbody = document.getElementById('items-tbody');
+        tbody.innerHTML = '';
+        const isEditable = order.status === 'pending';
 
-            // Fetch weight records for each item (only for reusable materials)
-            const weightMap = {};
-            for (const item of order.items) {
-                if (item.material_is_reusable == 1) {  // == instead of === to handle both string and number
-                    try {
-                        const weight = await apiRequest(`/out-orders/${orderId}/items/${item.id}/weight`);
-                        if (weight) {
-                            weightMap[item.id] = weight;
-                        }
-                    } catch (e) {
-                        // No weight record yet - that's ok
-                    }
+        // Fetch weight records for each item (only for reusable materials)
+        const weightMap = {};
+        for (const item of order.items) {
+            if (item.material_is_reusable == 1) {  // == instead of === to handle both string and number
+                try {
+                    const weight = await apiRequest(`/out-orders/${orderId}/items/${item.id}/weight`);
+                    weightMap[item.id] = weight;
+                } catch (e) {
+                    // No weight record yet - that's ok
                 }
             }
-
-            order.items.forEach(item => {
-                const weight = weightMap[item.id] || {};
-                addItemRow({
-                    item_id: item.id,
-                    material_id: item.material_id,
-                    material_code: item.material_code,
-                    material_name: item.material_name,
-                    material_manufacturer: item.manufacturer,
-                    material_spec: item.spec,
-                    unit: item.unit,
-                    batch_no: item.batch_no,
-                    requested_quantity: item.requested_quantity || 0,
-                    actual_quantity: item.actual_quantity || 0,
-                    material_is_reusable: item.material_is_reusable,
-                    initial_gross_weight: weight.initial_gross_weight || item.initial_gross_weight,
-                    shipment_info: item.shipment_info,
-                    editable: isEditable
-                });
-            });
         }
 
-        if (order.status !== 'pending') {
+        order.items.forEach(item => {
+            const weight = weightMap[item.id] || {};
+            addItemRow({
+                item_id: item.id,
+                material_id: item.material_id,
+                material_code: item.material_code,
+                material_name: item.material_name,
+                material_manufacturer: item.manufacturer,
+                material_spec: item.spec,
+                unit: item.unit,
+                batch_no: item.batch_no,
+                requested_quantity: item.requested_quantity || 0,
+                actual_quantity: item.actual_quantity || 0,
+                material_is_reusable: item.material_is_reusable,
+                initial_gross_weight: weight.initial_gross_weight || item.initial_gross_weight,
+                shipment_info: item.shipment_info,
+                editable: isEditable
+            });
+        });
+    }
+
+    if (order.status !== 'pending') {
+        disableForm();
+    } else {
+        // Show approve button only if user has approve permission
+        if (hasPerm('out_order', 'approve')) {
+            document.getElementById('approve-btn').style.display = 'inline-block';
+        }
+        // Disable form if user has no edit permission
+        if (!hasPerm('out_order', 'edit')) {
             disableForm();
-        } else {
-            // Show approve button only if user has approve permission
-            if (hasPerm('out_order', 'approve')) {
-                document.getElementById('approve-btn').style.display = 'inline-block';
-            }
-            // Disable form if user has no edit permission
-            if (!hasPerm('out_order', 'edit')) {
-                disableForm();
-            }
         }
     }
 }
@@ -197,13 +193,9 @@ async function approveOrder() {
     }
     if (!confirm('确定要审核通过该出库单吗？')) return;
 
-    const result = await apiRequest('/out-orders/' + orderId + '/approve', { method: 'POST' });
-    if (result) {
-        alert('审核成功');
-        window.location.href = '/out-orders';
-    } else {
-        alert('审核失败，库存可能不足');
-    }
+    await apiRequest('/out-orders/' + orderId + '/approve', { method: 'POST' });
+    alert('审核成功');
+    window.location.href = '/out-orders';
 }
 
 function disableForm() {
@@ -288,12 +280,10 @@ async function loadCategories() {
     const data = await apiRequest('/categories?per_page=200');
     const majorSelect = document.getElementById('modal-major-category');
     majorSelect.innerHTML = '<option value="">全部大类</option>';
-    if (data && Array.isArray(data)) {
-        modalCategoriesData = data;
-        data.filter(c => c.level === 1).forEach(c => {
-            majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
-        });
-    }
+    modalCategoriesData = data;
+    data.filter(c => c.level === 1).forEach(c => {
+        majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
+    });
 }
 
 function onMajorCategoryChange() {
@@ -320,7 +310,7 @@ async function loadInventoryModal() {
 
     const data = await apiRequest(`/inventory/select?${params}`);
     const tbody = document.getElementById('modal-inventory-tbody');
-    if (!data || !data.items || data.items.length === 0) {
+    if (!data.items || data.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
         document.getElementById('modal-pagination').innerHTML = '';
         return;
@@ -479,28 +469,24 @@ async function handleSubmit(e) {
     const url = orderId ? '/out-orders/' + orderId : '/out-orders';
     const method = orderId ? 'PUT' : 'POST';
 
-    const result = await apiRequest(url, { method: method, body: JSON.stringify(data) });
-    if (result) {
-        isModified = false;
-        window.location.href = '/out-orders';
-    }
+    await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    isModified = false;
+    window.location.href = '/out-orders';
 }
 
 let employeesData = [];
 
 async function loadEmployees() {
     const data = await apiRequest('/employees');
-    if (data) {
-        employeesData = data.items || [];
-        const select = document.getElementById('receiver-select');
-        employeesData.forEach(e => {
-            const selected = e.name === currentUsername ? 'selected' : '';
-            select.innerHTML += '<option value="' + escapeHtml(e.name) + '" ' + selected + '>' + escapeHtml(e.name) + '</option>';
-            if (e.name === currentUsername && e.department) {
-                document.getElementById('department').value = e.department;
-            }
-        });
-    }
+    employeesData = data.items || [];
+    const select = document.getElementById('receiver-select');
+    employeesData.forEach(e => {
+        const selected = e.name === currentUsername ? 'selected' : '';
+        select.innerHTML += '<option value="' + escapeHtml(e.name) + '" ' + selected + '>' + escapeHtml(e.name) + '</option>';
+        if (e.name === currentUsername && e.department) {
+            document.getElementById('department').value = e.department;
+        }
+    });
 }
 
 function onReceiverChange() {
@@ -515,9 +501,7 @@ let currentUsername = '';
 
 (async function() {
     const user = await apiRequest('/auth/current_user');
-    if (user) {
-        currentUsername = user.username || '';
-    }
+    currentUsername = user.username || '';
 
     await loadEmployees();
     if (!orderId) {

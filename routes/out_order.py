@@ -10,6 +10,7 @@ from utils.decorators import require_permission
 out_order_bp = Blueprint('out_order', __name__)
 
 @out_order_bp.route('/out-orders', methods=['GET'])
+@require_permission('out_order', 'view')
 def get_out_orders():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -32,11 +33,12 @@ def get_out_orders():
     })
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['GET'])
+@require_permission('out_order', 'view')
 def get_out_order(order_id):
     order = OrderService.get_out_order_by_id(order_id)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '出库单不存在'}), 404
 
 @out_order_bp.route('/out-orders', methods=['POST'])
 @require_permission('out_order', 'edit')
@@ -81,15 +83,15 @@ def update_out_order(order_id):
     order = OrderService.update_out_order(order_id, data)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '出库单不存在'}), 404
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['DELETE'])
 @require_permission('out_order', 'edit')
 def delete_out_order(order_id):
     success = OrderService.delete_out_order(order_id)
     if success:
-        return jsonify({'message': 'Order deleted'})
-    return jsonify({'error': 'Order not found or cannot be deleted'}), 404
+        return jsonify({'message': '出库单已删除'})
+    return jsonify({'error': '出库单不存在或无法删除'}), 404
 
 @out_order_bp.route('/out-orders/<int:order_id>/approve', methods=['POST'])
 @require_permission('out_order', 'approve')
@@ -102,7 +104,7 @@ def approve_out_order(order_id):
         result = OrderService.approve_out_order(order_id, approved_by, weight_data)
         if result:
             return jsonify(result)
-        return jsonify({'error': 'Order not found or cannot be approved'}), 400
+        return jsonify({'error': '出库单不存在或无法审核'}), 400
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
@@ -110,6 +112,7 @@ def approve_out_order(order_id):
         return jsonify({'error': '服务器内部错误'}), 500
 
 @out_order_bp.route('/out-orders/detail', methods=['GET'])
+@require_permission('out_order', 'view')
 def get_out_orders_with_details():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -139,6 +142,7 @@ def get_out_orders_with_details():
     })
 
 @out_order_bp.route('/out-orders/detail/export', methods=['GET'])
+@require_permission('out_order', 'view')
 def export_out_orders_detail():
     """导出出库台账明细（所有数据，不受分页限制）"""
     status = request.args.get('status')
@@ -196,6 +200,7 @@ def export_out_orders_detail():
     return response
 
 @out_order_bp.route('/out-orders/<int:order_id>/items/<int:item_id>/weight', methods=['GET'])
+@require_permission('out_order', 'view')
 def get_out_order_item_weight(order_id, item_id):
     """获取出库单明细的称重记录"""
     weight = OrderService.get_weight_record_by_out_order_item(item_id)
@@ -204,6 +209,7 @@ def get_out_order_item_weight(order_id, item_id):
     return jsonify(None)
 
 @out_order_bp.route('/weight-records', methods=['GET'])
+@require_permission('weight_record', 'view')
 def get_weight_records():
     """获取所有称重记录"""
     page = request.args.get('page', 1, type=int)

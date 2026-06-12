@@ -126,7 +126,7 @@ async function loadReport(page = 1) {
     const data = await apiRequest(`/reports/stock-flow?${params}`);
     if (data) {
         renderReport(data.items);
-        renderPagination(data.total, data.page, perPage);
+        renderPagination('pagination', data.total, data.page, perPage, loadReport);
     }
 }
 
@@ -152,19 +152,6 @@ function renderReport(items) {
     `).join('');
 }
 
-function renderPagination(total, page, perPage) {
-    const totalPages = Math.ceil(total / perPage);
-    const div = document.getElementById('pagination');
-    if (totalPages <= 1) {
-        div.innerHTML = '';
-        return;
-    }
-    let html = '';
-    if (page > 1) html += `<button onclick="loadReport(${page - 1})" class="btn btn-sm">上一页</button>`;
-    html += `<span style="padding:4px 8px;">第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
-    if (page < totalPages) html += `<button onclick="loadReport(${page + 1})" class="btn btn-sm">下一页</button>`;
-    div.innerHTML = html;
-}
 
 function exportExcel() {
     const dateFrom = document.getElementById('date-from').value;

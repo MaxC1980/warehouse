@@ -1,4 +1,5 @@
 from database import get_db_connection
+from utils.sql import escape_like
 
 class SupplierService:
     @staticmethod
@@ -12,8 +13,9 @@ class SupplierService:
             params = []
 
             if keyword:
-                where_sql = "WHERE name LIKE ? OR contact LIKE ? OR phone LIKE ?"
-                params = [f'%{keyword}%', f'%{keyword}%', f'%{keyword}%']
+                kw = escape_like(keyword)
+                where_sql = "WHERE name LIKE ? ESCAPE '\\' OR contact LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'"
+                params = [f'%{kw}%', f'%{kw}%', f'%{kw}%']
 
             # Get total count
             cursor.execute(f"SELECT COUNT(*) as count FROM supplier {where_sql}", params)

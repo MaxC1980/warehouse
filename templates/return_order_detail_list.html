@@ -77,7 +77,7 @@ async function loadOrders(page = 1) {
     const data = await apiRequest(`/return-orders?${params}`);
     if (data) {
         renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
+        renderPagination('pagination', data.total, data.page, perPage, loadOrders);
     }
 }
 
@@ -138,7 +138,7 @@ function getStatusText(status) {
         pending: '待审核',
         approved: '已审核'
     };
-    return map[status] || status;
+    return map[status] || escapeHtml(status);
 }
 
 initDateRange('start-date', 'end-date', loadOrders);

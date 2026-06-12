@@ -88,6 +88,7 @@ python app.py      # 生产环境（端口5000，用 waitress）
 - **Templates** (`templates/`) - Jinja2 模板
 - **utils/pagination.py** - `get_per_page(default, max_value)` 分页上限工具
 - **utils/decorators.py** - `@require_permission(module, action)` 权限装饰器
+- **utils/sql.py** - `escape_like()` SQL LIKE 通配符转义
 - **services/permission_service.py** - RBAC 权限服务（角色 CRUD、权限查询、用户分配）
 
 ## API 调用
@@ -126,21 +127,15 @@ with get_db_connection() as conn:
 ## 安全
 
 - `SECRET_KEY`：不硬编码，每次启动随机生成（`secrets.token_hex(32)`），重启后 session 失效。设环境变量 `SECRET_KEY` 可持久化
-- 全局鉴权：`before_request` 对所有 `/api/` 检查 `session['user_id']`（排除 `/api/auth/login`）
-- CSRF：POST/PUT/DELETE/PATCH 必须带 `X-Requested-With: XMLHttpRequest` header，否则 403
-- XSS：所有 innerHTML 模板字面量中的数据库字段必须用 `escapeHtml()` 包裹（函数在 `static/js/app.js`）
 - 登录限流：IP + 账号双维度，5 次失败锁定 15 分钟
-- 异常处理：业务校验用 `raise ValueError(msg)`，Route 层 `except ValueError` 返回 400；`except Exception` 返回通用 500，不暴露内部信息
+- 其他安全规范见 @docs/通用开发规范.md
 
 ## 注意
 
 1. 修改表结构后需手动 `ALTER TABLE` 或删除 `db/warehouse.db`
 2. SQL LIKE：`code LIKE '0103%'`（前缀），`name LIKE '%关键词%'`（模糊）
-3. `request.get_json()` 失败用 `request.get_json(silent=True) or {}`
-4. 禁止使用`select *`
-5. 不用外键约束，引用检查在业务层（Service）手动做
-6. 下拉框onchange()就load数据
-7. innerHTML 中的数据库字段必须用 `escapeHtml()` 转义，禁止裸 `${var}` 直接拼接
+3. 不用外键约束，引用检查在业务层（Service）手动做
+4. 下拉框onchange()就load数据
 
 ## 调试
 
@@ -153,4 +148,6 @@ playwright-cli snapshot
 调试产物放 `debug/` 目录。
 
 ## 业务逻辑查看@docs/业务逻辑.md
-## 新增模块清单查看@docs/新增模块清单.md
+## 新增模块操作指南查看@docs/新增模块操作指南.md
+## 代码质量改进记录查看@docs/代码质量改进记录.md
+## 通用开发规范查看@docs/通用开发规范.md

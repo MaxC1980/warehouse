@@ -130,7 +130,7 @@
 
 {% block scripts %}
 <script>
-const orderId = {{ order_id if order_id else 'null' }};
+const orderId = {{ order_id | default(none) | tojson }};
 let isModified = false;
 
 function markModified() { isModified = true; }
@@ -138,12 +138,10 @@ function onlyInteger(e) { return (e.key>='0' && e.key<='9') || ['Backspace','Del
 
 async function loadSuppliers() {
     const data = await apiRequest('/suppliers?per_page=1000');
-    if (data && data.items) {
-        const select = document.getElementById('supplier-select');
-        data.items.forEach(s => {
-            select.innerHTML += '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
-        });
-    }
+    const select = document.getElementById('supplier-select');
+    data.items.forEach(s => {
+        select.innerHTML += '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
+    });
 }
 
 async function loadOrder() {
@@ -153,58 +151,56 @@ async function loadOrder() {
         await loadMaterials();
     }
     const order = await apiRequest('/in-orders/' + orderId);
-    if (order) {
-        document.getElementById('page-title').textContent = '编辑入库单 - ' + order.order_no;
-        const form = document.getElementById('order-form');
-        form.supplier_id.value = order.supplier_id || '';
-        form.receiver.value = order.receiver || '';
-        form.purpose.value = order.purpose || '';
-        form.remark.value = order.remark || '';
-        if (order.receiver_date) {
-            form.receiver_date.value = order.receiver_date;
-        }
+    document.getElementById('page-title').textContent = '编辑入库单 - ' + order.order_no;
+    const form = document.getElementById('order-form');
+    form.supplier_id.value = order.supplier_id || '';
+    form.receiver.value = order.receiver || '';
+    form.purpose.value = order.purpose || '';
+    form.remark.value = order.remark || '';
+    if (order.receiver_date) {
+        form.receiver_date.value = order.receiver_date;
+    }
 
-        if (order.items && order.items.length > 0) {
-            const tbody = document.getElementById('items-tbody');
-            tbody.innerHTML = '';
-            const isEditable = order.status === 'pending';
-            const dis = isEditable ? '' : 'disabled';
-            order.items.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = '<td><select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)" ' + dis + '><option value="">请选择</option></select></td>' +
-                    '<td><span class="material-brand"></span></td>' +
-                    '<td><span class="material-spec"></span></td>' +
-                    '<td><span class="material-unit"></span></td>' +
-                    '<td><input type="text" name="batch_no" class="batch-no" value="' + escapeHtml(item.batch_no) + '" ' + dis + '></td>' +
-                    '<td><input type="date" name="production_date" class="production-date" value="' + escapeHtml(item.production_date) + '" ' + dis + '></td>' +
-                    '<td><input type="date" name="expiry_date" class="expiry-date" value="' + escapeHtml(item.expiry_date) + '" ' + dis + '></td>' +
-                    '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + escapeHtml(item.quantity) + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
-                    '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + escapeHtml(item.unit_price) + '" ' + dis + '></td>' +
-                    '<td>' + (isEditable ? '<button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
-                tbody.appendChild(tr);
-                const select = tr.querySelector('.material-select');
-                materialsData.forEach(m => {
-                    const selected = m.id === item.material_id ? 'selected' : '';
-                    select.innerHTML += '<option value="' + escapeHtml(m.id) + '" ' + selected + '>' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
-                });
-                if (item.material_id) {
-                    select.value = item.material_id;
-                    updateMaterialInfo(select);
-                }
+    if (order.items && order.items.length > 0) {
+        const tbody = document.getElementById('items-tbody');
+        tbody.innerHTML = '';
+        const isEditable = order.status === 'pending';
+        const dis = isEditable ? '' : 'disabled';
+        order.items.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td><select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)" ' + dis + '><option value="">请选择</option></select></td>' +
+                '<td><span class="material-brand"></span></td>' +
+                '<td><span class="material-spec"></span></td>' +
+                '<td><span class="material-unit"></span></td>' +
+                '<td><input type="text" name="batch_no" class="batch-no" value="' + escapeHtml(item.batch_no) + '" ' + dis + '></td>' +
+                '<td><input type="date" name="production_date" class="production-date" value="' + escapeHtml(item.production_date) + '" ' + dis + '></td>' +
+                '<td><input type="date" name="expiry_date" class="expiry-date" value="' + escapeHtml(item.expiry_date) + '" ' + dis + '></td>' +
+                '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + escapeHtml(item.quantity) + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
+                '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + escapeHtml(item.unit_price) + '" ' + dis + '></td>' +
+                '<td>' + (isEditable ? '<button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
+            tbody.appendChild(tr);
+            const select = tr.querySelector('.material-select');
+            materialsData.forEach(m => {
+                const selected = m.id === item.material_id ? 'selected' : '';
+                select.innerHTML += '<option value="' + escapeHtml(m.id) + '" ' + selected + '>' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
             });
-        }
+            if (item.material_id) {
+                select.value = item.material_id;
+                updateMaterialInfo(select);
+            }
+        });
+    }
 
-        if (order.status !== 'pending') {
+    if (order.status !== 'pending') {
+        disableForm();
+    } else {
+        // Show approve button only if user has approve permission
+        if (hasPerm('in_order', 'approve')) {
+            document.getElementById('approve-btn').style.display = 'inline-block';
+        }
+        // Disable form if user has no edit permission
+        if (!hasPerm('in_order', 'edit')) {
             disableForm();
-        } else {
-            // Show approve button only if user has approve permission
-            if (hasPerm('in_order', 'approve')) {
-                document.getElementById('approve-btn').style.display = 'inline-block';
-            }
-            // Disable form if user has no edit permission
-            if (!hasPerm('in_order', 'edit')) {
-                disableForm();
-            }
         }
     }
 }
@@ -219,13 +215,9 @@ async function approveOrder() {
         return;
     }
     if (!confirm('确定要审核通过该入库单吗？')) return;
-    const result = await apiRequest('/in-orders/' + orderId + '/approve', { method: 'POST' });
-    if (result) {
-        alert('审核成功');
-        window.location.href = '/in-orders';
-    } else {
-        alert('审核失败');
-    }
+    await apiRequest('/in-orders/' + orderId + '/approve', { method: 'POST' });
+    alert('审核成功');
+    window.location.href = '/in-orders';
 }
 
 function disableForm() {
@@ -244,14 +236,12 @@ let materialsData = [];
 
 async function loadMaterials() {
     const data = await apiRequest('/materials?per_page=1000');
-    if (data) {
-        materialsData = data.items;
-        document.querySelectorAll('.material-select').forEach(select => {
-            materialsData.forEach(m => {
-                select.innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
-            });
+    materialsData = data.items;
+    document.querySelectorAll('.material-select').forEach(select => {
+        materialsData.forEach(m => {
+            select.innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
         });
-    }
+    });
     return materialsData;
 }
 
@@ -300,13 +290,11 @@ async function loadMaterialsForNewRow(row) {
         });
     } else {
         const data = await apiRequest('/materials?per_page=1000');
-        if (data) {
-            materialsData = data.items;
-            row.querySelector('.material-select').innerHTML = '<option value="">请选择</option>';
-            materialsData.forEach(m => {
-                row.querySelector('.material-select').innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
-            });
-        }
+        materialsData = data.items;
+        row.querySelector('.material-select').innerHTML = '<option value="">请选择</option>';
+        materialsData.forEach(m => {
+            row.querySelector('.material-select').innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
+        });
     }
 }
 
@@ -377,21 +365,17 @@ async function handleSubmit(e) {
     const url = orderId ? '/in-orders/' + orderId : '/in-orders';
     const method = orderId ? 'PUT' : 'POST';
 
-    const result = await apiRequest(url, { method: method, body: JSON.stringify(data) });
-    if (result) {
-        isModified = false;
-        window.location.href = '/in-orders';
-    }
+    await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    isModified = false;
+    window.location.href = '/in-orders';
 }
 
 async function loadEmployees() {
     const data = await apiRequest('/employees');
-    if (data) {
-        const select = document.getElementById('receiver-select');
-        data.items.forEach(e => {
-            select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
-        });
-    }
+    const select = document.getElementById('receiver-select');
+    data.items.forEach(e => {
+        select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
+    });
 }
 
 (async function() {
@@ -468,7 +452,7 @@ async function loadMaterialModal() {
 
     const data = await apiRequest(`/materials?${params}`);
     const tbody = document.getElementById('modal-material-tbody');
-    if (!data || !data.items || data.items.length === 0) {
+    if (!data.items || data.items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
         document.getElementById('modal-pagination').innerHTML = '';
         return;

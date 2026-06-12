@@ -34,18 +34,16 @@
 
 {% block scripts %}
 <script>
-const categoryId = {{ category_id if category_id else 'null' }};
+const categoryId = {{ category_id | default(none) | tojson }};
 
 async function loadMajorCategories() {
     const categories = await apiRequest('/categories');
-    if (categories) {
-        const majorCategories = categories.filter(c => c.level === 1);
-        const select = document.getElementById('parent-select');
-        majorCategories.forEach(cat => {
-            select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
-        });
-        return categories;
-    }
+    const majorCategories = categories.filter(c => c.level === 1);
+    const select = document.getElementById('parent-select');
+    majorCategories.forEach(cat => {
+        select.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+    });
+    return categories;
 }
 
 async function loadCategory(categories) {
@@ -73,9 +71,7 @@ async function handleSubmit(e) {
     const method = categoryId ? 'PUT' : 'POST';
 
     const result = await apiRequest(url, { method, body: JSON.stringify(data) });
-    if (result) {
-        window.location.href = '/category-minor';
-    }
+    window.location.href = '/category-minor';
 }
 
 async function init() {

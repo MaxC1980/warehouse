@@ -1,5 +1,6 @@
 from database import get_db_connection
 from datetime import datetime
+from utils.sql import escape_like
 
 class ReportService:
     @staticmethod
@@ -14,12 +15,14 @@ class ReportService:
             params = []
 
             if keyword:
-                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             if major_category:
-                where_clauses.append("m.category_code LIKE ?")
-                params.append(major_category + '%')
+                mc = escape_like(major_category)
+                where_clauses.append("m.category_code LIKE ? ESCAPE '\\'")
+                params.append(mc + '%')
 
             if minor_category:
                 where_clauses.append("m.category_code = ?")
@@ -328,12 +331,14 @@ class ReportService:
             params = []
 
             if keyword:
-                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             if major_category:
-                where_clauses.append("m.category_code LIKE ?")
-                params.append(major_category + '%')
+                mc = escape_like(major_category)
+                where_clauses.append("m.category_code LIKE ? ESCAPE '\\'")
+                params.append(mc + '%')
 
             if minor_category:
                 where_clauses.append("m.category_code = ?")

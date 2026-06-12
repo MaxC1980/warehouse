@@ -1,5 +1,6 @@
 import logging
 from database import get_db_connection
+from utils.sql import escape_like
 from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -66,15 +67,15 @@ class InventoryService:
             params = []
 
             if keyword:
-                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             if category_code:
                 where_clauses.append("m.category_code LIKE ?")
                 params.append(f'{category_code}%')
 
             if status and not summary:
-                from datetime import datetime
                 p1 = f"INSTR(i.expiry_date, '-')"
                 rest = f"SUBSTR(i.expiry_date, {p1}+1)"
                 p2 = f"INSTR({rest}, '-') + {p1}"
@@ -88,7 +89,6 @@ class InventoryService:
                 elif status == '过期':
                     where_clauses.append(f"{ymd_expr} < '{today_ymd}'")
                 elif status == '本月过期':
-                    from datetime import timedelta
                     first_day = datetime.now().replace(day=1)
                     if datetime.now().month == 12:
                         next_month = first_day.replace(year=datetime.now().year+1, month=1, day=1)
@@ -97,7 +97,6 @@ class InventoryService:
                     last_day = (next_month - timedelta(days=1)).strftime('%Y%m%d')
                     where_clauses.append(f"(i.expiry_date IS NOT NULL AND {ymd_expr} <= '{last_day}')")
                 elif status == '下月过期':
-                    from datetime import timedelta
                     if datetime.now().month == 12:
                         next_month_first = datetime.now().replace(year=datetime.now().year+1, month=1, day=1)
                     else:
@@ -270,7 +269,6 @@ class InventoryService:
                     elif status == '正常':
                         item['status'] = '正常'
                     else:
-                        from datetime import date, datetime
                         today = date.today()
                         expiry = item.get('expiry_date')
                         if expiry:
@@ -402,7 +400,6 @@ class InventoryService:
     def update_inventory(material_id, quantity_change, batch_no=None, production_date=None, expiry_date=None, in_order_item_id=None):
         """Add inventory - UPSERT on (material_id, batch_no)"""
         if not batch_no:
-            from datetime import datetime
             batch_no = f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         with get_db_connection() as conn:
@@ -501,7 +498,6 @@ class InventoryService:
                             raise ValueError(f"数量必须是数字，当前值: {quantity}")
 
                     if not batch_no:
-                        from datetime import datetime
                         batch_no = f"IMP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
                     if not material_code:
@@ -560,8 +556,9 @@ class InventoryService:
                 where_clauses.append("m.category_code LIKE ?")
                 params.append(f"{category_code}%")
             if keyword:
-                where_clauses.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             where_sql = "WHERE " + " AND ".join(where_clauses)
 

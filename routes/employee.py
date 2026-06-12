@@ -6,6 +6,7 @@ from utils.pagination import get_per_page
 employee_bp = Blueprint('employee', __name__)
 
 @employee_bp.route('/employees', methods=['GET'])
+@require_permission('employee', 'view')
 def get_employees():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -24,11 +25,12 @@ def get_employees():
     })
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['GET'])
+@require_permission('employee', 'view')
 def get_employee(employee_id):
     employee = EmployeeService.get_employee_by_id(employee_id)
     if employee:
         return jsonify(employee)
-    return jsonify({'error': 'Employee not found'}), 404
+    return jsonify({'error': '员工不存在'}), 404
 
 @employee_bp.route('/employees', methods=['POST'])
 @require_permission('employee', 'edit')
@@ -49,12 +51,12 @@ def update_employee(employee_id):
     employee = EmployeeService.update_employee(employee_id, data)
     if employee:
         return jsonify(employee)
-    return jsonify({'error': 'Employee not found'}), 404
+    return jsonify({'error': '员工不存在'}), 404
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['DELETE'])
 @require_permission('employee', 'edit')
 def delete_employee(employee_id):
     success = EmployeeService.delete_employee(employee_id)
     if success:
-        return jsonify({'message': 'Employee deleted'})
-    return jsonify({'error': 'Employee not found'}), 404
+        return jsonify({'message': '员工已删除'})
+    return jsonify({'error': '员工不存在'}), 404

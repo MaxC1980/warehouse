@@ -90,6 +90,8 @@ class PermissionService:
             role = cursor.fetchone()
             if not role:
                 raise ValueError('角色不存在')
+            if role['is_system']:
+                raise ValueError('系统内置角色不可修改')
 
             cursor.execute(
                 "UPDATE role SET name = ?, description = ? WHERE id = ?",

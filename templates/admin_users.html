@@ -43,14 +43,16 @@
 {% block scripts %}
 <script>
 let allRoles = [];
+let allUsers = [];
 
 async function loadUsers() {
     const [users, roles] = await Promise.all([
         apiRequest('/admin/users'),
         apiRequest('/admin/roles')
     ]);
-    if (roles) allRoles = roles;
-    renderUsers(users || []);
+    allUsers = users;
+    allRoles = roles;
+    renderUsers(users);
 }
 
 function renderUsers(users) {
@@ -60,9 +62,9 @@ function renderUsers(users) {
             <td>${escapeHtml(u.username)}</td>
             <td>${escapeHtml(u.roles || '无')}</td>
             <td>
-                ${u.username !== 'admin' ? `<button onclick="showUserRoles(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm">分配角色</button>` : ''}
-                <button onclick="showResetPassword(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm">重置密码</button>
-                ${u.username !== 'admin' ? `<button onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" class="btn btn-sm btn-danger">删除</button>` : ''}
+                ${u.username !== 'admin' ? `<button onclick="showUserRoles(${u.id})" class="btn btn-sm">分配角色</button>` : ''}
+                <button onclick="showResetPassword(${u.id})" class="btn btn-sm">重置密码</button>
+                ${u.username !== 'admin' ? `<button onclick="deleteUser(${u.id})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');
@@ -90,19 +92,21 @@ async function createUser() {
         method: 'POST',
         body: JSON.stringify({ username, password })
     });
-    if (result) {
-        hideCreateForm();
-        loadUsers();
-    }
+    hideCreateForm();
+    loadUsers();
 }
 
-async function deleteUser(userId, username) {
+async function deleteUser(userId) {
+    const user = allUsers.find(u => u.id === userId);
+    const username = user ? user.username : '';
     if (!confirm(`确定要删除用户"${username}"吗？`)) return;
     const result = await apiRequest(`/admin/users/${userId}`, { method: 'DELETE' });
-    if (result) loadUsers();
+    loadUsers();
 }
 
-function showResetPassword(userId, username) {
+function showResetPassword(userId) {
+    const user = allUsers.find(u => u.id === userId);
+    const username = user ? user.username : '';
     let html = '<div class="modal" style="display:flex;" id="reset-pwd-modal">';
     html += '<div class="modal-content" style="max-width:400px;">';
     html += `<h3>重置 ${escapeHtml(username)} 的密码</h3>`;
@@ -124,10 +128,8 @@ async function resetPassword(userId) {
         method: 'PUT',
         body: JSON.stringify({ new_password })
     });
-    if (result) {
-        closeResetPwdModal();
-        alert('密码重置成功');
-    }
+    closeResetPwdModal();
+    alert('密码重置成功');
 }
 
 function closeResetPwdModal() {
@@ -135,8 +137,8 @@ function closeResetPwdModal() {
     if (modal) modal.remove();
 }
 
-async function showUserRoles(userId, username) {
-    const user = (await apiRequest('/admin/users')).find(u => u.id === userId);
+async function showUserRoles(userId) {
+    const user = allUsers.find(u => u.id === userId);
     if (!user) return;
 
     const userRoleNames = user.roles ? user.roles.split(', ') : [];
@@ -145,7 +147,7 @@ async function showUserRoles(userId, username) {
 
     let html = '<div class="modal" style="display:flex;" id="user-role-modal">';
     html += '<div class="modal-content" style="max-width:400px;">';
-    html += `<h3>为 ${escapeHtml(username)} 分配角色</h3>`;
+    html += `<h3>为 ${escapeHtml(user.username)} 分配角色</h3>`;
     allRoles.forEach(r => {
         const checked = currentRoleIds.includes(r.id) ? 'checked' : '';
         html += `<label style="display:block;margin:8px 0;"><input type="checkbox" class="user-role-cb" value="${r.id}" ${checked}> ${escapeHtml(r.name)} - ${escapeHtml(r.description || '')}</label>`;
@@ -164,10 +166,8 @@ async function saveUserRoles(userId) {
         method: 'PUT',
         body: JSON.stringify({ role_ids })
     });
-    if (result) {
-        closeUserRoleModal();
-        loadUsers();
-    }
+    closeUserRoleModal();
+    loadUsers();
 }
 
 function closeUserRoleModal() {

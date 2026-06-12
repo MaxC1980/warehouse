@@ -75,12 +75,10 @@ let initialLoad = true; // 标记是否为首次加载
 async function loadCategories() {
     const data = await apiRequest('/categories');
     const majorSelect = document.getElementById('major-category');
-    if (data) {
-        categoriesData = data;
-        data.filter(c => c.level === 1).forEach(cat => {
-            majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.code)} - ${escapeHtml(cat.name)}</option>`;
-        });
-    }
+    categoriesData = data;
+    data.filter(c => c.level === 1).forEach(cat => {
+        majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.code)} - ${escapeHtml(cat.name)}</option>`;
+    });
     initialLoad = false; // 关闭首次加载标记，之后可以保存状态
     restoreFilterState();
 }
@@ -155,10 +153,8 @@ async function loadMaterials(page = 1) {
     if (keyword) params.append('keyword', keyword);
 
     const data = await apiRequest(`/materials?${params}`);
-    if (data) {
-        renderMaterials(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadMaterials');
-    }
+    renderMaterials(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadMaterials);
 }
 
 function renderMaterials(materials) {
@@ -192,10 +188,8 @@ async function deleteMaterial(id) {
         return;
     }
     if (!confirm('确定要删除该物料吗？')) return;
-    const result = await apiRequest(`/materials/${id}`, { method: 'DELETE' });
-    if (result) {
-        loadMaterials(currentPage);
-    }
+    await apiRequest(`/materials/${id}`, { method: 'DELETE' });
+    loadMaterials(currentPage);
 }
 
 function showImportModal() {
@@ -212,19 +206,13 @@ document.getElementById('import-form').addEventListener('submit', async function
     const form = e.target;
     const formData = new FormData(form);
 
-    const response = await fetch('/api/import/materials', {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-
-    const result = await response.json();
-    if (result) {
-        alert(result.error || result.message);
-        if (!result.error) {
-            hideImportModal();
-            loadMaterials();
-        }
+    try {
+        const result = await apiRequest('/import/materials', { method: 'POST', body: formData });
+        alert(result.message);
+        hideImportModal();
+        loadMaterials();
+    } catch (e) {
+        // apiRequest 已弹窗提示错误
     }
 });
 

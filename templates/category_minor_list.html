@@ -79,22 +79,20 @@ let perPage = 15;
 
 async function loadMajorCategories() {
     const data = await apiRequest('/categories');
-    if (data) {
-        allCategories = data;
-        const majorCategories = data.filter(c => c.level === 1);
-        const filterSelect = document.getElementById('major-category-filter');
-        const newParentSelect = document.getElementById('new-parent-code');
+    allCategories = data;
+    const majorCategories = data.filter(c => c.level === 1);
+    const filterSelect = document.getElementById('major-category-filter');
+    const newParentSelect = document.getElementById('new-parent-code');
 
-        filterSelect.innerHTML = '<option value="">全部大类</option>';
-        newParentSelect.innerHTML = '<option value="">请选择大类</option>';
+    filterSelect.innerHTML = '<option value="">全部大类</option>';
+    newParentSelect.innerHTML = '<option value="">请选择大类</option>';
 
-        majorCategories.forEach(cat => {
-            filterSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
-            newParentSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
-        });
+    majorCategories.forEach(cat => {
+        filterSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+        newParentSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+    });
 
-        loadCategories();
-    }
+    loadCategories();
 }
 
 function loadCategories(page = 1) {
@@ -108,7 +106,7 @@ function loadCategories(page = 1) {
         minorCategories = allCategories.filter(c => c.level === 2);
     }
     renderCategories();
-    renderPagination('pagination', minorCategories.length, currentPage, perPage, 'loadCategories');
+    renderPagination('pagination', minorCategories.length, currentPage, perPage, loadCategories);
 }
 
 function generateNewCode() {
@@ -236,10 +234,8 @@ async function saveNew() {
         method: 'POST',
         body: JSON.stringify({ code, name, level: 2, parent_code })
     });
-    if (result) {
-        hideAddRow();
-        await loadMajorCategories();
-    }
+    hideAddRow();
+    await loadMajorCategories();
 }
 
 function startEdit(id) {
@@ -273,18 +269,14 @@ async function saveEdit(id) {
         method: 'PUT',
         body: JSON.stringify(body)
     });
-    if (result) {
-        editingId = null;
-        await loadMajorCategories();
-    }
+    editingId = null;
+    await loadMajorCategories();
 }
 
 async function deleteCategory(id) {
     if (!confirm('确定要删除该小类吗？')) return;
     const result = await apiRequest(`/categories/${id}`, { method: 'DELETE' });
-    if (result) {
-        await loadMajorCategories();
-    }
+    await loadMajorCategories();
 }
 
 function showImportModal() {
@@ -300,16 +292,14 @@ document.getElementById('import-form').addEventListener('submit', async function
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const response = await fetch('/api/import/minor-categories', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    const result = await response.json();
-    if (result) {
-        if (result.error) {
-            alert(result.error);
-        } else {
-            alert(result.message);
-            hideImportModal();
-            await loadMajorCategories();
-        }
+
+    try {
+        const result = await apiRequest('/import/minor-categories', { method: 'POST', body: formData });
+        alert(result.message);
+        hideImportModal();
+        await loadMajorCategories();
+    } catch (e) {
+        // apiRequest 已弹窗提示错误
     }
 });
 

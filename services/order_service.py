@@ -1,6 +1,7 @@
 from database import get_db_connection
 from datetime import datetime
 from services.inventory_service import InventoryService
+from utils.sql import escape_like
 
 class OrderService:
     @staticmethod
@@ -489,6 +490,11 @@ class OrderService:
             if not order or order['status'] != 'pending':
                 return False
 
+            # 先删称重记录（引用 out_order_item）
+            cursor.execute(
+                "DELETE FROM reusable_material_weight WHERE out_order_item_id IN (SELECT id FROM out_order_item WHERE order_id = ?)",
+                (order_id,)
+            )
             cursor.execute("DELETE FROM out_order_item WHERE order_id = ?", (order_id,))
             cursor.execute("DELETE FROM out_order WHERE id = ?", (order_id,))
             conn.commit()
@@ -512,13 +518,19 @@ class OrderService:
                     "SELECT id, order_id, material_id, batch_no, unit_price, remark, requested_quantity, actual_quantity, initial_gross_weight, shipment_info FROM out_order_item WHERE order_id = ?",
                     (order_id,)
                 )
-                items = cursor.fetchall()
+                items = [dict(row) for row in cursor.fetchall()]
+
+                if not items:
+                    return None
+
+                # 批量查询物料是否可回用
+                material_ids = list(set(item['material_id'] for item in items))
+                placeholders = ','.join('?' * len(material_ids))
+                cursor.execute(f"SELECT id, is_reusable FROM material WHERE id IN ({placeholders})", material_ids)
+                reusable_map = {row['id']: row['is_reusable'] == 1 for row in cursor.fetchall()}
 
                 for item in items:
-                    item = dict(item)
-                    cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (item['material_id'],))
-                    mat = cursor.fetchone()
-                    is_reusable = mat and mat['is_reusable'] == 1
+                    is_reusable = reusable_map.get(item['material_id'], False)
 
                     batch_no = item['batch_no']
                     actual_qty = item['actual_quantity']
@@ -559,9 +571,7 @@ class OrderService:
                 for item in items:
                     initial_weight = item['initial_gross_weight'] if 'initial_gross_weight' in item.keys() else None
                     if initial_weight is not None and initial_weight > 0:
-                        cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (item['material_id'],))
-                        mat = cursor.fetchone()
-                        if mat and mat['is_reusable'] == 1:
+                        if reusable_map.get(item['material_id'], False):
                             cursor.execute(
                                 """INSERT OR REPLACE INTO reusable_material_weight
                                    (out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, status)
@@ -598,8 +608,9 @@ class OrderService:
             material_conditions = []
             material_params = []
             if keyword:
-                material_conditions.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                material_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                material_conditions.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             has_material_filter = bool(material_conditions)
 
@@ -730,8 +741,9 @@ class OrderService:
             material_conditions = []
             material_params = []
             if keyword:
-                material_conditions.append("(m.code LIKE ? OR m.name LIKE ? OR m.spec LIKE ? OR m.manufacturer LIKE ?)")
-                material_params.extend([f'%{keyword}%', f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'])
+                kw = escape_like(keyword)
+                material_conditions.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
+                material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
             if has_reusable:
                 material_conditions.append("m.is_reusable = 1")
 
@@ -880,17 +892,19 @@ class OrderService:
                     where_sql = "WHERE r.receiver_date <= ?"
                 params.append(end_date)
             if out_order_no:
+                oon = escape_like(out_order_no)
                 if where_sql:
-                    where_sql += " AND o.order_no LIKE ?"
+                    where_sql += " AND o.order_no LIKE ? ESCAPE '\\'"
                 else:
-                    where_sql = "WHERE o.order_no LIKE ?"
-                params.append(f"{out_order_no}%")
+                    where_sql = "WHERE o.order_no LIKE ? ESCAPE '\\'"
+                params.append(f"{oon}%")
             if keyword:
+                kw = escape_like(keyword)
                 if where_sql:
-                    where_sql += " AND (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
+                    where_sql += " AND (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
                 else:
-                    where_sql = "WHERE (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
-                params.extend([f"{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+                    where_sql = "WHERE (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
+                params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
 
             count_sql = f"""SELECT COUNT(ri.id) as count FROM return_order r
                 LEFT JOIN out_order o ON r.related_out_order_id = o.id
@@ -1231,10 +1245,11 @@ class OrderService:
                     (approved_by, order_id)
                 )
 
-                cursor.execute(
-                    "UPDATE out_order SET status = 'completed' WHERE id = ?",
-                    (order['related_out_order_id'],)
-                )
+                if order['related_out_order_id']:
+                    cursor.execute(
+                        "UPDATE out_order SET status = 'completed' WHERE id = ?",
+                        (order['related_out_order_id'],)
+                    )
 
                 conn.commit()
                 return OrderService.get_return_order_by_id(order_id)
@@ -1373,8 +1388,9 @@ class OrderService:
                 where_sql += " AND w.status = ?"
                 params.append(status)
             if keyword:
-                where_sql += " AND (m.code LIKE ? OR m.name LIKE ? OR m.manufacturer LIKE ? OR m.spec LIKE ?)"
-                params.extend([f"{keyword}%", f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+                kw = escape_like(keyword)
+                where_sql += " AND (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
+                params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
 
             cursor.execute(
                 f"SELECT COUNT(*) as count FROM reusable_material_weight w JOIN material m ON w.material_id = m.id WHERE 1=1 {where_sql}",

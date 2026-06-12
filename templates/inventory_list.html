@@ -81,13 +81,11 @@ let categories = []; // all categories for filtering
 
 async function loadCategories() {
     categories = await apiRequest('/categories');
-    if (categories) {
-        const majorSelect = document.getElementById('major-category');
-        // Filter majors (level=1)
-        categories.filter(c => c.level === 1).forEach(cat => {
-            majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
-        });
-    }
+    const majorSelect = document.getElementById('major-category');
+    // Filter majors (level=1)
+    categories.filter(c => c.level === 1).forEach(cat => {
+        majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+    });
 }
 
 function onMajorCategoryChange() {
@@ -180,12 +178,10 @@ async function loadInventory(page = 1) {
     if (statusFilter && currentMode === 'detail') params.append('status', statusFilter);
 
     const data = await apiRequest(`/inventory?${params}`);
-    if (data) {
-        renderTableHeader();
-        renderInventory(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadInventory');
-        document.getElementById('total-qty').textContent = data.total_quantity !== undefined ? Number(data.total_quantity).toFixed(2) : '-';
-    }
+    renderTableHeader();
+    renderInventory(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadInventory);
+    document.getElementById('total-qty').textContent = data.total_quantity !== undefined ? Number(data.total_quantity).toFixed(2) : '-';
 }
 
 function renderTableHeader() {
@@ -257,19 +253,13 @@ document.getElementById('import-form').addEventListener('submit', async function
     const form = e.target;
     const formData = new FormData(form);
 
-    const response = await fetch('/api/import/inventory', {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-
-    const result = await response.json();
-    if (result) {
-        alert(result.error || result.message);
-        if (!result.error) {
-            hideImportModal();
-            loadInventory();
-        }
+    try {
+        const result = await apiRequest('/import/inventory', { method: 'POST', body: formData });
+        alert(result.message);
+        hideImportModal();
+        loadInventory();
+    } catch (e) {
+        // apiRequest 已弹窗提示错误
     }
 });
 </script>

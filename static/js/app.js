@@ -5,19 +5,25 @@ const API_BASE = '/api';
 // API request helper
 async function apiRequest(url, options = {}) {
     try {
+        const isFormData = options.body instanceof FormData;
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            ...options.headers
+        };
+        if (!isFormData) {
+            headers['Content-Type'] = 'application/json';
+        }
+
         const response = await fetch(API_BASE + url, {
             ...options,
             credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...options.headers
-            }
+            headers
         });
 
         if (response.status === 401) {
+            const data = await response.json().catch(() => ({}));
             window.location.href = '/login';
-            return null;
+            throw new Error(data.error || '未登录');
         }
 
         const data = await response.json();
@@ -27,8 +33,10 @@ async function apiRequest(url, options = {}) {
         return data;
     } catch (error) {
         console.error('API Error:', error);
-        alert(error.message);
-        return null;
+        if (error.message !== '未登录') {
+            alert(error.message);
+        }
+        throw error;
     }
 }
 
@@ -121,19 +129,27 @@ function debounce(func, wait) {
 // perPage: items per page
 // onPageChange: callback function(pageNumber) when page button is clicked
 function renderPagination(containerId, total, currentPage, perPage, onPageChange) {
+    total = Number(total) || 0;
+    currentPage = Number(currentPage) || 1;
     const totalPages = Math.ceil(total / perPage);
     const pagination = document.getElementById(containerId);
-    let html = `<span class="pagination-info">共 ${total} 条，第 ${currentPage}/${totalPages} 页</span>`;
+    if (!pagination) return;
+    let html = totalPages > 0
+        ? `<span class="pagination-info">共 ${total} 条，第 ${currentPage}/${totalPages} 页</span>`
+        : `<span class="pagination-info">共 ${total} 条</span>`;
 
     if (totalPages > 1) {
-        html += ' ';
         for (let i = 1; i <= totalPages; i++) {
             if (i <= 5 || i === totalPages || Math.abs(i - currentPage) <= 2) {
-                html += `<button class="${i === currentPage ? 'active' : ''}" onclick="${onPageChange}(${i})">${i}</button>`;
+                html += `<button class="${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
             } else if (i === 6 && currentPage > 5) {
                 html += '<span>...</span>';
             }
         }
     }
     pagination.innerHTML = html;
+
+    pagination.querySelectorAll('button[data-page]').forEach(btn => {
+        btn.addEventListener('click', () => onPageChange(Number(btn.dataset.page)));
+    });
 }

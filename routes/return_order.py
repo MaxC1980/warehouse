@@ -9,6 +9,7 @@ from utils.decorators import require_permission
 return_order_bp = Blueprint('return_order', __name__)
 
 @return_order_bp.route('/return-orders', methods=['GET'])
+@require_permission('return_order', 'view')
 def get_return_orders():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -35,11 +36,12 @@ def get_return_orders():
     })
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['GET'])
+@require_permission('return_order', 'view')
 def get_return_order(order_id):
     order = OrderService.get_return_order_by_id(order_id)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '退库单不存在'}), 404
 
 @return_order_bp.route('/return-orders', methods=['POST'])
 @require_permission('return_order', 'edit')
@@ -90,15 +92,15 @@ def update_return_order(order_id):
     order = OrderService.update_return_order(order_id, data)
     if order:
         return jsonify(order)
-    return jsonify({'error': 'Order not found'}), 404
+    return jsonify({'error': '退库单不存在'}), 404
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['DELETE'])
 @require_permission('return_order', 'edit')
 def delete_return_order(order_id):
     success = OrderService.delete_return_order(order_id)
     if success:
-        return jsonify({'message': 'Order deleted'})
-    return jsonify({'error': 'Order not found or cannot be deleted'}), 404
+        return jsonify({'message': '退库单已删除'})
+    return jsonify({'error': '退库单不存在或无法删除'}), 404
 
 @return_order_bp.route('/return-orders/<int:order_id>/approve', methods=['POST'])
 @require_permission('return_order', 'approve')
@@ -110,7 +112,7 @@ def approve_return_order(order_id):
     try:
         result = OrderService.approve_return_order(order_id, approved_by, weight_data)
         if result is None:
-            return jsonify({'error': 'Order not found or cannot be approved'}), 400
+            return jsonify({'error': '退库单不存在或无法审核'}), 400
         if result is False:
             return jsonify({'error': '该出库单已有审核通过的退库单，不能重复审核'}), 400
         return jsonify(result)
@@ -121,6 +123,7 @@ def approve_return_order(order_id):
         return jsonify({'error': '服务器内部错误'}), 500
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])
+@require_permission('return_order', 'view')
 def get_return_orders_by_out_order(out_order_id):
     """获取指定出库单关联的退库单"""
     orders, total = OrderService.get_return_orders_by_out_order(out_order_id)

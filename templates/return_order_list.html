@@ -69,10 +69,8 @@ async function loadOrders(page = 1) {
     if (outOrderNo) params.append('out_order_no', outOrderNo);
 
     const data = await apiRequest(`/return-orders?${params}`);
-    if (data) {
-        renderOrders(data.items);
-        renderPagination('pagination', data.total, data.page, perPage, 'loadOrders');
-    }
+    renderOrders(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadOrders);
 }
 
 function renderOrders(orders) {
@@ -108,7 +106,7 @@ function getStatusText(status) {
         pending: '待审核',
         approved: '已审核'
     };
-    return map[status] || status;
+    return map[status] || escapeHtml(status);
 }
 
 async function deleteOrder(id) {
@@ -118,11 +116,9 @@ async function deleteOrder(id) {
     }
     if (!confirm('确定要删除该退库单吗？')) return;
 
-    const result = await apiRequest(`/return-orders/${id}`, { method: 'DELETE' });
-    if (result) {
-        alert('删除成功');
-        loadOrders();
-    }
+    await apiRequest(`/return-orders/${id}`, { method: 'DELETE' });
+    alert('删除成功');
+    loadOrders();
 }
 
 async function approveOrder(id) {
@@ -131,13 +127,9 @@ async function approveOrder(id) {
         return;
     }
     if (!confirm('确定要审核通过该退库单吗？')) return;
-    const result = await apiRequest(`/return-orders/${id}/approve`, { method: 'POST' });
-    if (result) {
-        alert('审核成功');
-        loadOrders(currentPage);
-    } else {
-        alert('审核失败');
-    }
+    await apiRequest(`/return-orders/${id}/approve`, { method: 'POST' });
+    alert('审核成功');
+    loadOrders(currentPage);
 }
 
 initDateRange('start-date', 'end-date', loadOrders);
