@@ -230,6 +230,21 @@ class TestInOrderAPI(TestBase):
             self.assertEqual(resp.status_code, 400)
             self.assertEqual(resp.get_json(), {'error': '业务校验失败: 测试'})
 
+    def test_handle_service_errors_decorator_unified(self):
+        """handle_service_errors 装饰器统一 4 个路由文件 (P2-13)"""
+        from unittest.mock import patch
+        test_cases = [
+            ('services.material_service.MaterialService.get_materials', '/api/materials'),
+            ('services.supplier_service.SupplierService.get_suppliers', '/api/suppliers'),
+            ('services.employee_service.EmployeeService.get_all_employees', '/api/employees'),
+            ('services.inventory_service.InventoryService.get_inventory', '/api/inventory'),
+        ]
+        for patch_path, path in test_cases:
+            with patch(patch_path, side_effect=Exception('模拟故障')):
+                resp = self.client.get(path, headers=self._auth_headers())
+                self.assertEqual(resp.status_code, 500, f'{path} 应返 500')
+                self.assertEqual(resp.get_json(), {'error': '服务器内部错误'}, f'{path} 消息')
+
     def test_create_in_order(self):
         """创建入库单"""
         # 先创建供应商

@@ -1,18 +1,20 @@
 from flask import Blueprint, request, jsonify
 from services.material_service import MaterialService
 from utils.pagination import get_per_page
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 
 material_bp = Blueprint('material', __name__)
 
 @material_bp.route('/categories', methods=['GET'])
 @require_permission('material', 'view')
+@handle_service_errors
 def get_categories():
     categories = MaterialService.get_all_categories()
     return jsonify(categories)
 
 @material_bp.route('/categories', methods=['POST'])
 @require_permission('category_major', 'edit')
+@handle_service_errors
 def create_category():
     data = request.get_json(silent=True) or {}
     category = MaterialService.create_category(
@@ -25,6 +27,7 @@ def create_category():
 
 @material_bp.route('/categories/<int:category_id>', methods=['PUT'])
 @require_permission('category_major', 'edit')
+@handle_service_errors
 def update_category(category_id):
     data = request.get_json(silent=True) or {}
     ok, category = MaterialService.update_category(
@@ -41,6 +44,7 @@ def update_category(category_id):
 
 @material_bp.route('/categories/<int:category_id>', methods=['DELETE'])
 @require_permission('category_major', 'edit')
+@handle_service_errors
 def delete_category(category_id):
     result = MaterialService.delete_category(category_id)
     if result == 'ok':
@@ -53,6 +57,7 @@ def delete_category(category_id):
 
 @material_bp.route('/materials', methods=['GET'])
 @require_permission('material', 'view')
+@handle_service_errors
 def get_materials():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -78,6 +83,7 @@ def get_materials():
 
 @material_bp.route('/materials/<int:material_id>', methods=['GET'])
 @require_permission('material', 'view')
+@handle_service_errors
 def get_material(material_id):
     material = MaterialService.get_material_by_id(material_id)
     if material:
@@ -86,6 +92,7 @@ def get_material(material_id):
 
 @material_bp.route('/materials', methods=['POST'])
 @require_permission('material', 'edit')
+@handle_service_errors
 def create_material():
     data = request.get_json(silent=True) or {}
     material = MaterialService.create_material(
@@ -104,6 +111,7 @@ def create_material():
 
 @material_bp.route('/materials/<int:material_id>', methods=['PUT'])
 @require_permission('material', 'edit')
+@handle_service_errors
 def update_material(material_id):
     data = request.get_json(silent=True) or {}
     material = MaterialService.update_material(material_id, data)
@@ -113,6 +121,7 @@ def update_material(material_id):
 
 @material_bp.route('/materials/<int:material_id>', methods=['DELETE'])
 @require_permission('material', 'edit')
+@handle_service_errors
 def delete_material(material_id):
     result = MaterialService.delete_material(material_id)
     if result[0]:

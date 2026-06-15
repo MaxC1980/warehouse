@@ -1,5 +1,14 @@
+import logging
 from flask import Flask, jsonify, request, session
+from werkzeug.exceptions import HTTPException
 from database import init_db
+
+logger = logging.getLogger(__name__)
+
+
+def _is_api_request():
+    """判断是否 API 请求: /api/* 路径或带 JSON Content-Type"""
+    return request.path.startswith('/api/') or request.is_json
 
 
 def create_app(config_class):
@@ -58,6 +67,29 @@ def create_app(config_class):
         perms = set(tuple(p) for p in session.get('permissions', []))
         if required not in perms:
             return '无权限访问', 403
+
+    @app.errorhandler(404)
+    def handle_404(e):
+        if _is_api_request():
+            return jsonify({'error': '资源不存在'}), 404
+        return '页面不存在', 404
+
+    @app.errorhandler(500)
+    def handle_500(e):
+        logger.exception('500 错误')
+        if _is_api_request():
+            return jsonify({'error': '服务器内部错误'}), 500
+        return '服务器内部错误', 500
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        # 跳过 HTTPException (404/405 等, 走 Flask 默认)
+        if isinstance(e, HTTPException):
+            return e
+        logger.exception('未捕获异常')
+        if _is_api_request():
+            return jsonify({'error': '服务器内部错误'}), 500
+        return '服务器内部错误', 500
 
     @app.context_processor
     def inject_permissions():

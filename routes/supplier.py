@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify
 from services.supplier_service import SupplierService
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 from utils.pagination import get_per_page
 
 supplier_bp = Blueprint('supplier', __name__)
 
 @supplier_bp.route('/suppliers', methods=['GET'])
 @require_permission('supplier', 'view')
+@handle_service_errors
 def get_suppliers():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -26,6 +27,7 @@ def get_suppliers():
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['GET'])
 @require_permission('supplier', 'view')
+@handle_service_errors
 def get_supplier(supplier_id):
     supplier = SupplierService.get_supplier_by_id(supplier_id)
     if supplier:
@@ -34,6 +36,7 @@ def get_supplier(supplier_id):
 
 @supplier_bp.route('/suppliers', methods=['POST'])
 @require_permission('supplier', 'edit')
+@handle_service_errors
 def create_supplier():
     data = request.get_json(silent=True) or {}
     supplier = SupplierService.create_supplier(
@@ -46,6 +49,7 @@ def create_supplier():
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['PUT'])
 @require_permission('supplier', 'edit')
+@handle_service_errors
 def update_supplier(supplier_id):
     data = request.get_json(silent=True) or {}
     supplier = SupplierService.update_supplier(supplier_id, data)
@@ -55,6 +59,7 @@ def update_supplier(supplier_id):
 
 @supplier_bp.route('/suppliers/<int:supplier_id>', methods=['DELETE'])
 @require_permission('supplier', 'edit')
+@handle_service_errors
 def delete_supplier(supplier_id):
     success, msg = SupplierService.delete_supplier(supplier_id)
     if success:

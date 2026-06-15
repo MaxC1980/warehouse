@@ -1,5 +1,8 @@
+import logging
 from functools import wraps
 from flask import session, jsonify, redirect, url_for, request
+
+logger = logging.getLogger(__name__)
 
 
 def _is_api_request():
@@ -48,4 +51,22 @@ def login_required(f):
                 return jsonify({'error': 'Unauthorized'}), 401
             return redirect(url_for('pages.login'))
         return f(*args, **kwargs)
+    return decorated
+
+
+def handle_service_errors(f):
+    """API 路由统一错误处理: ValueError→400, Exception→500+logger
+
+    替代每个端点手写 try/except, 减少重复, 统一风格。
+    应放在 @require_permission 之后 (最内层装饰器优先执行)。
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+        except Exception:
+            logger.exception(f'{f.__name__} 失败')
+            return jsonify({'error': '服务器内部错误'}), 500
     return decorated

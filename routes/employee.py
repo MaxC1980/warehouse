@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify
 from services.employee_service import EmployeeService
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 from utils.pagination import get_per_page
 
 employee_bp = Blueprint('employee', __name__)
 
 @employee_bp.route('/employees', methods=['GET'])
 @require_permission('employee', 'view')
+@handle_service_errors
 def get_employees():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -26,6 +27,7 @@ def get_employees():
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['GET'])
 @require_permission('employee', 'view')
+@handle_service_errors
 def get_employee(employee_id):
     employee = EmployeeService.get_employee_by_id(employee_id)
     if employee:
@@ -34,6 +36,7 @@ def get_employee(employee_id):
 
 @employee_bp.route('/employees', methods=['POST'])
 @require_permission('employee', 'edit')
+@handle_service_errors
 def create_employee():
     data = request.get_json(silent=True) or {}
     employee = EmployeeService.create_employee(
@@ -46,6 +49,7 @@ def create_employee():
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['PUT'])
 @require_permission('employee', 'edit')
+@handle_service_errors
 def update_employee(employee_id):
     data = request.get_json(silent=True) or {}
     employee = EmployeeService.update_employee(employee_id, data)
@@ -55,6 +59,7 @@ def update_employee(employee_id):
 
 @employee_bp.route('/employees/<int:employee_id>', methods=['DELETE'])
 @require_permission('employee', 'edit')
+@handle_service_errors
 def delete_employee(employee_id):
     success = EmployeeService.delete_employee(employee_id)
     if success:

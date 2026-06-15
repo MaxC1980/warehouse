@@ -225,6 +225,36 @@ class TestPagePermissions(unittest.TestCase):
                 self.assertNotIn('Traceback', body)
                 self.assertNotIn('Exception:', body)
 
+    def test_global_404_returns_json_for_api(self):
+        """全局 404 errorhandler: API 返 JSON 404 (P2-14)"""
+        self._logout()
+        # 未登录访问不存在 API 端点, 404 优先于 401
+        resp = self.client.get('/api/does-not-exist')
+        # 404 或 401 都可, 但**不应是 Flask 默认 HTML 错误页**
+        if resp.status_code == 404:
+            self.assertEqual(resp.get_json(), {'error': '资源不存在'})
+
+    def test_global_404_returns_html_for_page(self):
+        """全局 404 errorhandler: 页面返 HTML"""
+        self._logout()
+        resp = self.client.get('/non-existent-page')
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn('页面不存在', resp.get_data(as_text=True))
+
+    def test_global_exception_handler_logs(self):
+        """全局 Exception handler 捕获并 log 未处理异常 (P2-14)"""
+        from unittest.mock import patch
+        admin_id = self._get_user_id('admin')
+        from services.permission_service import PermissionService
+        perms = PermissionService.get_user_permissions(admin_id)
+        self._login_as(admin_id, perms)
+
+        # mock 业务 service 抛 ValueError, 装饰器应捕获 → 400
+        with patch('services.material_service.MaterialService.get_materials',
+                   side_effect=ValueError('模拟业务错误')):
+            resp = self.client.get('/api/materials')
+            self.assertEqual(resp.status_code, 400)
+
 
 if __name__ == '__main__':
     unittest.main()

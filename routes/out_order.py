@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, session, make_response
 from services.order_service import OrderService
 from utils.excel_utils import export_to_excel
 from utils.pagination import get_per_page
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 
 logger = logging.getLogger(__name__)
 
@@ -95,21 +95,16 @@ def delete_out_order(order_id):
 
 @out_order_bp.route('/out-orders/<int:order_id>/approve', methods=['POST'])
 @require_permission('out_order', 'approve')
+@handle_service_errors
 def approve_out_order(order_id):
     approved_by = session.get('user_id')
     data = request.get_json(silent=True) or {}
     weight_data = data.get('weight_data', [])  # [{out_order_item_id, initial_gross_weight}, ...]
 
-    try:
-        result = OrderService.approve_out_order(order_id, approved_by, weight_data)
-        if result:
-            return jsonify(result)
-        return jsonify({'error': '出库单不存在或无法审核'}), 400
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        logger.exception('审核出库单失败: order_id=%s', order_id)
-        return jsonify({'error': '服务器内部错误'}), 500
+    result = OrderService.approve_out_order(order_id, approved_by, weight_data)
+    if result:
+        return jsonify(result)
+    return jsonify({'error': '出库单不存在或无法审核'}), 400
 
 @out_order_bp.route('/out-orders/detail', methods=['GET'])
 @require_permission('out_order', 'view')

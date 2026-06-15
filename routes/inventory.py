@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify
 from services.inventory_service import InventoryService
 from utils.pagination import get_per_page
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 
 inventory_bp = Blueprint('inventory', __name__)
 
 @inventory_bp.route('/inventory', methods=['GET'])
 @require_permission('inventory', 'view')
+@handle_service_errors
 def get_inventory():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -33,6 +34,7 @@ def get_inventory():
 
 @inventory_bp.route('/inventory/<int:material_id>', methods=['GET'])
 @require_permission('inventory', 'view')
+@handle_service_errors
 def get_inventory_detail(material_id):
     inventory = InventoryService.get_inventory_by_material(material_id)
     if inventory:
@@ -41,12 +43,14 @@ def get_inventory_detail(material_id):
 
 @inventory_bp.route('/inventory/<int:material_id>/details', methods=['GET'])
 @require_permission('inventory', 'view')
+@handle_service_errors
 def get_inventory_batch_details(material_id):
     details = InventoryService.get_inventory_details(material_id)
     return jsonify(details)
 
 @inventory_bp.route('/inventory/select', methods=['GET'])
 @require_permission('inventory', 'view')
+@handle_service_errors
 def get_inventory_for_select():
     """库存选择接口，支持按类别、关键词过滤和分页"""
     category_code = request.args.get('category_code')

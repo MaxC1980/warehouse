@@ -4,7 +4,7 @@ from services.order_service import OrderService
 
 logger = logging.getLogger(__name__)
 from utils.pagination import get_per_page
-from utils.decorators import require_permission
+from utils.decorators import require_permission, handle_service_errors
 
 return_order_bp = Blueprint('return_order', __name__)
 
@@ -45,12 +45,13 @@ def get_return_order(order_id):
 
 @return_order_bp.route('/return-orders', methods=['POST'])
 @require_permission('return_order', 'edit')
+@handle_service_errors
 def create_return_order():
     data = request.get_json(silent=True) or {}
     operator_id = session.get('user_id')
 
     if not data.get('items') or len(data.get('items', [])) == 0:
-        return jsonify({'error': '请至少添加一条明细'}), 400
+        return jsonify({'error': '请至少添加明细'}), 400
 
     if not data.get('department'):
         return jsonify({'error': '请填写部门'}), 400
@@ -58,22 +59,16 @@ def create_return_order():
     if not data.get('receiver'):
         return jsonify({'error': '请填写退库人'}), 400
 
-    try:
-        order = OrderService.create_return_order(
-            related_out_order_id=data.get('related_out_order_id'),
-            department=data.get('department'),
-            receiver=data.get('receiver'),
-            receiver_date=data.get('receiver_date'),
-            operator_id=operator_id,
-            remark=data.get('remark'),
-            items=data.get('items', [])
-        )
-        return jsonify(order), 201
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        logger.exception('退库操作失败')
-        return jsonify({'error': '服务器内部错误'}), 500
+    order = OrderService.create_return_order(
+        related_out_order_id=data.get('related_out_order_id'),
+        department=data.get('department'),
+        receiver=data.get('receiver'),
+        receiver_date=data.get('receiver_date'),
+        operator_id=operator_id,
+        remark=data.get('remark'),
+        items=data.get('items', [])
+    )
+    return jsonify(order), 201
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['PUT'])
 @require_permission('return_order', 'edit')
@@ -104,23 +99,18 @@ def delete_return_order(order_id):
 
 @return_order_bp.route('/return-orders/<int:order_id>/approve', methods=['POST'])
 @require_permission('return_order', 'approve')
+@handle_service_errors
 def approve_return_order(order_id):
     approved_by = session.get('user_id')
     data = request.get_json(silent=True) or {}
     weight_data = data.get('weight_data', [])  # [{out_order_item_id, return_gross_weight}, ...]
 
-    try:
-        result = OrderService.approve_return_order(order_id, approved_by, weight_data)
-        if result is None:
-            return jsonify({'error': '退库单不存在或无法审核'}), 400
-        if result is False:
-            return jsonify({'error': '该出库单已有审核通过的退库单，不能重复审核'}), 400
-        return jsonify(result)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
-    except Exception as e:
-        logger.exception('退库操作失败')
-        return jsonify({'error': '服务器内部错误'}), 500
+    result = OrderService.approve_return_order(order_id, approved_by, weight_data)
+    if result is None:
+        return jsonify({'error': '退库单不存在或无法审核'}), 400
+    if result is False:
+        return jsonify({'error': '该出库单已有审核通过的退库单，不能重复审核'}), 400
+    return jsonify(result)
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])
 @require_permission('return_order', 'view')
