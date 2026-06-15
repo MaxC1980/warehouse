@@ -17,47 +17,61 @@ def _normalize_date(date_str):
     return f"{year}{int(month):02d}{int(day):02d}"
 
 
-def _expiry_filter_bounds(status):
-    """业务规则集中: status → (operator, ymd_value, require_non_null)
+def _fmt_date(val):
+    """日期 → ISO YYYY-MM-DD (带前导零); None/空 → None"""
+    if not val:
+        return None
+    if isinstance(val, str):
+        parts = val.split('-')
+        if len(parts) == 3:
+            return f"{parts[0]}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        return None
+    if isinstance(val, (date, datetime)):
+        return val.strftime('%Y-%m-%d')
+    return None
 
-    返回 None 表示该 status 不参与日期过滤 (例如 None 或未识别值)。
-    SQL 端用 (op, ymd_value) 拼 WHERE, Python 端用同一 bounds 比较 date 对象。
-    require_non_null: True 表示 SQL 需加 `expiry_date IS NOT NULL AND`,
-    Python 端 `_expiry_matches_filter` 也用此标志在空值时直接 False。
+
+def _expiry_filter_bounds(status):
+    """业务规则集中: status → (operator, ymd_value, require_non_null, allow_null)
+
+    - operator / ymd_value: SQL 和 Python 端共用
+    - require_non_null: 非 NULL 才参与比较
+    - allow_null: SQL 端 expiry_date IS NULL 也视为满足
     """
     today = date.today()
+    today_ymd = today.strftime('%Y%m%d')
     if status == '过期':
-        return ('<', today.strftime('%Y%m%d'), False)
+        return ('<', today_ymd, False, False)
     if status == '正常':
-        return ('>=', today.strftime('%Y%m%d'), False)
+        return ('>=', today_ymd, False, True)
     if status == '本月过期':
         if today.month == 12:
             last_day = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
         else:
             last_day = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
-        return ('<=', last_day.strftime('%Y%m%d'), True)
+        return ('<=', last_day.strftime('%Y%m%d'), True, False)
     if status == '下月过期':
         if today.month == 12:
-            next_month_first = today.replace(year=today.year + 1, month=1, day=1)
+            nxt = today.replace(year=today.year + 1, month=1, day=1)
         else:
-            next_month_first = today.replace(month=today.month + 1, day=1)
-        if next_month_first.month == 12:
-            following_month_first = next_month_first.replace(year=next_month_first.year + 1, month=1, day=1)
+            nxt = today.replace(month=today.month + 1, day=1)
+        if nxt.month == 12:
+            fllw = nxt.replace(year=nxt.year + 1, month=1, day=1)
         else:
-            following_month_first = next_month_first.replace(month=next_month_first.month + 1, day=1)
-        last_day = following_month_first - timedelta(days=1)
-        return ('<=', last_day.strftime('%Y%m%d'), True)
+            fllw = nxt.replace(month=nxt.month + 1, day=1)
+        last_day = fllw - timedelta(days=1)
+        return ('<=', last_day.strftime('%Y%m%d'), True, False)
     return None
 
 
 def _expiry_matches_filter(expiry_date, status):
-    """判断单条记录的 expiry_date 是否符合 status 过滤 (复用 _expiry_filter_bounds)"""
+    """判定单条记录是否符合 status 过滤 (复用 _expiry_filter_bounds)"""
     if not expiry_date:
         return False
     bounds = _expiry_filter_bounds(status)
     if bounds is None:
         return False
-    op, ymd_value, _ = bounds
+    op, ymd_value, _, _ = bounds
     if isinstance(expiry_date, str):
         try:
             expiry = datetime.strptime(expiry_date, '%Y-%m-%d').date()
@@ -67,13 +81,7 @@ def _expiry_matches_filter(expiry_date, status):
     else:
         expiry = expiry_date
     target = datetime.strptime(ymd_value, '%Y%m%d').date()
-    if op == '<':
-        return expiry < target
-    if op == '<=':
-        return expiry <= target
-    if op == '>=':
-        return expiry >= target
-    return False
+    return {'<': expiry < target, '<=': expiry <= target, '>=': expiry >= target}.get(op, False)
 
 
 class InventoryService:
@@ -100,22 +108,10 @@ class InventoryService:
         if status and not summary:
             bounds = _expiry_filter_bounds(status)
             if bounds:
-                op, ymd_value, require_non_null = bounds
-                ymd_expr = (
-                    f"SUBSTR(i.expiry_date, 1, INSTR(i.expiry_date, '-')-1) "
-                    f"|| PRINTF('%02d', CAST(SUBSTR(i.expiry_date, "
-                    f"INSTR(i.expiry_date, '-')+1, "
-                    f"INSTR(SUBSTR(i.expiry_date, INSTR(i.expiry_date, '-')+1), '-')"
-                    f") AS INTEGER)) "
-                    f"|| PRINTF('%02d', CAST(SUBSTR(i.expiry_date, "
-                    f"INSTR(SUBSTR(i.expiry_date, INSTR(i.expiry_date, '-')+1), '-')"
-                    f"+INSTR(i.expiry_date, '-')+1) AS INTEGER))"
-                )
-                # '正常' 允许 expiry_date IS NULL, 其他依赖 bounds 的 require_non_null
-                if status == '正常':
-                    where_clauses.append(
-                        f"(i.expiry_date IS NULL OR {ymd_expr} {op} '{ymd_value}')"
-                    )
+                op, ymd_value, require_non_null, allow_null = bounds
+                ymd_expr = "strftime('%Y%m%d', i.expiry_date)"
+                if allow_null:
+                    where_clauses.append(f"(i.expiry_date IS NULL OR {ymd_expr} {op} '{ymd_value}')")
                 else:
                     prefix = "i.expiry_date IS NOT NULL AND " if require_non_null else ""
                     where_clauses.append(f"{prefix}{ymd_expr} {op} '{ymd_value}'")
@@ -461,6 +457,8 @@ class InventoryService:
     @staticmethod
     def update_inventory(material_id, quantity_change, batch_no=None, production_date=None, expiry_date=None, in_order_item_id=None):
         """Add inventory - UPSERT on (material_id, batch_no)"""
+        production_date = _fmt_date(production_date)
+        expiry_date = _fmt_date(expiry_date)
         if not batch_no:
             batch_no = f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
@@ -550,8 +548,8 @@ class InventoryService:
                     material_code = row.get('material_code')
                     quantity = row.get('quantity')
                     batch_no = row.get('batch_no') or None
-                    production_date = row.get('production_date') or None
-                    expiry_date = row.get('expiry_date') or None
+                    production_date = _fmt_date(row.get('production_date'))
+                    expiry_date = _fmt_date(row.get('expiry_date'))
 
                     if quantity is None:
                         quantity = 0

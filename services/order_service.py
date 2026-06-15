@@ -926,37 +926,25 @@ class OrderService:
 
             offset = (page - 1) * per_page
 
-            where_sql = ""
+            where_clauses = []
             params = []
             if status:
-                where_sql = "WHERE r.status = ?"
+                where_clauses.append("r.status = ?")
                 params.append(status)
             if start_date:
-                if where_sql:
-                    where_sql += " AND r.receiver_date >= ?"
-                else:
-                    where_sql = "WHERE r.receiver_date >= ?"
+                where_clauses.append("r.receiver_date >= ?")
                 params.append(start_date)
             if end_date:
-                if where_sql:
-                    where_sql += " AND r.receiver_date <= ?"
-                else:
-                    where_sql = "WHERE r.receiver_date <= ?"
+                where_clauses.append("r.receiver_date <= ?")
                 params.append(end_date)
             if out_order_no:
-                oon = escape_like(out_order_no)
-                if where_sql:
-                    where_sql += " AND o.order_no LIKE ? ESCAPE '\'"
-                else:
-                    where_sql = "WHERE o.order_no LIKE ? ESCAPE '\'"
-                params.append(f"{oon}%")
+                where_clauses.append("o.order_no LIKE ? ESCAPE '\'")
+                params.append(f"{escape_like(out_order_no)}%")
             if keyword:
                 kw = escape_like(keyword)
-                if where_sql:
-                    where_sql += " AND (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
-                else:
-                    where_sql = "WHERE (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
+                where_clauses.append("(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')")
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+            where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
             count_sql = f"""SELECT COUNT(ri.id) as count FROM return_order r
                 LEFT JOIN out_order o ON r.related_out_order_id = o.id
@@ -1432,19 +1420,19 @@ class OrderService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            where_sql = ""
+            where_clauses = []
             params = []
-
             if status:
-                where_sql += " AND w.status = ?"
+                where_clauses.append("w.status = ?")
                 params.append(status)
             if keyword:
                 kw = escape_like(keyword)
-                where_sql += " AND (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
+                where_clauses.append("(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')")
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+            where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
             cursor.execute(
-                f"SELECT COUNT(*) as count FROM reusable_material_weight w JOIN material m ON w.material_id = m.id WHERE 1=1 {where_sql}",
+                f"SELECT COUNT(*) as count FROM reusable_material_weight w JOIN material m ON w.material_id = m.id {where_sql}",
                 params
             )
             total = cursor.fetchone()['count']
@@ -1474,7 +1462,7 @@ class OrderService:
                 JOIN material m ON w.material_id = m.id
                 JOIN out_order_item oi ON w.out_order_item_id = oi.id
                 JOIN out_order o ON oi.order_id = o.id
-                WHERE 1=1 {where_sql}
+                {where_sql}
                 ORDER BY w.id DESC
                 LIMIT ? OFFSET ?
                 """,

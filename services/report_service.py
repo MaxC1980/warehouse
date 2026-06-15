@@ -324,8 +324,7 @@ class ReportService:
 
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            if per_page is not None:
-                offset = (page - 1) * per_page
+            offset = (page - 1) * per_page if per_page is not None else 0
 
             where_clauses = []
             params = []
@@ -344,36 +343,67 @@ class ReportService:
                 where_clauses.append("m.category_code = ?")
                 params.append(minor_category)
 
-            where_sql = ""
-            if where_clauses:
-                where_sql = "WHERE " + " AND ".join(where_clauses)
+            where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+            dates = [date_from, date_from, date_from, date_to, date_from, date_to, date_from, date_from, date_to]
 
             inner_sql = f"""
                 SELECT
-                    m.id,
-                    m.code as material_code,
-                    m.name as material_name,
-                    m.manufacturer,
-                    m.spec,
-                    m.unit,
-                    (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date < ?) as opening_in,
-                    (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status IN ('approved', 'completed') AND oo.receiver_date < ?) as opening_out,
-                    (SELECT COALESCE(SUM(ioi.quantity), 0) FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id WHERE ioi.material_id = m.id AND io.status = 'approved' AND io.receiver_date >= ? AND io.receiver_date <= ?) as period_in,
-                    (SELECT COALESCE(SUM(ooi.actual_quantity), 0) FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id WHERE ooi.material_id = m.id AND oo.status IN ('approved', 'completed') AND oo.receiver_date >= ? AND oo.receiver_date <= ?) as period_out,
-                    (SELECT COALESCE(SUM(ooi2.actual_quantity - roi.actual_net_weight), 0) FROM return_order_item roi JOIN return_order ro ON roi.return_order_id = ro.id JOIN out_order_item ooi2 ON roi.out_order_item_id = ooi2.id WHERE roi.material_id = m.id AND ro.status = 'approved' AND ro.receiver_date < ?) as opening_return,
-                    (SELECT COALESCE(SUM(ooi3.actual_quantity - roi2.actual_net_weight), 0) FROM return_order_item roi2 JOIN return_order ro2 ON roi2.return_order_id = ro2.id JOIN out_order_item ooi3 ON roi2.out_order_item_id = ooi3.id WHERE roi2.material_id = m.id AND ro2.status = 'approved' AND ro2.receiver_date >= ? AND ro2.receiver_date <= ?) as period_return
+                    m.id, m.code as material_code, m.name as material_name,
+                    m.manufacturer, m.spec, m.unit,
+                    COALESCE(oi.opening_in, 0) as opening_in,
+                    COALESCE(oo.opening_out, 0) as opening_out,
+                    COALESCE(pi.period_in, 0) as period_in,
+                    COALESCE(po.period_out, 0) as period_out,
+                    COALESCE(ro.opening_return, 0) as opening_return,
+                    COALESCE(rp.period_return, 0) as period_return
                 FROM material m
+                LEFT JOIN (
+                    SELECT ioi.material_id, SUM(ioi.quantity) as opening_in
+                    FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id
+                    WHERE io.status = 'approved' AND io.receiver_date < ?
+                    GROUP BY ioi.material_id
+                ) oi ON oi.material_id = m.id
+                LEFT JOIN (
+                    SELECT ooi.material_id, SUM(ooi.actual_quantity) as opening_out
+                    FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id
+                    WHERE oo.status IN ('approved', 'completed') AND oo.receiver_date < ?
+                    GROUP BY ooi.material_id
+                ) oo ON oo.material_id = m.id
+                LEFT JOIN (
+                    SELECT ioi.material_id, SUM(ioi.quantity) as period_in
+                    FROM in_order_item ioi JOIN in_order io ON ioi.order_id = io.id
+                    WHERE io.status = 'approved' AND io.receiver_date >= ? AND io.receiver_date <= ?
+                    GROUP BY ioi.material_id
+                ) pi ON pi.material_id = m.id
+                LEFT JOIN (
+                    SELECT ooi.material_id, SUM(ooi.actual_quantity) as period_out
+                    FROM out_order_item ooi JOIN out_order oo ON ooi.order_id = oo.id
+                    WHERE oo.status IN ('approved', 'completed') AND oo.receiver_date >= ? AND oo.receiver_date <= ?
+                    GROUP BY ooi.material_id
+                ) po ON po.material_id = m.id
+                LEFT JOIN (
+                    SELECT roi.material_id, SUM(ooi2.actual_quantity - roi.actual_net_weight) as opening_return
+                    FROM return_order_item roi
+                    JOIN return_order ro ON roi.return_order_id = ro.id
+                    JOIN out_order_item ooi2 ON roi.out_order_item_id = ooi2.id
+                    WHERE ro.status = 'approved' AND ro.receiver_date < ?
+                    GROUP BY roi.material_id
+                ) ro ON ro.material_id = m.id
+                LEFT JOIN (
+                    SELECT roi.material_id, SUM(ooi2.actual_quantity - roi.actual_net_weight) as period_return
+                    FROM return_order_item roi
+                    JOIN return_order ro ON roi.return_order_id = ro.id
+                    JOIN out_order_item ooi2 ON roi.out_order_item_id = ooi2.id
+                    WHERE ro.status = 'approved' AND ro.receiver_date >= ? AND ro.receiver_date <= ?
+                    GROUP BY roi.material_id
+                ) rp ON rp.material_id = m.id
                 {where_sql}
             """
 
             data_sql = f"""
-                SELECT
-                    id, material_code, material_name, manufacturer, spec, unit,
-                    opening_in - opening_out + opening_return as opening_qty,
-                    period_in as in_qty,
-                    period_out as out_qty,
-                    period_return as return_qty,
-                    opening_in - opening_out + opening_return + period_in - period_out + period_return as closing_qty
+                SELECT *, opening_in - opening_out + opening_return as opening_qty,
+                       opening_in - opening_out + opening_return + period_in - period_out + period_return as closing_qty
                 FROM ({inner_sql}) t
             """
 
@@ -395,19 +425,18 @@ class ReportService:
             if filter_conditions:
                 count_sql += " WHERE " + " AND ".join(filter_conditions)
 
-            date_params = [date_from, date_from, date_from, date_to, date_from, date_to, date_from, date_from, date_to]
-            cursor.execute(count_sql, date_params + params)
+            cursor.execute(count_sql, dates + params)
             total = cursor.fetchone()[0]
 
-            cursor.execute(data_sql, date_params + params + ([per_page, offset] if per_page is not None else []))
+            cursor.execute(data_sql, dates + params + ([per_page, offset] if per_page is not None else []))
 
             report_data = []
             for row in cursor.fetchall():
                 item = dict(row)
                 item['opening_qty'] = round(item['opening_qty'], 2)
-                item['in_qty'] = round(item['in_qty'], 2)
-                item['out_qty'] = round(item['out_qty'], 2)
-                item['return_qty'] = round(item['return_qty'], 2)
+                item['in_qty'] = round(item['period_in'], 2)
+                item['out_qty'] = round(item['period_out'], 2)
+                item['return_qty'] = round(item['period_return'], 2)
                 item['closing_qty'] = round(item['closing_qty'], 2)
                 report_data.append(item)
 
