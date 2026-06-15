@@ -94,6 +94,7 @@
                     <a href="#" onclick="logout(); return false;">退出</a>
                 </div>
             </div>
+            <span class="nav-version" title="{% if app_version.commit %}commit {{ app_version.commit }}{% if app_version.date %} · {{ app_version.date }}{% endif %}{% endif %}">{{ app_version.full }}</span>
         </div>
     </nav>
     {% endif %}

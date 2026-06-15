@@ -103,4 +103,10 @@ def create_app(config_class):
             }
         return {'user_permissions': [], 'has_perm': lambda m, a: False}
 
+    @app.context_processor
+    def inject_version():
+        """将版本信息注入所有模板"""
+        from utils.version import get_version_info
+        return {'app_version': get_version_info()}
+
     return app
