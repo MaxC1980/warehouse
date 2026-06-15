@@ -121,6 +121,45 @@ class TestMaterialAPI(TestBase):
         self.assertIn('page', data)
         self.assertIn('per_page', data)
 
+    def test_get_material_by_id_has_references_field(self):
+        """get_material_by_id 返回 has_references 字段 (P1-12 修复后)"""
+        from services.material_service import MaterialService
+        # 找一个物料 (现有种子数据)
+        items, _ = MaterialService.get_materials(page=1, per_page=1)
+        if not items:
+            self.skipTest('无物料数据')
+        mid = items[0]['id']
+
+        # 字段存在且是 bool
+        resp = self.client.get(f'/api/materials/{mid}')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('has_references', data)
+        self.assertIsInstance(data['has_references'], bool)
+
+    def test_get_material_by_id_new_material_no_references(self):
+        """新建物料 (无引用) has_references 应为 False (P1-12 修复后)"""
+        from database import get_db_connection
+        import time
+        code = f'TEST_NOREF_{int(time.time() * 1000) % 1000000}'
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO material (code, name, unit) VALUES (?, ?, ?)",
+                (code, 'no ref test', '个')
+            )
+            new_id = cursor.lastrowid
+            conn.commit()
+        try:
+            resp = self.client.get(f'/api/materials/{new_id}')
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data['has_references'], False)
+        finally:
+            with get_db_connection() as conn:
+                conn.execute("DELETE FROM material WHERE id = ?", (new_id,))
+                conn.commit()
+
 
 class TestInventoryAPI(TestBase):
 
@@ -169,6 +208,27 @@ class TestInOrderAPI(TestBase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertIn('items', data)
+
+    def test_in_order_route_handles_service_exception(self):
+        """in_order 路由 service 抛异常时返 500 + 友好消息 (不暴露内部)"""
+        from unittest.mock import patch
+        with patch('services.order_service.OrderService.get_in_orders') as mock_svc:
+            mock_svc.side_effect = Exception('模拟数据库故障')
+            resp = self.client.get('/api/in-orders')
+            self.assertEqual(resp.status_code, 500)
+            self.assertEqual(resp.get_json(), {'error': '服务器内部错误'})
+
+    def test_in_order_create_handles_value_error(self):
+        """in_order 创建时 service 抛 ValueError 应返 400"""
+        from unittest.mock import patch
+        with patch('services.order_service.OrderService.create_in_order') as mock_svc:
+            mock_svc.side_effect = ValueError('业务校验失败: 测试')
+            resp = self.client.post('/api/in-orders', json={
+                'items': [{'material_id': 1, 'quantity': 1}],
+                'receiver': 'tester'
+            }, headers=self._auth_headers())
+            self.assertEqual(resp.status_code, 400)
+            self.assertEqual(resp.get_json(), {'error': '业务校验失败: 测试'})
 
     def test_create_in_order(self):
         """创建入库单"""
@@ -608,7 +668,7 @@ class TestRBACPermissions(TestBase):
     def test_permission_service_roles(self):
         """权限服务角色管理"""
         from services.permission_service import PermissionService
-        roles = PermissionService.get_all_roles()
+        roles = PermissionService.get_all_roles_with_permissions()
         self.assertTrue(len(roles) >= 3)
         role_names = [r['name'] for r in roles]
         self.assertIn('管理员', role_names)

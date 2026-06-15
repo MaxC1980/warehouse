@@ -83,22 +83,17 @@ python app.py      # 生产环境（端口5000，用 waitress）
 
 - **create_app.py** - 应用工厂，`app.py` 和 `run.py` 调用 `create_app(config_class)`
 - **Routes** (`routes/`) - Flask Blueprint 端点
+  - 页面路由: `routes/pages.py` (Blueprint `pages_bp`)
+  - API 路由: `routes/*.py` (Blueprint `*_bp`)
 - **Services** (`services/`) - 业务逻辑
+  - `permission_service.py` - RBAC 权限服务（角色 CRUD、权限查询、用户分配）
+  - `user_service.py` - 用户管理（创建/删除/重置密码/角色分配）
 - **Database** (`database.py`) - SQLite 连接，`get_db_connection()`
 - **Templates** (`templates/`) - Jinja2 模板
 - **utils/pagination.py** - `get_per_page(default, max_value)` 分页上限工具
-- **utils/decorators.py** - `@require_permission(module, action)` 权限装饰器
-- **utils/sql.py** - `escape_like()` SQL LIKE 通配符转义
-- **services/permission_service.py** - RBAC 权限服务（角色 CRUD、权限查询、用户分配）
-
-## API 调用
-
-`apiRequest()` 在 `static/js/app.js`，**自动前缀 `/api`**，发送 session cookie：
-
-```javascript
-const data = await apiRequest('/in-orders/detail?page=1');  // 正确
-// const data = await apiRequest('/api/in-orders/detail');   // 错误
-```
+- **utils/decorators.py` - `@require_permission(module, action)` 权限装饰器, `@login_required` 页面登录校验
+- **utils/sql.py** - `escape_like()` 通配符转义, `build_update_sql()` 动态 UPDATE 工具
+- **utils/page_permissions.py** - 页面 endpoint → (module, action) 权限映射
 
 ## 数据库
 
@@ -109,26 +104,20 @@ with get_db_connection() as conn:
 # 异常时 conn 自动关闭，无需手动 close()
 # sqlite3.Row 不支持 .get()，用 row['col'] 直接访问
 # 不使用 PRAGMA foreign_keys = ON，引用检查在 Service 层手动做
+# 密码用 werkzeug hash 存储, 旧明文首次登录自动升级 (无新列)
+# in_order_item 唯一约束: (order_id, material_id, batch_no) — 跨单允许, 单内禁止重复
 ```
 
 ## 权限（RBAC）
 
-基于角色的访问控制，替代旧的 3 级数值权限。
-
-- 4 张表：`role`、`user_role`、`permission`、`role_permission`
-- 29 条权限：13 模块 × 3 动作（view/edit/approve），部分模块只有 view 或 manage
-- 默认角色：管理员（全部）、操作员（view+edit）、查看员（仅 view）
-- 路由层：`@require_permission('module', 'action')` 装饰器
-- 页面层：`before_request` 路径映射拦截无权限页面
-- 模板层：`has_perm(module, 'action')` 控制菜单和按钮显隐
-- 管理页面：`/admin/roles-page`（角色管理）、`/admin/users-page`（用户管理）
-- 新增模块需改：`database.py`（种子数据）+ `create_app.py`（路径映射）+ `base.html`（菜单）+ 路由装饰器 + 模板按钮
+详见 @docs/权限管理.md（三层防护: 路由/页面/模板, 新增模块需改 5 个位置）
 
 ## 安全
 
 - `SECRET_KEY`：不硬编码，每次启动随机生成（`secrets.token_hex(32)`），重启后 session 失效。设环境变量 `SECRET_KEY` 可持久化
-- 登录限流：IP + 账号双维度，5 次失败锁定 15 分钟
-- 其他安全规范见 @docs/通用开发规范.md
+- 登录限流：IP + 账号双维度，5 次失败锁定 15 分钟，LRUDict(maxsize=10000) 防内存泄漏
+- 权限检查从 `session.permissions` 查, 不走 DB, 权限变更后需重登录生效（见 docs/代码质量改进记录.md §30）
+- 密码用 werkzeug `generate_password_hash` 存储, 首次登录自动迁移明文 → hash
 
 ## 注意
 
@@ -149,5 +138,6 @@ playwright-cli snapshot
 
 ## 业务逻辑查看@docs/业务逻辑.md
 ## 新增模块操作指南查看@docs/新增模块操作指南.md
+## 权限管理查看@docs/权限管理.md
 ## 代码质量改进记录查看@docs/代码质量改进记录.md
 ## 通用开发规范查看@docs/通用开发规范.md

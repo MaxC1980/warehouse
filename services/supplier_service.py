@@ -1,5 +1,7 @@
 from database import get_db_connection
-from utils.sql import escape_like
+from utils.sql import escape_like, build_update_sql
+
+SUPPLIER_UPDATE_FIELDS = ['name', 'contact', 'phone', 'address']
 
 class SupplierService:
     @staticmethod
@@ -57,31 +59,11 @@ class SupplierService:
     def update_supplier(supplier_id, data):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-
-            updates = []
-            params = []
-
-            if 'name' in data:
-                updates.append("name = ?")
-                params.append(data['name'])
-            if 'contact' in data:
-                updates.append("contact = ?")
-                params.append(data['contact'])
-            if 'phone' in data:
-                updates.append("phone = ?")
-                params.append(data['phone'])
-            if 'address' in data:
-                updates.append("address = ?")
-                params.append(data['address'])
-
-            if updates:
-                params.append(supplier_id)
-                cursor.execute(
-                    f"UPDATE supplier SET {', '.join(updates)} WHERE id = ?",
-                    params
-                )
+            data = {**data, 'id': supplier_id}
+            sql, params = build_update_sql('supplier', data, SUPPLIER_UPDATE_FIELDS)
+            if sql:
+                cursor.execute(sql, params)
                 conn.commit()
-
         return SupplierService.get_supplier_by_id(supplier_id)
 
     @staticmethod

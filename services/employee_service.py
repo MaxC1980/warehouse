@@ -1,5 +1,7 @@
 from database import get_db_connection
-from utils.sql import escape_like
+from utils.sql import escape_like, build_update_sql
+
+EMPLOYEE_UPDATE_FIELDS = ['name', 'department', 'phone', 'remark']
 
 class EmployeeService:
     @staticmethod
@@ -54,25 +56,11 @@ class EmployeeService:
     def update_employee(employee_id, data):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            updates = []
-            params = []
-            if 'name' in data:
-                updates.append("name = ?")
-                params.append(data['name'])
-            if 'department' in data:
-                updates.append("department = ?")
-                params.append(data['department'])
-            if 'phone' in data:
-                updates.append("phone = ?")
-                params.append(data['phone'])
-            if 'remark' in data:
-                updates.append("remark = ?")
-                params.append(data['remark'])
-            if updates:
-                params.append(employee_id)
-                cursor.execute(f"UPDATE employee SET {', '.join(updates)} WHERE id = ?", params)
+            data = {**data, 'id': employee_id}
+            sql, params = build_update_sql('employee', data, EMPLOYEE_UPDATE_FIELDS)
+            if sql:
+                cursor.execute(sql, params)
                 conn.commit()
-
         return EmployeeService.get_employee_by_id(employee_id)
 
     @staticmethod

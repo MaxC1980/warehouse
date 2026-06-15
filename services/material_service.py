@@ -1,5 +1,10 @@
 from database import get_db_connection
-from utils.sql import escape_like
+from utils.sql import escape_like, build_update_sql
+
+MATERIAL_UPDATE_FIELDS = [
+    'name', 'spec', 'unit', 'category_code', 'manufacturer',
+    'storage_condition', 'shelf_life', 'remark', 'is_reusable', 'safety_stock',
+]
 
 class MaterialService:
     REUSABLE_KEYWORDS = ['胶水', '锡膏']
@@ -204,13 +209,13 @@ class MaterialService:
                 return None
 
             result = dict(material)
-            cursor.execute("SELECT COUNT(*) FROM in_order_item WHERE material_id = ?", (material_id,))
-            has_in = cursor.fetchone()[0] > 0
-            cursor.execute("SELECT COUNT(*) FROM out_order_item WHERE material_id = ?", (material_id,))
-            has_out = cursor.fetchone()[0] > 0
-            cursor.execute("SELECT COUNT(*) FROM inventory WHERE material_id = ?", (material_id,))
-            has_inv = cursor.fetchone()[0] > 0
-            result['has_references'] = has_in or has_out or has_inv
+            cursor.execute("""
+                SELECT
+                    EXISTS(SELECT 1 FROM in_order_item WHERE material_id = ?) OR
+                    EXISTS(SELECT 1 FROM out_order_item WHERE material_id = ?) OR
+                    EXISTS(SELECT 1 FROM inventory WHERE material_id = ?) AS has_references
+            """, (material_id, material_id, material_id))
+            result['has_references'] = bool(cursor.fetchone()[0])
 
         return result
 
@@ -264,49 +269,10 @@ class MaterialService:
     def update_material(material_id, data):
         with get_db_connection() as conn:
             cursor = conn.cursor()
-
-            updates = []
-            params = []
-
-            if 'name' in data:
-                updates.append("name = ?")
-                params.append(data['name'])
-            if 'spec' in data:
-                updates.append("spec = ?")
-                params.append(data['spec'])
-            if 'unit' in data:
-                updates.append("unit = ?")
-                params.append(data['unit'])
-            if 'category_code' in data:
-                updates.append("category_code = ?")
-                params.append(data['category_code'])
-            if 'manufacturer' in data:
-                updates.append("manufacturer = ?")
-                params.append(data['manufacturer'])
-            if 'storage_condition' in data:
-                updates.append("storage_condition = ?")
-                params.append(data['storage_condition'])
-            if 'shelf_life' in data:
-                updates.append("shelf_life = ?")
-                params.append(data['shelf_life'])
-            if 'remark' in data:
-                updates.append("remark = ?")
-                params.append(data['remark'])
-            if 'is_reusable' in data:
-                updates.append("is_reusable = ?")
-                params.append(data['is_reusable'])
-            if 'safety_stock' in data:
-                updates.append("safety_stock = ?")
-                params.append(data['safety_stock'])
-
-            if updates:
-                params.append(material_id)
-                cursor.execute(
-                    f"UPDATE material SET {', '.join(updates)} WHERE id = ?",
-                    params
-                )
+            sql, params = build_update_sql('material', {**data, 'id': material_id}, MATERIAL_UPDATE_FIELDS)
+            if sql:
+                cursor.execute(sql, params)
                 conn.commit()
-
         return MaterialService.get_material_by_id(material_id)
 
     @staticmethod
@@ -344,12 +310,12 @@ class MaterialService:
                     code = row.get('code')
                     name = row.get('name')
                     if not name:
-                        errors.append(f"Row {idx + 2}: Missing name")
+                        errors.append(f"第 {idx + 2} 行: 缺少名称")
                         failed += 1
                         continue
 
                     if not code:
-                        errors.append(f"Row {idx + 2}: Missing code")
+                        errors.append(f"第 {idx + 2} 行: 缺少编码")
                         failed += 1
                         continue
 
@@ -380,7 +346,7 @@ class MaterialService:
                     conn.commit()
                     success += 1
                 except Exception as e:
-                    errors.append(f"Row {idx + 2}: {str(e)}")
+                    errors.append(f"第 {idx + 2} 行: {str(e)}")
                     failed += 1
 
         return {'success': success, 'failed': failed, 'errors': errors}
@@ -400,18 +366,18 @@ class MaterialService:
                     name = str(row.get('col2') or row.get('名称') or row.get('name') or '').strip()
 
                     if not code or not name:
-                        errors.append(f"Row {idx + 1}: Missing code or name")
+                        errors.append(f"第 {idx + 1} 行: 缺少编码或名称")
                         failed += 1
                         continue
 
                     if len(code) != 2:
-                        errors.append(f"Row {idx + 1}: Code '{code}' must be 2 digits")
+                        errors.append(f"第 {idx + 1} 行: 编码 '{code}' 必须是 2 位")
                         failed += 1
                         continue
 
                     cursor.execute("SELECT id FROM material_category WHERE code = ?", (code,))
                     if cursor.fetchone():
-                        errors.append(f"Row {idx + 1}: Code '{code}' already exists")
+                        errors.append(f"第 {idx + 1} 行: 编码 '{code}' 已存在")
                         failed += 1
                         continue
 
@@ -422,7 +388,7 @@ class MaterialService:
                     conn.commit()
                     success += 1
                 except Exception as e:
-                    errors.append(f"Row {idx + 1}: {str(e)}")
+                    errors.append(f"第 {idx + 1} 行: {str(e)}")
                     failed += 1
 
         return {'success': success, 'failed': failed, 'errors': errors}
@@ -441,14 +407,14 @@ class MaterialService:
                     name = row.get('名称') or row.get('name') or row.get('col2') or ''
 
                     if not raw_code or not name:
-                        errors.append(f"Row {idx + 2}: Missing code or name")
+                        errors.append(f"第 {idx + 2} 行: 缺少编码或名称")
                         failed += 1
                         continue
 
                     code_str = str(raw_code).strip()
 
                     if len(code_str) < 2:
-                        errors.append(f"Row {idx + 2}: Code '{code_str}' is invalid")
+                        errors.append(f"第 {idx + 2} 行: 编码 '{code_str}' 无效")
                         failed += 1
                         continue
 
@@ -457,13 +423,13 @@ class MaterialService:
                     cursor.execute("SELECT id FROM material_category WHERE code = ? AND level = 1", (major_code,))
                     parent = cursor.fetchone()
                     if not parent:
-                        errors.append(f"Row {idx + 2}: Major category '{major_code}' not found")
+                        errors.append(f"第 {idx + 2} 行: 大类 '{major_code}' 不存在")
                         failed += 1
                         continue
 
                     cursor.execute("SELECT id FROM material_category WHERE code = ?", (code_str,))
                     if cursor.fetchone():
-                        errors.append(f"Row {idx + 2}: Code '{code_str}' already exists")
+                        errors.append(f"第 {idx + 2} 行: 编码 '{code_str}' 已存在")
                         failed += 1
                         continue
 
@@ -474,7 +440,7 @@ class MaterialService:
                     conn.commit()
                     success += 1
                 except Exception as e:
-                    errors.append(f"Row {idx + 2}: {str(e)}")
+                    errors.append(f"第 {idx + 2} 行: {str(e)}")
                     failed += 1
 
         return {'success': success, 'failed': failed, 'errors': errors}

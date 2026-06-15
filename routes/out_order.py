@@ -1,11 +1,11 @@
 import logging
 from flask import Blueprint, request, jsonify, session, make_response
 from services.order_service import OrderService
-
-logger = logging.getLogger(__name__)
 from utils.excel_utils import export_to_excel
 from utils.pagination import get_per_page
 from utils.decorators import require_permission
+
+logger = logging.getLogger(__name__)
 
 out_order_bp = Blueprint('out_order', __name__)
 

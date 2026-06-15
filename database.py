@@ -1,6 +1,7 @@
 import sqlite3
 import os
 from contextlib import contextmanager
+from werkzeug.security import generate_password_hash
 from config import Config
 
 @contextmanager
@@ -371,6 +372,31 @@ def init_db():
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_order_no ON return_order(order_no)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_related_out ON return_order(related_out_order_id)')
 
+        # 明细表 (查单/查明细)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_item_order ON in_order_item(order_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_item_order ON out_order_item(order_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_item_ro ON return_order_item(return_order_id)')
+        # 唯一约束: 同一入库单内相同物料+批次不能重复
+        cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_in_order_item_unique ON in_order_item(order_id, material_id, batch_no)')
+        # 明细表 (按物料, pending_in/out enrich)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_item_material ON in_order_item(material_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_item_mb ON out_order_item(material_id, batch_no)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_item_ooi ON return_order_item(out_order_item_id)')
+        # 单据状态/时间 (过滤+排序)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_status ON in_order(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_status ON out_order(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_status ON return_order(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_created ON in_order(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_created ON out_order(created_at)')
+        # 库存过期 (过期过滤)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON inventory(expiry_date)')
+        # 可回用重量 (退库审核)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_reusable_weight_ooi ON reusable_material_weight(out_order_item_id)')
+        # 权限 (登录/角色分配/角色管理)
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_role_user ON user_role(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_role_role ON user_role(role_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_role_permission_role ON role_permission(role_id)')
+
         # Create triggers for auto-setting localtime timestamps
         cursor.execute('''
             CREATE TRIGGER IF NOT EXISTS user_created_at AFTER INSERT ON user
@@ -441,7 +467,7 @@ def init_db():
         if not cursor.fetchone():
             cursor.execute(
                 "INSERT INTO user (username, password) VALUES (?, ?)",
-                ('admin', 'admin12345')
+                ('admin', generate_password_hash('admin12345'))
             )
             admin_user_id = cursor.lastrowid
             if admin_role:

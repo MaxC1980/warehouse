@@ -34,23 +34,33 @@ class PermissionService:
             return cursor.fetchone() is not None
 
     @staticmethod
-    def get_all_roles():
-        """获取所有角色"""
+    def get_all_roles_with_permissions():
+        """单次查询获取所有角色及其权限ID列表, 消除 N+1"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, description, is_system FROM role ORDER BY id")
-            return [dict(row) for row in cursor.fetchall()]
+            cursor.execute("""
+                SELECT r.id, r.name, r.description, r.is_system,
+                       rp.permission_id
+                FROM role r
+                LEFT JOIN role_permission rp ON rp.role_id = r.id
+                ORDER BY r.id
+            """)
+            rows = cursor.fetchall()
 
-    @staticmethod
-    def get_role_permissions(role_id):
-        """获取角色的所有权限ID"""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT permission_id FROM role_permission WHERE role_id = ?",
-                (role_id,)
-            )
-            return [row['permission_id'] for row in cursor.fetchall()]
+        roles_map = {}
+        for row in rows:
+            rid = row['id']
+            if rid not in roles_map:
+                roles_map[rid] = {
+                    'id': rid,
+                    'name': row['name'],
+                    'description': row['description'],
+                    'is_system': row['is_system'],
+                    'permissions': []
+                }
+            if row['permission_id'] is not None:
+                roles_map[rid]['permissions'].append(row['permission_id'])
+        return list(roles_map.values())
 
     @staticmethod
     def get_all_permissions():

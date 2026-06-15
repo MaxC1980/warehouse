@@ -1,7 +1,15 @@
+import logging
 from database import get_db_connection
 from datetime import datetime
 from services.inventory_service import InventoryService
-from utils.sql import escape_like
+from utils.sql import escape_like, build_update_sql
+
+logger = logging.getLogger(__name__)
+
+IN_ORDER_UPDATE_FIELDS = ['supplier_id', 'remark', 'receiver', 'purpose', 'receiver_date']
+OUT_ORDER_UPDATE_FIELDS = ['department', 'receiver', 'receiver_date', 'remark', 'purpose']
+RETURN_ORDER_UPDATE_FIELDS = ['department', 'receiver', 'receiver_date', 'remark', 'related_out_order_id']
+
 
 class OrderService:
     @staticmethod
@@ -29,6 +37,18 @@ class OrderService:
 
     @staticmethod
     def get_in_orders(page=1, per_page=20, status=None, start_date=None, end_date=None):
+        """分页查询入库单列表 (按单维度, 不含 items)
+
+        Args:
+            page: 页码 (1-based)
+            per_page: 每页条数
+            status: 单据状态过滤, None 不过滤
+            start_date: 收货日期下界 (含)
+            end_date: 收货日期上界 (含)
+
+        Returns:
+            (orders, total) — orders 为字段字典列表, total 为全量条数
+        """
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -74,6 +94,14 @@ class OrderService:
 
     @staticmethod
     def get_in_order_by_id(order_id):
+        """按 ID 查询入库单详情 (含 items 明细)
+
+        Args:
+            order_id: 入库单主键
+
+        Returns:
+            字段字典 + 'items' 列表, 不存在返回 None
+        """
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -123,6 +151,7 @@ class OrderService:
 
     @staticmethod
     def create_in_order(supplier_id, operator_id, remark=None, receiver=None, purpose=None, receiver_date=None, items=None):
+        """创建入库单, 含 items; 返回完整入库单"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -155,12 +184,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_in_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def update_in_order(order_id, data):
+        """更新入库单 (仅 pending); 返回更新后或 None"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -170,30 +201,9 @@ class OrderService:
                 if not order or order['status'] != 'pending':
                     return None
 
-                updates = []
-                params = []
-                if 'supplier_id' in data:
-                    updates.append("supplier_id = ?")
-                    params.append(data['supplier_id'])
-                if 'remark' in data:
-                    updates.append("remark = ?")
-                    params.append(data['remark'])
-                if 'receiver' in data:
-                    updates.append("receiver = ?")
-                    params.append(data['receiver'])
-                if 'purpose' in data:
-                    updates.append("purpose = ?")
-                    params.append(data['purpose'])
-                if 'receiver_date' in data:
-                    updates.append("receiver_date = ?")
-                    params.append(data['receiver_date'])
-
-                if updates:
-                    params.append(order_id)
-                    cursor.execute(
-                        f"UPDATE in_order SET {', '.join(updates)} WHERE id = ?",
-                        params
-                    )
+                sql, params = build_update_sql('in_order', {**data, 'id': order_id}, IN_ORDER_UPDATE_FIELDS)
+                if sql:
+                    cursor.execute(sql, params)
 
                 if 'items' in data:
                     cursor.execute("DELETE FROM in_order_item WHERE order_id = ?", (order_id,))
@@ -213,12 +223,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_in_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def delete_in_order(order_id):
+        """删除入库单 (仅 pending); 返回 bool"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -231,6 +243,29 @@ class OrderService:
             cursor.execute("DELETE FROM in_order WHERE id = ?", (order_id,))
             conn.commit()
             return True
+
+    @staticmethod
+    def _upsert_inventory_for_in_item(cursor, item, batch_no):
+        """per-item 库存 UPSERT: 存在累加, 不存在 INSERT"""
+        cursor.execute(
+            "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
+            (item['material_id'], batch_no)
+        )
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                """UPDATE inventory
+                   SET quantity = ROUND(quantity + ?, 2), updated_at = datetime('now', 'localtime')
+                   WHERE material_id = ? AND batch_no = ?""",
+                (item['quantity'], item['material_id'], batch_no)
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity, in_order_item_id)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (item['material_id'], batch_no, item.get('production_date'),
+                 item.get('expiry_date'), round(item['quantity'], 2), item['id'])
+            )
 
     @staticmethod
     def approve_in_order(order_id, approved_by):
@@ -261,26 +296,7 @@ class OrderService:
                             (batch_no, item['id'])
                         )
 
-                    cursor.execute(
-                        "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
-                        (item['material_id'], batch_no)
-                    )
-                    existing = cursor.fetchone()
-
-                    if existing:
-                        cursor.execute(
-                            """UPDATE inventory
-                               SET quantity = ROUND(quantity + ?, 2), updated_at = datetime('now', 'localtime')
-                               WHERE material_id = ? AND batch_no = ?""",
-                            (item['quantity'], item['material_id'], batch_no)
-                        )
-                    else:
-                        cursor.execute(
-                            """INSERT INTO inventory (material_id, batch_no, production_date, expiry_date, quantity, in_order_item_id)
-                               VALUES (?, ?, ?, ?, ?, ?)""",
-                            (item['material_id'], batch_no, item.get('production_date'),
-                             item.get('expiry_date'), round(item['quantity'], 2), item['id'])
-                        )
+                    OrderService._upsert_inventory_for_in_item(cursor, item, batch_no)
 
                 cursor.execute(
                     "UPDATE in_order SET status = 'approved', approved_at = datetime('now', 'localtime'), approved_by = ? WHERE id = ?",
@@ -290,12 +306,14 @@ class OrderService:
                 conn.commit()
                 return OrderService.get_in_order_by_id(order_id)
 
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def get_out_orders(page=1, per_page=20, status=None, start_date=None, end_date=None):
+        """分页查询出库单列表, 按单维度"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -341,6 +359,7 @@ class OrderService:
 
     @staticmethod
     def get_out_order_by_id(order_id):
+        """按 ID 查出库单详情含 items; 不存在返 None"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -390,6 +409,7 @@ class OrderService:
 
     @staticmethod
     def create_out_order(department, receiver, receiver_date, operator_id, remark=None, purpose=None, items=None):
+        """创建出库单, 含 items; 返回完整出库单"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -420,12 +440,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_out_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def update_out_order(order_id, data):
+        """更新出库单 (仅 pending); 返回更新后或 None"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -435,30 +457,9 @@ class OrderService:
                 if not order or order['status'] != 'pending':
                     return None
 
-                updates = []
-                params = []
-                if 'department' in data:
-                    updates.append("department = ?")
-                    params.append(data['department'])
-                if 'receiver' in data:
-                    updates.append("receiver = ?")
-                    params.append(data['receiver'])
-                if 'receiver_date' in data:
-                    updates.append("receiver_date = ?")
-                    params.append(data['receiver_date'])
-                if 'remark' in data:
-                    updates.append("remark = ?")
-                    params.append(data['remark'])
-                if 'purpose' in data:
-                    updates.append("purpose = ?")
-                    params.append(data['purpose'])
-
-                if updates:
-                    params.append(order_id)
-                    cursor.execute(
-                        f"UPDATE out_order SET {', '.join(updates)} WHERE id = ?",
-                        params
-                    )
+                sql, params = build_update_sql('out_order', {**data, 'id': order_id}, OUT_ORDER_UPDATE_FIELDS)
+                if sql:
+                    cursor.execute(sql, params)
 
                 if 'items' in data:
                     cursor.execute("DELETE FROM out_order_item WHERE order_id = ?", (order_id,))
@@ -476,12 +477,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_out_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def delete_out_order(order_id):
+        """删除出库单 (仅 pending); 返回 bool"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -499,6 +502,53 @@ class OrderService:
             cursor.execute("DELETE FROM out_order WHERE id = ?", (order_id,))
             conn.commit()
             return True
+
+    @staticmethod
+    def _deduct_inventory_for_out_item(cursor, item):
+        """per-item 库存扣减: 有 batch_no 精确扣, 无 batch_no FIFO 选最早过期批次"""
+        actual_qty = item['actual_quantity']
+        batch_no = item['batch_no']
+
+        if batch_no:
+            cursor.execute(
+                """UPDATE inventory
+                   SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
+                   WHERE material_id = ? AND batch_no = ? AND quantity >= ?""",
+                (actual_qty, item['material_id'], batch_no, actual_qty)
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"库存不足或批次不存在: 物料ID {item['material_id']}, 批次 {batch_no}")
+        else:
+            cursor.execute(
+                """SELECT id, quantity FROM inventory
+                   WHERE material_id = ? AND quantity > 0
+                   ORDER BY expiry_date ASC, batch_no ASC LIMIT 1""",
+                (item['material_id'],)
+            )
+            batch = cursor.fetchone()
+            if not batch or batch['quantity'] < actual_qty:
+                raise ValueError(f"库存不足: 物料ID {item['material_id']}")
+            cursor.execute(
+                """UPDATE inventory
+                   SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
+                   WHERE id = ?""",
+                (actual_qty, batch['id'])
+            )
+
+    @staticmethod
+    def _record_reusable_weight_for_out_item(cursor, item, approved_by, reusable_map):
+        """per-item: 写入 reusable_material_weight (仅当 initial_weight > 0 且物料可回用)"""
+        initial_weight = item.get('initial_gross_weight')
+        if initial_weight is None or initial_weight <= 0:
+            return
+        if not reusable_map.get(item['material_id'], False):
+            return
+        cursor.execute(
+            """INSERT OR REPLACE INTO reusable_material_weight
+               (out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, status)
+               VALUES (?, ?, ?, datetime('now', 'localtime'), ?, 'checked_out')""",
+            (item['id'], item['material_id'], initial_weight, approved_by)
+        )
 
     @staticmethod
     def approve_out_order(order_id, approved_by, weight_data=None):
@@ -530,36 +580,7 @@ class OrderService:
                 reusable_map = {row['id']: row['is_reusable'] == 1 for row in cursor.fetchall()}
 
                 for item in items:
-                    is_reusable = reusable_map.get(item['material_id'], False)
-
-                    batch_no = item['batch_no']
-                    actual_qty = item['actual_quantity']
-
-                    if batch_no:
-                        cursor.execute(
-                            """UPDATE inventory
-                               SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
-                               WHERE material_id = ? AND batch_no = ? AND quantity >= ?""",
-                            (actual_qty, item['material_id'], batch_no, actual_qty)
-                        )
-                        if cursor.rowcount == 0:
-                            raise Exception(f"库存不足或批次不存在: 物料ID {item['material_id']}, 批次 {batch_no}")
-                    else:
-                        cursor.execute(
-                            """SELECT id, quantity FROM inventory
-                               WHERE material_id = ? AND quantity > 0
-                               ORDER BY expiry_date ASC, batch_no ASC LIMIT 1""",
-                            (item['material_id'],)
-                        )
-                        batch = cursor.fetchone()
-                        if not batch or batch['quantity'] < actual_qty:
-                            raise Exception(f"库存不足: 物料ID {item['material_id']}")
-                        cursor.execute(
-                            """UPDATE inventory
-                               SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
-                               WHERE id = ?""",
-                            (actual_qty, batch['id'])
-                        )
+                    OrderService._deduct_inventory_for_out_item(cursor, item)
 
                 cursor.execute(
                     """UPDATE out_order
@@ -569,75 +590,71 @@ class OrderService:
                 )
 
                 for item in items:
-                    initial_weight = item['initial_gross_weight'] if 'initial_gross_weight' in item.keys() else None
-                    if initial_weight is not None and initial_weight > 0:
-                        if reusable_map.get(item['material_id'], False):
-                            cursor.execute(
-                                """INSERT OR REPLACE INTO reusable_material_weight
-                                   (out_order_item_id, material_id, initial_gross_weight, initial_weight_time, initial_operator_id, status)
-                                   VALUES (?, ?, ?, datetime('now', 'localtime'), ?, 'checked_out')""",
-                                (item['id'], item['material_id'], initial_weight, approved_by)
-                            )
+                    OrderService._record_reusable_weight_for_out_item(
+                        cursor, item, approved_by, reusable_map
+                    )
 
                 conn.commit()
                 return OrderService.get_out_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
-    def get_in_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None):
-        """Get in-orders with details - paginated by items"""
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
+    def _build_in_order_where(status, start_date, end_date, keyword):
+        """构造入库单详表查询的 WHERE 子句: order 级 + material 级"""
+        order_clauses = []
+        order_params = []
+        if status:
+            order_clauses.append("o.status = ?")
+            order_params.append(status)
+        if start_date:
+            order_clauses.append("o.receiver_date >= ?")
+            order_params.append(start_date)
+        if end_date:
+            order_clauses.append("o.receiver_date <= ?")
+            order_params.append(end_date)
 
-            offset = (page - 1) * per_page
+        material_clauses = []
+        material_params = []
+        if keyword:
+            kw = escape_like(keyword)
+            material_clauses.append(
+                "(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' "
+                "OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')"
+            )
+            material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
-            order_where_clauses = []
-            order_params = []
-            if status:
-                order_where_clauses.append("o.status = ?")
-                order_params.append(status)
-            if start_date:
-                order_where_clauses.append("o.receiver_date >= ?")
-                order_params.append(start_date)
-            if end_date:
-                order_where_clauses.append("o.receiver_date <= ?")
-                order_params.append(end_date)
+        return order_clauses, order_params, material_clauses, material_params
 
-            material_conditions = []
-            material_params = []
-            if keyword:
-                kw = escape_like(keyword)
-                material_conditions.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+    @staticmethod
+    def _combine_in_where(order_clauses, order_params, material_clauses, material_params):
+        """合并 order+material 条件为 (where_sql, all_params)"""
+        all_clauses = order_clauses + material_clauses
+        all_params = order_params + material_params
+        where_sql = "WHERE " + " AND ".join(all_clauses) if all_clauses else ""
+        return where_sql, all_params
 
-            has_material_filter = bool(material_conditions)
-
-            if has_material_filter:
-                all_conditions = order_where_clauses + material_conditions
-                all_params = order_params + material_params
-            else:
-                all_conditions = order_where_clauses
-                all_params = order_params
-            where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
-
-            count_query = f"""
-                SELECT COUNT(i.id) as count
+    @staticmethod
+    def _count_in_detail_items(cursor, where_sql, all_params):
+        """统计入库单明细行数 (分页依据是 item)"""
+        cursor.execute(
+            f"""SELECT COUNT(i.id) as count
                 FROM in_order_item i
                 INNER JOIN in_order o ON o.id = i.order_id
                 INNER JOIN material m ON i.material_id = m.id
-                {where_sql}
-            """
-            cursor.execute(count_query, all_params)
-            total = cursor.fetchone()['count']
+                {where_sql}""",
+            all_params
+        )
+        return cursor.fetchone()['count']
 
-            if total == 0:
-                return [], 0
-
-            cursor.execute(
-                f"""
-                SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
+    @staticmethod
+    def _query_in_paginated_detail_items(cursor, where_sql, all_params, per_page, page):
+        """按 item 分页拉取入库单明细"""
+        offset = (page - 1) * per_page
+        cursor.execute(
+            f"""SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
                        i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
                        m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
                 FROM in_order_item i
@@ -645,204 +662,238 @@ class OrderService:
                 INNER JOIN material m ON i.material_id = m.id
                 {where_sql}
                 ORDER BY o.created_at DESC, i.id
-                LIMIT ? OFFSET ?
-                """,
-                all_params + [per_page, offset]
-            )
-            paginated_items = [dict(row) for row in cursor.fetchall()]
+                LIMIT ? OFFSET ?""",
+            all_params + [per_page, offset]
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
-            if not paginated_items:
-                return [], 0
+    @staticmethod
+    def _fetch_in_orders_and_items(cursor, paginated_items, material_clauses, material_params):
+        """根据 paginated items 拉取所属 orders + 完整 items (含 material 过滤)"""
+        order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
+        paginated_item_ids = [item['item_id'] for item in paginated_items]
+        placeholders_orders = ','.join(['?'] * len(order_ids))
+        placeholders_items = ','.join(['?'] * len(paginated_item_ids))
 
-            order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
-            paginated_item_ids = [item['item_id'] for item in paginated_items]
-
-            placeholders = ','.join(['?'] * len(order_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    o.id as order_id,
-                    o.order_no,
-                    o.status,
-                    o.remark,
-                    o.receiver,
-                    o.receiver_date,
-                    o.created_at,
-                    o.approved_at,
-                    s.name as supplier_name,
-                    u.username as operator_name,
-                    a.username as approved_by_name
+        cursor.execute(
+            f"""SELECT o.id as order_id, o.order_no, o.status, o.remark, o.receiver,
+                       o.receiver_date, o.created_at, o.approved_at,
+                       s.name as supplier_name,
+                       u.username as operator_name,
+                       a.username as approved_by_name
                 FROM in_order o
                 LEFT JOIN supplier s ON o.supplier_id = s.id
                 LEFT JOIN user u ON o.operator_id = u.id
                 LEFT JOIN user a ON o.approved_by = a.id
-                WHERE o.id IN ({placeholders})
-                ORDER BY o.created_at DESC
-                """,
-                order_ids
-            )
-            orders = [dict(row) for row in cursor.fetchall()]
+                WHERE o.id IN ({placeholders_orders})
+                ORDER BY o.created_at DESC""",
+            order_ids
+        )
+        orders = [dict(row) for row in cursor.fetchall()]
 
-            placeholders_items = ','.join(['?'] * len(paginated_item_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    i.id, i.order_id, i.material_id, i.batch_no,
-                    i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
-                    m.code as material_code,
-                    m.name as material_name,
-                    m.spec,
-                    m.manufacturer,
-                    m.unit
+        has_material_filter = bool(material_clauses)
+        material_filter_sql = " AND " + " AND ".join(material_clauses) if has_material_filter else ""
+        cursor.execute(
+            f"""SELECT i.id, i.order_id, i.material_id, i.batch_no,
+                       i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
+                       m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
                 FROM in_order_item i
                 JOIN material m ON i.material_id = m.id
-                WHERE i.order_id IN ({placeholders}) AND i.id IN ({placeholders_items}){' AND ' + ' AND '.join(material_conditions) if has_material_filter else ''}
-                ORDER BY i.id
-                """,
-                order_ids + paginated_item_ids + (material_params if has_material_filter else [])
+                WHERE i.order_id IN ({placeholders_orders}) AND i.id IN ({placeholders_items})
+                {material_filter_sql}
+                ORDER BY i.id""",
+            order_ids + paginated_item_ids + (material_params if has_material_filter else [])
+        )
+        all_items = [dict(row) for row in cursor.fetchall()]
+        return orders, all_items
+
+    @staticmethod
+    def _attach_items_to_orders(orders, items, key='order_id'):
+        """原地: 给每个 order 添加 'items' 字段"""
+        items_by_order = {}
+        for item in items:
+            oid = item[key]
+            items_by_order.setdefault(oid, []).append(item)
+        for order in orders:
+            order['items'] = items_by_order.get(order[key], [])
+
+    @staticmethod
+    def get_in_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None):
+        """Get in-orders with details - paginated by items"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            order_clauses, order_params, mat_clauses, mat_params = \
+                OrderService._build_in_order_where(status, start_date, end_date, keyword)
+            where_sql, all_params = OrderService._combine_in_where(
+                order_clauses, order_params, mat_clauses, mat_params
             )
-            all_items = [dict(row) for row in cursor.fetchall()]
-
-            items_by_order = {}
-            for item in all_items:
-                oid = item['order_id']
-                if oid not in items_by_order:
-                    items_by_order[oid] = []
-                items_by_order[oid].append(item)
-            for order in orders:
-                order['items'] = items_by_order.get(order['order_id'], [])
-
+            total = OrderService._count_in_detail_items(cursor, where_sql, all_params)
+            if total == 0:
+                return [], 0
+            paginated = OrderService._query_in_paginated_detail_items(
+                cursor, where_sql, all_params, per_page, page
+            )
+            if not paginated:
+                return [], 0
+            orders, all_items = OrderService._fetch_in_orders_and_items(
+                cursor, paginated, mat_clauses, mat_params
+            )
+            OrderService._attach_items_to_orders(orders, all_items)
             return orders, total
+
+    @staticmethod
+    def _build_out_order_where(status, start_date, end_date, receiver):
+        """出库单 order 级 WHERE"""
+        clauses = []
+        params = []
+        if status:
+            clauses.append("o.status = ?")
+            params.append(status)
+        if start_date:
+            clauses.append("o.receiver_date >= ?")
+            params.append(start_date)
+        if end_date:
+            clauses.append("o.receiver_date <= ?")
+            params.append(end_date)
+        if receiver:
+            clauses.append("o.receiver = ?")
+            params.append(receiver)
+        return clauses, params
+
+    @staticmethod
+    def _build_out_material_where(keyword, has_reusable):
+        """出库单 material 级 WHERE"""
+        clauses = []
+        params = []
+        if keyword:
+            kw = escape_like(keyword)
+            clauses.append(
+                "(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' "
+                "OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')"
+            )
+            params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+        if has_reusable:
+            clauses.append("m.is_reusable = 1")
+        return clauses, params
+
+    @staticmethod
+    def _query_out_paginated_detail_items(cursor, where_sql, all_params, per_page, page):
+        """按 item 分页拉取出库单明细 (per_page=None 时无分页)"""
+        if per_page is not None:
+            offset = (page - 1) * per_page
+            cursor.execute(
+                f"""SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
+                           i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
+                           i.initial_gross_weight, i.shipment_info,
+                           m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
+                    FROM out_order_item i
+                    INNER JOIN out_order o ON o.id = i.order_id
+                    INNER JOIN material m ON i.material_id = m.id
+                    {where_sql}
+                    ORDER BY o.created_at DESC, i.id
+                    LIMIT ? OFFSET ?""",
+                all_params + [per_page, offset]
+            )
+        else:
+            cursor.execute(
+                f"""SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
+                           i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
+                           i.initial_gross_weight, i.shipment_info,
+                           m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
+                    FROM out_order_item i
+                    INNER JOIN out_order o ON o.id = i.order_id
+                    INNER JOIN material m ON i.material_id = m.id
+                    {where_sql}
+                    ORDER BY o.created_at DESC, i.id""",
+                all_params
+            )
+        return [dict(row) for row in cursor.fetchall()]
+
+    @staticmethod
+    def _fetch_out_orders_and_items(cursor, paginated_items, material_clauses, material_params):
+        """拉取出库 orders + 补全 items (含 material 过滤)"""
+        order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
+        paginated_item_ids = [item['item_id'] for item in paginated_items]
+        placeholders_orders = ','.join(['?'] * len(order_ids))
+        placeholders_items = ','.join(['?'] * len(paginated_item_ids))
+
+        cursor.execute(
+            f"""SELECT o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
+                       o.status, o.remark, o.purpose, o.created_at, o.approved_at,
+                       u.username as operator_name, a.username as approved_by_name
+                FROM out_order o
+                LEFT JOIN user u ON o.operator_id = u.id
+                LEFT JOIN user a ON o.approved_by = a.id
+                WHERE o.id IN ({placeholders_orders})
+                ORDER BY o.created_at DESC""",
+            order_ids
+        )
+        orders = [dict(row) for row in cursor.fetchall()]
+
+        has_material_filter = bool(material_clauses)
+        material_filter_sql = " AND " + " AND ".join(material_clauses) if has_material_filter else ""
+        cursor.execute(
+            f"""SELECT i.id, i.order_id, i.material_id, i.batch_no, i.unit_price,
+                       i.remark, i.requested_quantity, i.actual_quantity,
+                       i.initial_gross_weight, i.shipment_info,
+                       m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
+                FROM out_order_item i
+                JOIN material m ON i.material_id = m.id
+                WHERE i.order_id IN ({placeholders_orders}) AND i.id IN ({placeholders_items})
+                {material_filter_sql}
+                ORDER BY i.id""",
+            order_ids + paginated_item_ids + (material_params if has_material_filter else [])
+        )
+        all_items = [dict(row) for row in cursor.fetchall()]
+        return orders, all_items
+
+    @staticmethod
+    def _query_out_grand_total(cursor, where_sql, all_params):
+        """出库实际数量汇总"""
+        cursor.execute(
+            f"""SELECT COALESCE(SUM(i.actual_quantity), 0) as grand_total
+                FROM out_order_item i
+                INNER JOIN out_order o ON o.id = i.order_id
+                INNER JOIN material m ON i.material_id = m.id
+                {where_sql}""",
+            all_params
+        )
+        return cursor.fetchone()['grand_total']
 
     @staticmethod
     def get_out_orders_with_details(page=1, per_page=20, status=None, start_date=None, end_date=None, keyword=None, has_reusable=None, receiver=None):
         """Get out-orders with details - paginated by items"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            order_clauses, order_params = OrderService._build_out_order_where(
+                status, start_date, end_date, receiver
+            )
+            mat_clauses, mat_params = OrderService._build_out_material_where(keyword, has_reusable)
+            where_sql, all_params = OrderService._combine_in_where(
+                order_clauses, order_params, mat_clauses, mat_params
+            )
 
-            if per_page is not None:
-                offset = (page - 1) * per_page
-
-            order_where_clauses = []
-            order_params = []
-            if status:
-                order_where_clauses.append("o.status = ?")
-                order_params.append(status)
-            if start_date:
-                order_where_clauses.append("o.receiver_date >= ?")
-                order_params.append(start_date)
-            if end_date:
-                order_where_clauses.append("o.receiver_date <= ?")
-                order_params.append(end_date)
-            if receiver:
-                order_where_clauses.append("o.receiver = ?")
-                order_params.append(receiver)
-
-            material_conditions = []
-            material_params = []
-            if keyword:
-                kw = escape_like(keyword)
-                material_conditions.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
-            if has_reusable:
-                material_conditions.append("m.is_reusable = 1")
-
-            has_material_filter = bool(material_conditions)
-
-            if has_material_filter:
-                all_conditions = order_where_clauses + material_conditions
-                all_params = order_params + material_params
-            else:
-                all_conditions = order_where_clauses
-                all_params = order_params
-            where_sql = "WHERE " + " AND ".join(all_conditions) if all_conditions else ""
-
-            count_query = f"SELECT COUNT(i.id) as count FROM out_order_item i INNER JOIN out_order o ON o.id = i.order_id INNER JOIN material m ON i.material_id = m.id {where_sql}"
-            cursor.execute(count_query, all_params)
+            cursor.execute(
+                f"SELECT COUNT(i.id) as count FROM out_order_item i "
+                f"INNER JOIN out_order o ON o.id = i.order_id "
+                f"INNER JOIN material m ON i.material_id = m.id {where_sql}",
+                all_params
+            )
             total = cursor.fetchone()['count']
-
             if total == 0:
                 return [], 0, 0
 
-            cursor.execute(
-                f"""
-                SELECT i.id as item_id, i.order_id, i.material_id, i.batch_no,
-                       i.unit_price, i.remark, i.requested_quantity, i.actual_quantity,
-                       i.initial_gross_weight, i.shipment_info,
-                       m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
-                FROM out_order_item i
-                INNER JOIN out_order o ON o.id = i.order_id
-                INNER JOIN material m ON i.material_id = m.id
-                {where_sql}
-                ORDER BY o.created_at DESC, i.id
-                {"LIMIT ? OFFSET ?" if per_page is not None else ""}
-                """,
-                all_params + ([per_page, offset] if per_page is not None else [])
+            paginated = OrderService._query_out_paginated_detail_items(
+                cursor, where_sql, all_params, per_page, page
             )
-            paginated_items = [dict(row) for row in cursor.fetchall()]
-
-            if not paginated_items:
+            if not paginated:
                 return [], 0, 0
 
-            order_ids = list(dict.fromkeys(item['order_id'] for item in paginated_items))
-            paginated_item_ids = [item['item_id'] for item in paginated_items]
-
-            placeholders = ','.join(['?'] * len(order_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    o.id as order_id, o.order_no, o.department, o.receiver, o.receiver_date,
-                    o.status, o.remark, o.purpose, o.created_at, o.approved_at,
-                    u.username as operator_name, a.username as approved_by_name
-                FROM out_order o
-                LEFT JOIN user u ON o.operator_id = u.id
-                LEFT JOIN user a ON o.approved_by = a.id
-                WHERE o.id IN ({placeholders})
-                ORDER BY o.created_at DESC
-                """,
-                order_ids
+            orders, all_items = OrderService._fetch_out_orders_and_items(
+                cursor, paginated, mat_clauses, mat_params
             )
-            orders = [dict(row) for row in cursor.fetchall()]
-
-            placeholders_items = ','.join(['?'] * len(paginated_item_ids))
-            cursor.execute(
-                f"""
-                SELECT
-                    i.id, i.order_id, i.material_id, i.batch_no, i.unit_price,
-                    i.remark, i.requested_quantity, i.actual_quantity,
-                    i.initial_gross_weight, i.shipment_info,
-                    m.code as material_code, m.name as material_name, m.spec, m.manufacturer, m.unit
-                FROM out_order_item i
-                JOIN material m ON i.material_id = m.id
-                WHERE i.order_id IN ({placeholders}) AND i.id IN ({placeholders_items}){' AND ' + ' AND '.join(material_conditions) if has_material_filter else ''}
-                ORDER BY i.id
-                """,
-                order_ids + paginated_item_ids + (material_params if has_material_filter else [])
-            )
-            all_items = [dict(row) for row in cursor.fetchall()]
-
-            items_by_order = {}
-            for item in all_items:
-                oid = item['order_id']
-                if oid not in items_by_order:
-                    items_by_order[oid] = []
-                items_by_order[oid].append(item)
-
-            for order in orders:
-                order['items'] = items_by_order.get(order['order_id'], [])
-
-            cursor.execute(
-                f"""
-                SELECT COALESCE(SUM(i.actual_quantity), 0) as grand_total
-                FROM out_order_item i
-                INNER JOIN out_order o ON o.id = i.order_id
-                INNER JOIN material m ON i.material_id = m.id
-                {where_sql}
-                """,
-                all_params
-            )
-            grand_total = cursor.fetchone()['grand_total']
-
+            OrderService._attach_items_to_orders(orders, all_items)
+            grand_total = OrderService._query_out_grand_total(cursor, where_sql, all_params)
             return orders, total, grand_total
 
     @staticmethod
@@ -869,6 +920,7 @@ class OrderService:
 
     @staticmethod
     def get_return_orders(page=1, per_page=20, status=None, start_date=None, end_date=None, out_order_no=None, keyword=None):
+        """分页查询退库单列表, 支持出库单号/keyword 过滤"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -894,16 +946,16 @@ class OrderService:
             if out_order_no:
                 oon = escape_like(out_order_no)
                 if where_sql:
-                    where_sql += " AND o.order_no LIKE ? ESCAPE '\\'"
+                    where_sql += " AND o.order_no LIKE ? ESCAPE '\'"
                 else:
-                    where_sql = "WHERE o.order_no LIKE ? ESCAPE '\\'"
+                    where_sql = "WHERE o.order_no LIKE ? ESCAPE '\'"
                 params.append(f"{oon}%")
             if keyword:
                 kw = escape_like(keyword)
                 if where_sql:
-                    where_sql += " AND (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
+                    where_sql += " AND (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
                 else:
-                    where_sql = "WHERE (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
+                    where_sql = "WHERE (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
 
             count_sql = f"""SELECT COUNT(ri.id) as count FROM return_order r
@@ -975,6 +1027,7 @@ class OrderService:
 
     @staticmethod
     def get_return_order_by_id(order_id):
+        """按 ID 查退库单详情含 items; 不存在返 None"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -1025,6 +1078,7 @@ class OrderService:
 
     @staticmethod
     def create_return_order(related_out_order_id, department, receiver, receiver_date, operator_id, remark=None, items=None):
+        """创建退库单 (关联出库单), 含 items; 返回完整退库单"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -1068,12 +1122,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_return_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def update_return_order(order_id, data):
+        """更新退库单 (仅 pending); 返回更新后或 None"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -1083,27 +1139,9 @@ class OrderService:
                 if not order or order['status'] != 'pending':
                     return None
 
-                updates = []
-                params = []
-                if 'department' in data:
-                    updates.append("department = ?")
-                    params.append(data['department'])
-                if 'receiver' in data:
-                    updates.append("receiver = ?")
-                    params.append(data['receiver'])
-                if 'receiver_date' in data:
-                    updates.append("receiver_date = ?")
-                    params.append(data['receiver_date'])
-                if 'remark' in data:
-                    updates.append("remark = ?")
-                    params.append(data['remark'])
-
-                if updates:
-                    params.append(order_id)
-                    cursor.execute(
-                        f"UPDATE return_order SET {', '.join(updates)} WHERE id = ?",
-                        params
-                    )
+                sql, params = build_update_sql('return_order', {**data, 'id': order_id}, RETURN_ORDER_UPDATE_FIELDS)
+                if sql:
+                    cursor.execute(sql, params)
 
                 if 'items' in data:
                     cursor.execute("DELETE FROM return_order_item WHERE return_order_id = ?", (order_id,))
@@ -1119,12 +1157,14 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_return_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def delete_return_order(order_id):
+        """删除退库单 (仅 pending); 返回 bool"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -1137,6 +1177,91 @@ class OrderService:
             cursor.execute("DELETE FROM return_order WHERE id = ?", (order_id,))
             conn.commit()
             return True
+
+    @staticmethod
+    def _process_return_item(cursor, item, weight_map, approved_by):
+        """per-item 退库业务: 跳过非可回用, 计算净重, 写 reusable + 回写 inventory"""
+        material_id = item['material_id']
+        batch_no = item['batch_no']
+
+        cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (material_id,))
+        mat = cursor.fetchone()
+        is_reusable = mat and mat['is_reusable'] == 1
+        if not is_reusable:
+            return
+
+        return_weight = weight_map.get(item['out_order_item_id'])
+        if return_weight is None:
+            return_weight = item.get('return_gross_weight', 0) or 0
+        actual_net_weight = item.get('actual_net_weight', 0)
+
+        cursor.execute(
+            "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
+            (item['out_order_item_id'],)
+        )
+        weight_record = cursor.fetchone()
+        initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
+
+        if return_weight is not None and return_weight > 0:
+            net_weight = initial_weight - return_weight
+        else:
+            net_weight = actual_net_weight if actual_net_weight > 0 else 0
+            return_weight = initial_weight - net_weight
+
+        if net_weight < 0:
+            raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
+
+        cursor.execute(
+            """UPDATE reusable_material_weight
+               SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
+                   return_operator_id = ?, actual_net_weight = ?, status = 'returned'
+               WHERE out_order_item_id = ?""",
+            (return_weight, approved_by, net_weight, item['out_order_item_id'])
+        )
+
+        cursor.execute("SELECT actual_quantity FROM out_order_item WHERE id = ?", (item['out_order_item_id'],))
+        out_item_row = cursor.fetchone()
+        original_qty = out_item_row['actual_quantity'] if out_item_row else 0
+
+        remaining = original_qty - net_weight
+        if remaining < 0:
+            raise ValueError('剩余库存不能为负数，请检查净用量是否超过出库数量')
+
+        cursor.execute(
+            "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
+            (material_id, batch_no)
+        )
+        inv = cursor.fetchone()
+
+        if inv:
+            cursor.execute(
+                "UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+                (remaining, inv['id'])
+            )
+        else:
+            cursor.execute(
+                """SELECT i.production_date, i.expiry_date
+                   FROM in_order_item i
+                   WHERE i.batch_no = ? AND i.material_id = ?
+                   ORDER BY i.id DESC LIMIT 1""",
+                (batch_no, material_id)
+            )
+            orig = cursor.fetchone()
+            cursor.execute(
+                """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (material_id, batch_no, round(remaining, 2),
+                 orig['production_date'] if orig else None,
+                 orig['expiry_date'] if orig else None)
+            )
+
+    @staticmethod
+    def _mark_out_order_completed(cursor, related_out_order_id):
+        """原出库单标记完成"""
+        cursor.execute(
+            "UPDATE out_order SET status = 'completed' WHERE id = ?",
+            (related_out_order_id,)
+        )
 
     @staticmethod
     def approve_return_order(order_id, approved_by, weight_data=None):
@@ -1164,81 +1289,7 @@ class OrderService:
                 items = [dict(row) for row in cursor.fetchall()]
 
                 for item in items:
-                    material_id = item['material_id']
-                    batch_no = item['batch_no']
-
-                    cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (material_id,))
-                    mat = cursor.fetchone()
-                    is_reusable = mat and mat['is_reusable'] == 1
-
-                    return_weight = weight_map.get(item['out_order_item_id'])
-                    if return_weight is None:
-                        return_weight = item.get('return_gross_weight', 0) or 0
-                    actual_net_weight = item.get('actual_net_weight', 0)
-
-                    if not is_reusable:
-                        continue
-
-                    cursor.execute(
-                        "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
-                        (item['out_order_item_id'],)
-                    )
-                    weight_record = cursor.fetchone()
-                    initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
-
-                    if return_weight is not None and return_weight > 0:
-                        net_weight = initial_weight - return_weight
-                    else:
-                        net_weight = actual_net_weight if actual_net_weight > 0 else 0
-                        return_weight = initial_weight - net_weight
-
-                    if net_weight < 0:
-                        raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
-
-                    cursor.execute(
-                        """UPDATE reusable_material_weight
-                           SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
-                               return_operator_id = ?, actual_net_weight = ?, status = 'returned'
-                           WHERE out_order_item_id = ?""",
-                        (return_weight, approved_by, net_weight, item['out_order_item_id'])
-                    )
-
-                    cursor.execute("SELECT actual_quantity FROM out_order_item WHERE id = ?", (item['out_order_item_id'],))
-                    ooi = cursor.fetchone()
-                    original_qty = ooi['actual_quantity'] if ooi else 0
-
-                    remaining = original_qty - net_weight
-                    if remaining < 0:
-                        raise ValueError('剩余库存不能为负数，请检查净用量是否超过出库数量')
-
-                    cursor.execute(
-                        "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
-                        (material_id, batch_no)
-                    )
-                    inv = cursor.fetchone()
-
-                    if inv:
-                        cursor.execute(
-                            "UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-                            (remaining, inv['id'])
-                        )
-                    else:
-                        cursor.execute(
-                            """SELECT i.production_date, i.expiry_date
-                               FROM in_order_item i
-                               WHERE i.batch_no = ? AND i.material_id = ?
-                               ORDER BY i.id DESC LIMIT 1""",
-                            (batch_no, material_id)
-                        )
-                        orig = cursor.fetchone()
-
-                        cursor.execute(
-                            """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
-                               VALUES (?, ?, ?, ?, ?)""",
-                            (material_id, batch_no, round(remaining, 2),
-                             orig['production_date'] if orig else None,
-                             orig['expiry_date'] if orig else None)
-                        )
+                    OrderService._process_return_item(cursor, item, weight_map, approved_by)
 
                 cursor.execute(
                     "UPDATE return_order SET status = 'approved', approved_at = datetime('now', 'localtime'), approved_by = ? WHERE id = ?",
@@ -1246,16 +1297,14 @@ class OrderService:
                 )
 
                 if order['related_out_order_id']:
-                    cursor.execute(
-                        "UPDATE out_order SET status = 'completed' WHERE id = ?",
-                        (order['related_out_order_id'],)
-                    )
+                    OrderService._mark_out_order_completed(cursor, order['related_out_order_id'])
 
                 conn.commit()
                 return OrderService.get_return_order_by_id(order_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def get_return_orders_by_out_order(out_order_id):
@@ -1310,9 +1359,10 @@ class OrderService:
                 )
                 conn.commit()
                 return OrderService.get_weight_record_by_out_order_item(out_order_item_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def update_weight_record_return(out_order_item_id, return_gross_weight, operator_id):
@@ -1346,9 +1396,10 @@ class OrderService:
 
                 conn.commit()
                 return OrderService.get_weight_record_by_out_order_item(out_order_item_id)
-            except Exception as e:
+            except Exception:
+                logger.exception('操作失败')
                 conn.rollback()
-                raise e
+                raise
 
     @staticmethod
     def get_weight_record_by_out_order_item(out_order_item_id):
@@ -1389,7 +1440,7 @@ class OrderService:
                 params.append(status)
             if keyword:
                 kw = escape_like(keyword)
-                where_sql += " AND (m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')"
+                where_sql += " AND (m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')"
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
 
             cursor.execute(

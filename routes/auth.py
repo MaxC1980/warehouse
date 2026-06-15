@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from flask import Blueprint, request, jsonify, session
 from services.auth_service import AuthService
 from services.permission_service import PermissionService
@@ -5,10 +6,47 @@ from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
 
-# Rate limiting by IP: {ip: [fail_count, lockout_until]}
-_login_attempts = {}
-# Account lockout: {username: [fail_count, lockout_until]}
-_account_attempts = {}
+
+class LRUDict:
+    """带容量上限的 LRU 字典, 防止限流场景下长期运行内存累积"""
+
+    def __init__(self, maxsize):
+        self.data = OrderedDict()
+        self.maxsize = maxsize
+
+    def get(self, key, default=None):
+        if key not in self.data:
+            return default
+        self.data.move_to_end(key)
+        return self.data[key]
+
+    def __getitem__(self, key):
+        if key not in self.data:
+            raise KeyError(key)
+        self.data.move_to_end(key)
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        if key in self.data:
+            self.data.move_to_end(key)
+        self.data[key] = value
+        if len(self.data) > self.maxsize:
+            self.data.popitem(last=False)
+
+    def pop(self, key, default=None):
+        return self.data.pop(key, default)
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __len__(self):
+        return len(self.data)
+
+
+# Rate limiting: LRUDict 防止不同 IP/账号扫描累积
+RATE_LIMIT_MAXSIZE = 10000
+_login_attempts = LRUDict(RATE_LIMIT_MAXSIZE)
+_account_attempts = LRUDict(RATE_LIMIT_MAXSIZE)
 MAX_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 
