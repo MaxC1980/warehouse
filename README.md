@@ -1,65 +1,69 @@
 # 仓库管理系统
 
-Flask + SQLite 实现的仓库管理后台，支持入库、出库、退库、库存查询等核心功能。
+Flask + SQLite 实现的仓库管理后台，支持入库、出库、退库、库存查询、报表、RBAC 权限管理。
 
 ## 快速开始
 
 **默认账号：** `admin` / `admin12345`
 
-### 开发环境
-
 ```bash
+# 开发环境（端口 5001）
 python run.py
-```
 
-访问 http://localhost:5001
-
-### 生产环境
-
-```bash
+# 生产环境（端口 5000，waitress）
 python app.py
 ```
 
-访问 http://localhost:5000（使用 waitress）
-
-## 项目结构
-
-| 目录/文件 | 说明 |
-|---------|------|
-| `routes/` | Flask Blueprint 端点 |
-| `services/` | 业务逻辑层 |
-| `database.py` | SQLite 连接管理（`@contextmanager` 自动关闭连接） |
-| `templates/` | Jinja2 页面模板 |
-| `static/js/app.js` | 前端 API 请求封装（`apiRequest()` 自动前缀 `/api`） |
-| `db/warehouse.db` | SQLite 数据库文件 |
+打开 http://localhost:5001 登录。
 
 ## 核心功能
 
-- **入库管理** — 入库单新增、编辑、审核，支持按物料+批次入库
+- **入库管理** — 入库单新增、编辑、审核，按物料 + 批次入库
 - **出库管理** — 出库单新增、编辑、审核，自动扣减库存
 - **退库管理** — 可回用物料退库，净用量自动计算
-- **库存查询** — 支持详情/汇总模式，按批次管理库存
-- **报表** — 库存汇总、入库明细、出库明细、出入库流水
-- **权限管理** — RBAC 角色权限控制，支持自定义角色和权限分配
+- **库存查询** — 详情 / 汇总模式，按批次管理
+- **报表分析** — 库存报表、出入库报表、明细报表、汇总统计
+- **权限管理** — RBAC 角色权限控制，自定义角色和权限分配
+- **称重记录** — 可回用物料的称重台账
 
-## 数据库
+## 文档
 
-表结构见 `docs/数据字典.md`，业务逻辑说明见 `docs/业务逻辑.md`。
+| 文档 | 内容 |
+|------|------|
+| [docs/user-guide.md](docs/user-guide.md) | 普通用户操作手册（登录/建单/查库存/看报表） |
+| [docs/项目说明.md](docs/项目说明.md) | 架构、运行、数据库约定 |
+| [docs/业务逻辑.md](docs/业务逻辑.md) | 业务规则与流程 |
+| [docs/数据字典.md](docs/数据字典.md) | 数据库表结构 |
+| [docs/权限管理.md](docs/权限管理.md) | 权限矩阵与角色管理 |
+| [docs/新增模块操作指南.md](docs/新增模块操作指南.md) | 新增业务模块的步骤 |
+| [docs/通用开发规范.md](docs/通用开发规范.md) | 开发规范与项目特性 |
+| [docs/代码质量改进记录.md](docs/代码质量改进记录.md) | 历次重构与质量改进 |
 
-**注意：** 修改表结构后需删除 `db/warehouse.db` 重建，或手动 `ALTER TABLE`。
+## 技术栈
 
-## 安全机制
+- **后端：** Flask + SQLite
+- **前端：** Jinja2 模板 + 原生 JS
+- **认证：** session + werkzeug 密码 hash
+- **权限：** RBAC，三层防护（路由 / 页面 / 模板）
 
-- **SECRET_KEY**：每次启动随机生成，重启后 session 失效。持久化需设环境变量 `SECRET_KEY`
-- **API 鉴权**：所有 `/api/` 路由必须登录（`before_request` 钩子全局检查）
-- **CSRF 防护**：POST/PUT/DELETE/PATCH 请求必须携带 `X-Requested-With: XMLHttpRequest` header
-- **XSS 防护**：所有 innerHTML 输出点使用 `escapeHtml()` 转义数据库字段
-- **登录限流**：IP + 账号双维度，5 次失败锁定 15 分钟
-- **RBAC 权限**：基于角色的访问控制，页面+API 双层权限校验
+## 部署
 
-## 注意事项
+### 首次运行
 
-1. SQL LIKE 写法：`code LIKE '0103%'`（前缀匹配），`name LIKE '%关键词%'`（模糊匹配）
-2. `sqlite3.Row` 不支持 `.get()`，用 `row['col']` 直接访问
-3. 不用外键约束，引用检查在 Service 层手动做
-4. 禁止使用 `select *`
+1. 克隆代码，安装依赖（Flask、waitress、openpyxl 等）
+2. 启动 `python run.py` 或 `python app.py`
+3. 首次启动自动创建 `db/warehouse.db` 并初始化 admin 账号
+
+### 生产环境
+
+- 端口 5000，使用 waitress 作为 WSGI 服务器
+- 建议设环境变量 `SECRET_KEY` 持久化 session 密钥（不设则每次重启 session 失效）
+- 登录限流：IP + 账号双维度，5 次失败锁定 15 分钟
+
+### 备份
+
+只需备份 `db/warehouse.db` 一个文件。
+
+## 许可
+
+内部使用，未指定开源协议。
