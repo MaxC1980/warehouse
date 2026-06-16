@@ -97,8 +97,8 @@ class InventoryService:
         if keyword:
             kw = escape_like(keyword)
             where_clauses.append(
-                "(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' "
-                "OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')"
+                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
+                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
             )
             params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
         if category_code:
@@ -619,7 +619,7 @@ class InventoryService:
                 params.append(f"{category_code}%")
             if keyword:
                 kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')")
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
                 params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
             where_sql = "WHERE " + " AND ".join(where_clauses)

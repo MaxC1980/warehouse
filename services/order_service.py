@@ -621,8 +621,8 @@ class OrderService:
         if keyword:
             kw = escape_like(keyword)
             material_clauses.append(
-                "(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' "
-                "OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')"
+                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
+                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
             )
             material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
 
@@ -768,8 +768,8 @@ class OrderService:
         if keyword:
             kw = escape_like(keyword)
             clauses.append(
-                "(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' "
-                "OR m.spec LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\')"
+                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
+                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
             )
             params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
         if has_reusable:
@@ -938,11 +938,11 @@ class OrderService:
                 where_clauses.append("r.receiver_date <= ?")
                 params.append(end_date)
             if out_order_no:
-                where_clauses.append("o.order_no LIKE ? ESCAPE '\'")
+                where_clauses.append("o.order_no LIKE ? ESCAPE '\\'")
                 params.append(f"{escape_like(out_order_no)}%")
             if keyword:
                 kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')")
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')")
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -1427,7 +1427,7 @@ class OrderService:
                 params.append(status)
             if keyword:
                 kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\' OR m.name LIKE ? ESCAPE '\' OR m.manufacturer LIKE ? ESCAPE '\' OR m.spec LIKE ? ESCAPE '\')")
+                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')")
                 params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
