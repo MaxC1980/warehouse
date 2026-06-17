@@ -1,6 +1,6 @@
 import logging
 from database import get_db_connection
-from utils.sql import escape_like
+from utils.sql import escape_like, build_like_clause
 from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -95,12 +95,7 @@ class InventoryService:
         where_clauses = ["i.quantity > 0"]
         params = []
         if keyword:
-            kw = escape_like(keyword)
-            where_clauses.append(
-                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
-                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
-            )
-            params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+            where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
         if category_code:
             where_clauses.append("m.category_code LIKE ?")
             params.append(f'{category_code}%')
@@ -618,9 +613,7 @@ class InventoryService:
                 where_clauses.append("m.category_code LIKE ?")
                 params.append(f"{category_code}%")
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+                where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
 
             where_sql = "WHERE " + " AND ".join(where_clauses)
 

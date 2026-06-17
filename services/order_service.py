@@ -2,7 +2,7 @@ import logging
 from database import get_db_connection
 from datetime import datetime
 from services.inventory_service import InventoryService
-from utils.sql import escape_like, build_update_sql
+from utils.sql import escape_like, build_update_sql, build_like_clause
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,11 @@ class OrderService:
             last_order = cursor.fetchone()
 
             if last_order:
-                last_seq = int(last_order['order_no'].split('-')[-1])
-                seq = last_seq + 1
+                try:
+                    last_seq = int(last_order['order_no'].split('-')[-1])
+                    seq = last_seq + 1
+                except (ValueError, IndexError):
+                    seq = 1
             else:
                 seq = 1
 
@@ -619,12 +622,7 @@ class OrderService:
         material_clauses = []
         material_params = []
         if keyword:
-            kw = escape_like(keyword)
-            material_clauses.append(
-                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
-                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
-            )
-            material_params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+            material_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, material_params))
 
         return order_clauses, order_params, material_clauses, material_params
 
@@ -766,12 +764,7 @@ class OrderService:
         clauses = []
         params = []
         if keyword:
-            kw = escape_like(keyword)
-            clauses.append(
-                "(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' "
-                "OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')"
-            )
-            params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+            clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
         if has_reusable:
             clauses.append("m.is_reusable = 1")
         return clauses, params
@@ -911,8 +904,11 @@ class OrderService:
             last_order = cursor.fetchone()
 
             if last_order:
-                last_seq = int(last_order['order_no'].split('-')[-1])
-                seq = last_seq + 1
+                try:
+                    last_seq = int(last_order['order_no'].split('-')[-1])
+                    seq = last_seq + 1
+                except (ValueError, IndexError):
+                    seq = 1
             else:
                 seq = 1
 
@@ -938,12 +934,11 @@ class OrderService:
                 where_clauses.append("r.receiver_date <= ?")
                 params.append(end_date)
             if out_order_no:
-                where_clauses.append("o.order_no LIKE ? ESCAPE '\\'")
-                params.append(f"{escape_like(out_order_no)}%")
+                where_clauses.append(build_like_clause(['o.order_no'], out_order_no, params, prefix=True))
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')")
-                params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+                code_clause = build_like_clause(['m.code'], keyword, params, prefix=True)
+                other_clause = build_like_clause(['m.name', 'm.manufacturer', 'm.spec'], keyword, params)
+                where_clauses.append(f"{code_clause} OR {other_clause}")
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
             count_sql = f"""SELECT COUNT(ri.id) as count FROM return_order r
@@ -1426,9 +1421,9 @@ class OrderService:
                 where_clauses.append("w.status = ?")
                 params.append(status)
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\')")
-                params.extend([f"{kw}%", f"%{kw}%", f"%{kw}%", f"%{kw}%"])
+                code_clause = build_like_clause(['m.code'], keyword, params, prefix=True)
+                other_clause = build_like_clause(['m.name', 'm.manufacturer', 'm.spec'], keyword, params)
+                where_clauses.append(f"{code_clause} OR {other_clause}")
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
             cursor.execute(

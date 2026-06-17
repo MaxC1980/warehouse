@@ -121,6 +121,13 @@ class TestMaterialAPI(TestBase):
         self.assertIn('page', data)
         self.assertIn('per_page', data)
 
+    def test_get_materials_with_keyword(self):
+        """物料关键字搜索 (触发 LIKE ESCAPE 路径, 防 build_like_clause 回归)"""
+        resp = self.client.get('/api/materials?keyword=钢')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn('items', data)
+
     def test_get_material_by_id_has_references_field(self):
         """get_material_by_id 返回 has_references 字段 (P1-12 修复后)"""
         from services.material_service import MaterialService

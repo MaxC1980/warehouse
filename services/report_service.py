@@ -1,6 +1,6 @@
 from database import get_db_connection
 from datetime import datetime
-from utils.sql import escape_like
+from utils.sql import escape_like, build_like_clause
 
 class ReportService:
     @staticmethod
@@ -15,14 +15,10 @@ class ReportService:
             params = []
 
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+                where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
 
             if major_category:
-                mc = escape_like(major_category)
-                where_clauses.append("m.category_code LIKE ? ESCAPE '\\'")
-                params.append(mc + '%')
+                where_clauses.append(build_like_clause(['m.category_code'], major_category, params, prefix=True))
 
             if minor_category:
                 where_clauses.append("m.category_code = ?")
@@ -251,13 +247,7 @@ class ReportService:
 
             # Expired count (物料级别，有任一批次过期即计入，仅有库存的)
             today_ymd = datetime.now().strftime('%Y%m%d')
-            p1 = "INSTR(i.expiry_date, '-')"
-            rest = f"SUBSTR(i.expiry_date, {p1}+1)"
-            p2 = f"INSTR({rest}, '-') + {p1}"
-            year = f"SUBSTR(i.expiry_date, 1, {p1}-1)"
-            month = f"SUBSTR(i.expiry_date, {p1}+1, {p2}-{p1}-1)"
-            day = f"SUBSTR(i.expiry_date, {p2}+1)"
-            ymd_expr = f"{year} || PRINTF('%02d', CAST({month} AS INTEGER)) || PRINTF('%02d', CAST({day} AS INTEGER))"
+            ymd_expr = "strftime('%Y%m%d', i.expiry_date)"
             cursor.execute(
                 f"""
                 SELECT COUNT(DISTINCT m.id) as count
@@ -330,14 +320,10 @@ class ReportService:
             params = []
 
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+                where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
 
             if major_category:
-                mc = escape_like(major_category)
-                where_clauses.append("m.category_code LIKE ? ESCAPE '\\'")
-                params.append(mc + '%')
+                where_clauses.append(build_like_clause(['m.category_code'], major_category, params, prefix=True))
 
             if minor_category:
                 where_clauses.append("m.category_code = ?")
