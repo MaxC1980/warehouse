@@ -49,10 +49,10 @@ def create_app(config_class):
     def require_login_for_api():
         if request.path.startswith('/api/') and request.path != '/api/auth/login':
             if 'user_id' not in session:
-                return jsonify({'error': 'Unauthorized'}), 401
+                return jsonify({'error': '未登录'}), 401
             if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
                 if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
-                    return jsonify({'error': 'Invalid request'}), 403
+                    return jsonify({'error': '无效请求'}), 403
 
     @app.before_request
     def check_page_permission():

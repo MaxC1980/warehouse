@@ -1,5 +1,5 @@
 from database import get_db_connection
-from utils.sql import escape_like, build_update_sql
+from utils.sql import escape_like, build_update_sql, build_like_clause
 
 MATERIAL_UPDATE_FIELDS = [
     'name', 'spec', 'unit', 'category_code', 'manufacturer',
@@ -42,6 +42,8 @@ class MaterialService:
 
     @staticmethod
     def create_category(code, name, parent_code=None, level=1):
+        if not name or not str(name).strip():
+            raise ValueError('名称不能为空')
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -162,9 +164,7 @@ class MaterialService:
                 params.append(minor_category)
 
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(m.code LIKE ? ESCAPE '\\' OR m.name LIKE ? ESCAPE '\\' OR m.spec LIKE ? ESCAPE '\\' OR m.manufacturer LIKE ? ESCAPE '\\')")
-                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+                where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
 
             where_sql = ""
             if where_clauses:
@@ -221,6 +221,8 @@ class MaterialService:
 
     @staticmethod
     def create_material(name, spec=None, unit='个', category_code=None, manufacturer=None, storage_condition='常温', shelf_life=None, remark=None, is_reusable=None, safety_stock=0):
+        if not name or not str(name).strip():
+            raise ValueError('名称不能为空')
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -362,7 +364,7 @@ class MaterialService:
             for idx, row in enumerate(data):
                 try:
                     raw_code = row.get('col1') or row.get('代码') or row.get('code') or ''
-                    code = str(int(raw_code)).strip() if raw_code else ''
+                    code = str(raw_code).strip() if raw_code else ''
                     name = str(row.get('col2') or row.get('名称') or row.get('name') or '').strip()
 
                     if not code or not name:

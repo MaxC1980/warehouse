@@ -48,7 +48,7 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             if request.is_json:
-                return jsonify({'error': 'Unauthorized'}), 401
+                return jsonify({'error': '未登录'}), 401
             return redirect(url_for('pages.login'))
         return f(*args, **kwargs)
     return decorated

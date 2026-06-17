@@ -173,8 +173,8 @@ class TestPagePermissions(unittest.TestCase):
         self._logout()
         r = self.client.get('/api/materials')
         self.assertEqual(r.status_code, 401)
-        # create_app 的 before_request 拦截, 消息是 'Unauthorized'
-        self.assertEqual(r.get_json(), {'error': 'Unauthorized'})
+        # create_app 的 before_request 拦截, 消息是 '未登录'
+        self.assertEqual(r.get_json(), {'error': '未登录'})
 
     def test_edit_page_blocked_for_viewer(self):
         """查看员访问 /materials/new 应 403 (无 material.edit 权限)"""

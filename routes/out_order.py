@@ -11,6 +11,7 @@ out_order_bp = Blueprint('out_order', __name__)
 
 @out_order_bp.route('/out-orders', methods=['GET'])
 @require_permission('out_order', 'view')
+@handle_service_errors
 def get_out_orders():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -34,6 +35,7 @@ def get_out_orders():
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['GET'])
 @require_permission('out_order', 'view')
+@handle_service_errors
 def get_out_order(order_id):
     order = OrderService.get_out_order_by_id(order_id)
     if order:
@@ -42,6 +44,7 @@ def get_out_order(order_id):
 
 @out_order_bp.route('/out-orders', methods=['POST'])
 @require_permission('out_order', 'edit')
+@handle_service_errors
 def create_out_order():
     data = request.get_json(silent=True) or {}
     operator_id = session.get('user_id')
@@ -68,6 +71,7 @@ def create_out_order():
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['PUT'])
 @require_permission('out_order', 'edit')
+@handle_service_errors
 def update_out_order(order_id):
     data = request.get_json(silent=True) or {}
 
@@ -87,6 +91,7 @@ def update_out_order(order_id):
 
 @out_order_bp.route('/out-orders/<int:order_id>', methods=['DELETE'])
 @require_permission('out_order', 'edit')
+@handle_service_errors
 def delete_out_order(order_id):
     success = OrderService.delete_out_order(order_id)
     if success:
@@ -108,6 +113,7 @@ def approve_out_order(order_id):
 
 @out_order_bp.route('/out-orders/detail', methods=['GET'])
 @require_permission('out_order', 'view')
+@handle_service_errors
 def get_out_orders_with_details():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page(max_value=1000)
@@ -138,6 +144,7 @@ def get_out_orders_with_details():
 
 @out_order_bp.route('/out-orders/detail/export', methods=['GET'])
 @require_permission('out_order', 'view')
+@handle_service_errors
 def export_out_orders_detail():
     """导出出库台账明细（所有数据，不受分页限制）"""
     status = request.args.get('status')
@@ -196,6 +203,7 @@ def export_out_orders_detail():
 
 @out_order_bp.route('/out-orders/<int:order_id>/items/<int:item_id>/weight', methods=['GET'])
 @require_permission('out_order', 'view')
+@handle_service_errors
 def get_out_order_item_weight(order_id, item_id):
     """获取出库单明细的称重记录"""
     weight = OrderService.get_weight_record_by_out_order_item(item_id)
@@ -205,6 +213,7 @@ def get_out_order_item_weight(order_id, item_id):
 
 @out_order_bp.route('/weight-records', methods=['GET'])
 @require_permission('weight_record', 'view')
+@handle_service_errors
 def get_weight_records():
     """获取所有称重记录"""
     page = request.args.get('page', 1, type=int)

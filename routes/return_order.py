@@ -10,6 +10,7 @@ return_order_bp = Blueprint('return_order', __name__)
 
 @return_order_bp.route('/return-orders', methods=['GET'])
 @require_permission('return_order', 'view')
+@handle_service_errors
 def get_return_orders():
     page = request.args.get('page', 1, type=int)
     per_page = get_per_page()
@@ -37,6 +38,7 @@ def get_return_orders():
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['GET'])
 @require_permission('return_order', 'view')
+@handle_service_errors
 def get_return_order(order_id):
     order = OrderService.get_return_order_by_id(order_id)
     if order:
@@ -72,6 +74,7 @@ def create_return_order():
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['PUT'])
 @require_permission('return_order', 'edit')
+@handle_service_errors
 def update_return_order(order_id):
     data = request.get_json(silent=True) or {}
 
@@ -91,6 +94,7 @@ def update_return_order(order_id):
 
 @return_order_bp.route('/return-orders/<int:order_id>', methods=['DELETE'])
 @require_permission('return_order', 'edit')
+@handle_service_errors
 def delete_return_order(order_id):
     success = OrderService.delete_return_order(order_id)
     if success:
@@ -114,6 +118,7 @@ def approve_return_order(order_id):
 
 @return_order_bp.route('/return-orders/by-out-order/<int:out_order_id>', methods=['GET'])
 @require_permission('return_order', 'view')
+@handle_service_errors
 def get_return_orders_by_out_order(out_order_id):
     """获取指定出库单关联的退库单"""
     orders, total = OrderService.get_return_orders_by_out_order(out_order_id)

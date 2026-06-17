@@ -1,5 +1,5 @@
 from database import get_db_connection
-from utils.sql import escape_like, build_update_sql
+from utils.sql import escape_like, build_update_sql, build_like_clause
 
 SUPPLIER_UPDATE_FIELDS = ['name', 'contact', 'phone', 'address']
 
@@ -15,9 +15,7 @@ class SupplierService:
             params = []
 
             if keyword:
-                kw = escape_like(keyword)
-                where_sql = "WHERE name LIKE ? ESCAPE '\\' OR contact LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\'"
-                params = [f'%{kw}%', f'%{kw}%', f'%{kw}%']
+                where_sql = 'WHERE ' + build_like_clause(['name', 'contact', 'phone'], keyword, params)
 
             # Get total count
             cursor.execute(f"SELECT COUNT(*) as count FROM supplier {where_sql}", params)
@@ -44,6 +42,8 @@ class SupplierService:
 
     @staticmethod
     def create_supplier(name, contact=None, phone=None, address=None):
+        if not name or not str(name).strip():
+            raise ValueError('名称不能为空')
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(

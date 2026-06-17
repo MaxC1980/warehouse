@@ -1,5 +1,5 @@
 from database import get_db_connection
-from utils.sql import escape_like, build_update_sql
+from utils.sql import escape_like, build_update_sql, build_like_clause
 
 EMPLOYEE_UPDATE_FIELDS = ['name', 'department', 'phone', 'remark']
 
@@ -14,9 +14,7 @@ class EmployeeService:
             where_clauses = []
             params = []
             if keyword:
-                kw = escape_like(keyword)
-                where_clauses.append("(name LIKE ? ESCAPE '\\' OR department LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\')")
-                params.extend([f'%{kw}%', f'%{kw}%', f'%{kw}%'])
+                where_clauses.append(build_like_clause(['name', 'department', 'phone'], keyword, params))
 
             where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -41,6 +39,8 @@ class EmployeeService:
 
     @staticmethod
     def create_employee(name, department=None, phone=None, remark=None):
+        if not name or not str(name).strip():
+            raise ValueError('名称不能为空')
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(

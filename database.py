@@ -337,7 +337,7 @@ def _migrate_iso_dates(cursor):
 
 def _seed_permissions(cursor):
     """种子: 29条权限 + 清理废弃"""
-    # Seed permissions (24 records)
+    # Seed permissions (29 records)
     permissions = [
         ('dashboard', 'view', '首页-查看'),
         ('category_major', 'view', '大类管理-查看'), ('category_major', 'edit', '大类管理-编辑'),
