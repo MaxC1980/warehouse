@@ -3,6 +3,7 @@
 通过 git 命令读取提交 hash 和日期,作为版本显示。
 非 git 环境或命令失败时回退到静态版本。
 """
+import functools
 import logging
 import subprocess
 from pathlib import Path
@@ -30,6 +31,7 @@ def _run_git(*args):
     return None
 
 
+@functools.cache
 def get_version_info():
     """返回版本信息字典: version, commit, date, full
 
