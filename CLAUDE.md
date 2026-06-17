@@ -58,8 +58,8 @@ Transform tasks into verifiable goals:
 For multi-step tasks, state brief plan:
 
 ```
-1. [Step] → verify: [check]            
-2. [Step] → verify: [check]            
+1. [Step] → verify: [check]              
+2. [Step] → verify: [check]              
 3. [Step] → verify: [check]
 ```
 
@@ -72,3 +72,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 # 项目说明
 
 见 @docs/项目说明.md
+# 开发规范
+见 @docs/通用开发规范.md
+
+ 
