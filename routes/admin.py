@@ -112,10 +112,9 @@ def delete_user(user_id):
 @admin_bp.route('/admin/users/<int:user_id>/password', methods=['PUT'])
 @require_permission('admin_user', 'manage')
 def reset_user_password(user_id):
-    data = request.get_json(silent=True) or {}
-    new_password = data.get('new_password')
+    # 统一重置为 123456s, 不接受前端传入
     try:
-        UserService.reset_password(user_id, new_password)
+        UserService.reset_password(user_id, '123456s')
         return jsonify({'message': '密码重置成功'})
     except ValueError as e:
         return jsonify({'error': str(e)}), 400

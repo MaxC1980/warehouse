@@ -107,34 +107,13 @@ async function deleteUser(userId) {
 function showResetPassword(userId) {
     const user = allUsers.find(u => u.id === userId);
     const username = user ? user.username : '';
-    let html = '<div class="modal" style="display:flex;" id="reset-pwd-modal">';
-    html += '<div class="modal-content" style="max-width:400px;">';
-    html += `<h3>重置 ${escapeHtml(username)} 的密码</h3>`;
-    html += '<div class="form-group"><label>新密码</label><input type="password" id="reset-pwd-input" placeholder="至少6位" minlength="6"></div>';
-    html += '<div class="form-actions">';
-    html += `<button onclick="resetPassword(${userId})" class="btn btn-primary">确定</button>`;
-    html += '<button onclick="closeResetPwdModal()" class="btn btn-secondary">取消</button>';
-    html += '</div></div></div>';
-    document.body.insertAdjacentHTML('beforeend', html);
-    document.getElementById('reset-pwd-input').focus();
+    if (!confirm(`确定将用户"${username}"的密码重置为 123456s 吗？`)) return;
+    resetPassword(userId);
 }
 
 async function resetPassword(userId) {
-    const new_password = document.getElementById('reset-pwd-input').value.trim();
-    if (!new_password) { alert('请输入新密码'); return; }
-    if (new_password.length < 6) { alert('密码长度不能少于6位'); return; }
-
-    const result = await apiRequest(`/admin/users/${userId}/password`, {
-        method: 'PUT',
-        body: JSON.stringify({ new_password })
-    });
-    closeResetPwdModal();
-    alert('密码重置成功');
-}
-
-function closeResetPwdModal() {
-    const modal = document.getElementById('reset-pwd-modal');
-    if (modal) modal.remove();
+    await apiRequest(`/admin/users/${userId}/password`, { method: 'PUT' });
+    alert('密码已重置为 123456s');
 }
 
 async function showUserRoles(userId) {
