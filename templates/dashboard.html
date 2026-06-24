@@ -7,10 +7,13 @@
     <h1>欢迎使用仓库管理系统</h1>
 
     <div class="stats-grid">
+        {% if has_perm('material', 'view') %}
         <div class="stat-card">
             <h3>物料总数</h3>
             <div class="stat-value" id="material-count">-</div>
         </div>
+        {% endif %}
+        {% if has_perm('report_summary', 'view') %}
         <div class="stat-card">
             <h3>库存预警</h3>
             <div class="stat-value warning" id="low-stock-count">-</div>
@@ -19,17 +22,21 @@
             <h3>已过期物料</h3>
             <div class="stat-value warning"><a href="/inventory?highlight=expired" id="expired-count">-</a></div>
         </div>
+        {% endif %}
     </div>
     <div class="stats-grid">
+        {% if has_perm('in_order', 'view') %}
         <div class="stat-card">
             <h3>待审核入库单</h3>
             <div class="stat-value" id="pending-in-count">-</div>
         </div>
+        {% endif %}
+        {% if has_perm('out_order', 'view') %}
         <div class="stat-card">
             <h3>待审核出库单</h3>
             <div class="stat-value" id="pending-out-count">-</div>
         </div>
-        <div class="stat-card" style="visibility:hidden;"></div>
+        {% endif %}
     </div>
 
     <div class="quick-actions">
@@ -46,30 +53,33 @@
 {% block scripts %}
 <script>
 async function loadStats() {
-    const [materials, summary, inOrders, outOrders] = await Promise.all([
-        apiRequest('/materials?per_page=1'),
-        apiRequest('/reports/summary'),
-        apiRequest('/in-orders?status=pending&per_page=1'),
-        apiRequest('/out-orders?status=pending&per_page=1')
-    ]);
+    // 仅请求已渲染卡片对应端点, 无权限卡片已被服务端剔除
+    const tasks = [];
+    if (document.getElementById('material-count')) tasks.push(apiRequest('/materials?per_page=1').then(d => ['material', d]));
+    if (document.getElementById('low-stock-count')) tasks.push(apiRequest('/reports/summary').then(d => ['summary', d]));
+    if (document.getElementById('pending-in-count')) tasks.push(apiRequest('/in-orders?status=pending&per_page=1').then(d => ['inOrders', d]));
+    if (document.getElementById('pending-out-count')) tasks.push(apiRequest('/out-orders?status=pending&per_page=1').then(d => ['outOrders', d]));
 
-    if (materials) document.getElementById('material-count').textContent = materials.total;
-    if (summary) {
-        document.getElementById('low-stock-count').textContent = summary.low_stock_count || 0;
-        document.getElementById('expired-count').textContent = summary.expired_count || 0;
+    const results = await Promise.all(tasks);
+    const data = Object.fromEntries(results);
+
+    if (data.material) document.getElementById('material-count').textContent = data.material.total;
+    if (data.summary) {
+        document.getElementById('low-stock-count').textContent = data.summary.low_stock_count || 0;
+        document.getElementById('expired-count').textContent = data.summary.expired_count || 0;
     }
-    if (inOrders) {
+    if (data.inOrders) {
         const inEl = document.getElementById('pending-in-count');
-        inEl.textContent = inOrders.total;
-        if (inOrders.total > 0) {
-            inEl.innerHTML = `<a href="/in-orders">${escapeHtml(inOrders.total)}</a>`;
+        inEl.textContent = data.inOrders.total;
+        if (data.inOrders.total > 0) {
+            inEl.innerHTML = `<a href="/in-orders">${escapeHtml(data.inOrders.total)}</a>`;
         }
     }
-    if (outOrders) {
+    if (data.outOrders) {
         const outEl = document.getElementById('pending-out-count');
-        outEl.textContent = outOrders.total;
-        if (outOrders.total > 0) {
-            outEl.innerHTML = `<a href="/out-orders">${escapeHtml(outOrders.total)}</a>`;
+        outEl.textContent = data.outOrders.total;
+        if (data.outOrders.total > 0) {
+            outEl.innerHTML = `<a href="/out-orders">${escapeHtml(data.outOrders.total)}</a>`;
         }
     }
 }
