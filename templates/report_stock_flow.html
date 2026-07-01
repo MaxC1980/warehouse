@@ -143,11 +143,11 @@ function renderReport(items) {
             <td>${escapeHtml(item.manufacturer)}</td>
             <td>${escapeHtml(item.spec)}</td>
             <td>${escapeHtml(item.unit)}</td>
-            <td>${escapeHtml(item.opening_qty)}</td>
-            <td>${escapeHtml(item.in_qty)}</td>
-            <td>${escapeHtml(item.out_qty)}</td>
-            <td>${escapeHtml(item.return_qty)}</td>
-            <td class="${item.closing_qty < 0 ? 'warning' : ''}">${escapeHtml(item.closing_qty)}</td>
+            <td>${Number(item.opening_qty).toFixed(2)}</td>
+            <td>${Number(item.in_qty).toFixed(2)}</td>
+            <td>${Number(item.out_qty).toFixed(2)}</td>
+            <td>${Number(item.return_qty).toFixed(2)}</td>
+            <td class="${item.closing_qty < 0 ? 'warning' : ''}">${Number(item.closing_qty).toFixed(2)}</td>
         </tr>
     `).join('');
 }
