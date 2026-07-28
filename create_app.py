@@ -30,6 +30,7 @@ def create_app(config_class):
     from routes.employee import employee_bp
     from routes.admin import admin_bp, admin_page_bp
     from routes.pages import pages_bp
+    from routes.product import product_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(admin_bp, url_prefix='/api')
@@ -43,6 +44,7 @@ def create_app(config_class):
     app.register_blueprint(import_bp, url_prefix='/api')
     app.register_blueprint(return_order_bp, url_prefix='/api')
     app.register_blueprint(employee_bp, url_prefix='/api')
+    app.register_blueprint(product_bp, url_prefix='/api')
     app.register_blueprint(pages_bp)
 
     @app.before_request

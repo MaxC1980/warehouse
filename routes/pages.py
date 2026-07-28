@@ -266,3 +266,30 @@ def return_order_details():
 @login_required
 def weight_records():
     return render_template('weight_record_list.html')
+
+
+# 产品 + BOM
+@pages_bp.route('/products')
+@login_required
+def product_list():
+    return render_template('product_list.html')
+
+@pages_bp.route('/products/new')
+@login_required
+def product_new():
+    return render_template('product_form.html')
+
+@pages_bp.route('/products/<int:product_id>/edit')
+@login_required
+def product_edit(product_id):
+    return render_template('product_form.html', product_id=product_id)
+
+@pages_bp.route('/products/<int:product_id>/bom')
+@login_required
+def product_bom(product_id):
+    return render_template('bom_manage.html', product_id=product_id)
+
+@pages_bp.route('/bom-calc')
+@login_required
+def bom_calc():
+    return render_template('bom_calc.html')

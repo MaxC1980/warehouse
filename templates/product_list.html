@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}产品管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>产品管理</h1>
+    <div class="page-actions" id="page-actions">
+        {% if has_perm('product', 'edit') %}<a href="/products/new" class="btn btn-primary" id="add-btn">新增产品</a>{% endif %}
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="search-keyword" placeholder="搜索产品编码、名称、规格">
+    <select id="per-page" onchange="loadProducts()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadProducts()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>产品编码</th>
+                <th>产品名称</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th>BOM 物料数</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="products-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+async function loadProducts(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/products?${params}`);
+    renderProducts(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadProducts);
+}
+
+function renderProducts(items) {
+    const tbody = document.getElementById('products-tbody');
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(p => `
+        <tr>
+            <td>${escapeHtml(p.code)}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.spec)}</td>
+            <td>${escapeHtml(p.unit)}</td>
+            <td>${p.bom_count}</td>
+            <td>${escapeHtml(p.remark)}</td>
+            <td>
+                <a href="/products/${escapeHtml(p.id)}/bom" class="btn btn-sm">BOM</a>
+                ${hasPerm('product', 'edit') ? `<button type="button" onclick="duplicateProduct(${escapeHtml(p.id)})" class="btn btn-sm">复制</button>` : ''}
+                ${hasPerm('product', 'edit') ? `<a href="/products/${escapeHtml(p.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${hasPerm('product', 'edit') ? `<button onclick="deleteProduct(${escapeHtml(p.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function deleteProduct(id) {
+    if (!confirm('确定要删除该产品及其 BOM 吗？')) return;
+    await apiRequest(`/products/${id}`, { method: 'DELETE' });
+    loadProducts(currentPage);
+}
+
+async function duplicateProduct(id) {
+    try {
+        await apiRequest(`/products/${id}/duplicate`, { method: 'POST' });
+        loadProducts(currentPage);
+    } catch (e) {
+        // apiRequest 已弹窗提示错误
+    }
+}
+
+loadProducts();
+</script>
+{% endblock %}

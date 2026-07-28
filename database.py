@@ -235,6 +235,43 @@ def _create_tables(cursor):
         )
     ''')
 
+    # Product (产品/成品)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS product (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            spec TEXT,
+            unit TEXT NOT NULL DEFAULT '个',
+            remark TEXT,
+            created_at DATETIME
+        )
+    ''')
+
+    # BOM (产品物料清单，单层)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bom (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            material_id INTEGER NOT NULL,
+            qty_per_unit DECIMAL(16,4) NOT NULL,
+            remark TEXT,
+            UNIQUE(product_id, material_id)
+        )
+    ''')
+
+    # BOM 替代物料 (BOM 行的可替代物料, 库存不足时合并计入可用量)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bom_substitute (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bom_id INTEGER NOT NULL,
+            material_id INTEGER NOT NULL,
+            priority INTEGER DEFAULT 1,
+            remark TEXT,
+            UNIQUE(bom_id, material_id)
+        )
+    ''')
+
     # RBAC tables
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS role (
@@ -287,6 +324,12 @@ def _create_indexes(cursor):
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_order_no ON return_order(order_no)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_return_order_related_out ON return_order(related_out_order_id)')
 
+    # BOM (按产品查清单)
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_bom_product ON bom(product_id)')
+
+    # BOM 替代 (按 bom_id 查替代物料)
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_bom_substitute_bom ON bom_substitute(bom_id)')
+
     # 明细表 (查单/查明细)
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_in_order_item_order ON in_order_item(order_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_out_order_item_order ON out_order_item(order_id)')
@@ -336,8 +379,8 @@ def _migrate_iso_dates(cursor):
 
 
 def _seed_permissions(cursor):
-    """种子: 29条权限 + 清理废弃"""
-    # Seed permissions (29 records)
+    """种子: 31条权限 + 清理废弃"""
+    # Seed permissions (31 records)
     permissions = [
         ('dashboard', 'view', '首页-查看'),
         ('category_major', 'view', '大类管理-查看'), ('category_major', 'edit', '大类管理-编辑'),
@@ -355,6 +398,8 @@ def _seed_permissions(cursor):
         ('report_in_detail', 'view', '报表分析-入库明细报表'),
         ('report_out_detail', 'view', '报表分析-出库明细报表'),
         ('report_summary', 'view', '报表分析-汇总统计'),
+        ('product', 'view', '产品BOM-查看'),
+        ('product', 'edit', '产品BOM-编辑'),
         ('admin_role', 'manage', '权限管理-角色管理'),
         ('admin_user', 'manage', '权限管理-用户管理'),
     ]
@@ -425,7 +470,7 @@ def _assign_role_permissions(cursor):
 
 def _create_triggers(cursor):
     """建触发器: created_at / updated_at"""
-    for t in ('user', 'material', 'supplier', 'in_order', 'out_order', 'return_order'):
+    for t in ('user', 'material', 'supplier', 'in_order', 'out_order', 'return_order', 'product'):
         cursor.execute(f'''
             CREATE TRIGGER IF NOT EXISTS {t}_created_at AFTER INSERT ON {t}
             WHEN NEW.created_at IS NULL

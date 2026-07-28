@@ -43,6 +43,11 @@ PAGE_ENDPOINT_PERMISSIONS = {
     'pages.return_order_detail': ('return_order', 'view'),
     'pages.return_order_details': ('return_order', 'view'),
     'pages.weight_records': ('weight_record', 'view'),
+    'pages.product_list': ('product', 'view'),
+    'pages.product_new': ('product', 'edit'),
+    'pages.product_edit': ('product', 'edit'),
+    'pages.product_bom': ('product', 'view'),
+    'pages.bom_calc': ('product', 'view'),
     'admin_page.roles_page': ('admin_role', 'manage'),
     'admin_page.users_page': ('admin_user', 'manage'),
 }

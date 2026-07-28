@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+
+{% block title %}BOM 管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>BOM 管理</h1>
+    <a href="/products" class="btn btn-secondary">返回</a>
+</div>
+
+<div id="product-info" class="info-bar"></div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>规格型号</th>
+                <th>单位</th>
+                <th>单件用量 *</th>
+                <th>替代物料</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="bom-tbody"></tbody>
+    </table>
+</div>
+
+<div class="form-actions" style="margin-top: 16px;">
+    <button type="button" onclick="openMaterialModal()" class="btn btn-primary">添加物料</button>
+    <button type="button" onclick="saveBOM()" class="btn btn-primary">保存 BOM</button>
+</div>
+
+<!-- 物料选择弹窗 -->
+<div id="material-modal" class="modal" style="display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="width:1200px !important; max-width:none !important; max-height:85vh; overflow:auto;">
+        <h3 style="margin:0;">选择物料加入 BOM <button type="button" onclick="closeMaterialModal()" class="btn btn-sm" style="margin-left:12px;">关闭</button></h3>
+        <div class="filter-bar" style="flex-wrap:nowrap; gap:6px; margin-top:12px;">
+            <select id="modal-major-category" onchange="onMajorCategoryChange(); modalPage=1; loadMaterialModal()" style="width:120px; flex:none;">
+                <option value="">全部大类</option>
+            </select>
+            <select id="modal-minor-category" onchange="modalPage=1; loadMaterialModal()" style="width:120px; flex:none;">
+                <option value="">全部小类</option>
+            </select>
+            <input type="text" id="modal-keyword" placeholder="搜索物料编码、名称、品牌、规格" style="width:280px; flex:none; min-width:0;">
+            <select id="modal-per-page" onchange="modalPage=1; loadMaterialModal()" style="width:80px; flex:none;">
+                <option value="15" selected>15</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <button type="button" onclick="modalPage=1; loadMaterialModal()" class="btn btn-secondary" style="flex:none;">搜索</button>
+            <div id="modal-pagination" style="display:flex; align-items:center; gap:4px; margin-left:auto; flex:none;"></div>
+        </div>
+        <div style="max-height:550px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
+            <table id="modal-material-table" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>品牌</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                        <th>分类</th>
+                    </tr>
+                </thead>
+                <tbody id="modal-material-tbody"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button type="button" onclick="confirmMaterialSelection()" class="btn btn-primary">确认添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- 替代物料管理弹窗 -->
+<div id="sub-modal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <h3>管理替代物料：<span id="sub-main-name"></span></h3>
+        <p style="color:#666;font-size:13px;margin-bottom:12px;">主物料库存不足时，系统会将替代物料库存合并计入可用量。</p>
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                        <th>优先级</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="sub-tbody"></tbody>
+            </table>
+        </div>
+        <div class="form-actions" style="margin-top: 12px;">
+            <select id="sub-material-select" style="min-width: 320px;">
+                <option value="">-- 选择替代物料 --</option>
+            </select>
+            <input type="number" id="sub-priority" value="1" min="1" step="1" style="width: 80px;" title="优先级 (1=首选)">
+            <button type="button" onclick="addSubRow()" class="btn btn-primary">添加</button>
+            <button type="button" onclick="closeSubModal()" class="btn btn-secondary">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 更换物料弹窗 (按前4位过滤) -->
+<div id="edit-material-modal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 900px;">
+        <h3 style="margin:0 0 8px 0;">更换物料：<span id="edit-main-name"></span></h3>
+        <p style="color:#666;font-size:13px;margin-bottom:8px;">仅显示物料编码前 4 位相同的物料</p>
+        <div style="max-height:550px; overflow:auto; border:1px solid #ddd; margin:10px 0;">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>品牌</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                    </tr>
+                </thead>
+                <tbody id="edit-material-tbody"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer" style="text-align:right;">
+            <button type="button" onclick="closeEditModal()" class="btn btn-secondary">关闭</button>
+            <button type="button" onclick="confirmEditMaterial()" class="btn btn-primary">确认更换</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const productId = {{ product_id }};
+let allMaterials = [];
+let currentRows = [];
+
+// 弹窗状态
+let modalSelected = new Set();
+let modalPage = 1;
+let categoriesData = [];
+
+async function loadProduct() {
+    const p = await apiRequest(`/products/${productId}`);
+    document.getElementById('product-info').innerHTML =
+        `<strong>${escapeHtml(p.code)}</strong> · ${escapeHtml(p.name)} · ${escapeHtml(p.spec || '-')} · 单位: ${escapeHtml(p.unit)}`;
+}
+
+async function loadMaterials() {
+    const data = await apiRequest('/materials?per_page=1000');
+    allMaterials = data.items;
+}
+
+async function loadBOM() {
+    const data = await apiRequest(`/products/${productId}/bom`);
+    currentRows = data.items.map(it => ({
+        material_id: it.material_id,
+        code: it.code,
+        name: it.name,
+        spec: it.spec,
+        unit: it.unit,
+        manufacturer: it.manufacturer || '',
+        qty_per_unit: it.qty_per_unit,
+        remark: it.remark || '',
+        substitutes: (it.substitutes || []).map(s => ({
+            material_id: s.material_id,
+            code: s.code,
+            name: s.name,
+            spec: s.spec,
+            unit: s.unit,
+            priority: s.priority,
+        })),
+    }));
+    renderRows();
+}
+
+function renderRows() {
+    const tbody = document.getElementById('bom-tbody');
+    if (currentRows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888;">尚未配置 BOM，点击"添加物料"按钮</td></tr>';
+        return;
+    }
+    tbody.innerHTML = currentRows.map((r, i) => `
+        <tr>
+            <td>${escapeHtml(r.code)}</td>
+            <td>${escapeHtml(r.name)}${r.manufacturer ? ' / ' + escapeHtml(r.manufacturer) : ''}</td>
+            <td>${escapeHtml(r.spec)}</td>
+            <td>${escapeHtml(r.unit)}</td>
+            <td><input type="number" step="0.0001" min="0.0001" value="${escapeHtml(String(r.qty_per_unit))}" onchange="updateQty(${i}, this.value)" class="input-sm"></td>
+            <td>
+                <span class="sub-badge">${r.substitutes.length} 个</span>
+                <button type="button" onclick="openSubModal(${i})" class="btn btn-sm">管理</button>
+            </td>
+            <td><input type="text" value="${escapeHtml(r.remark)}" onchange="updateRemark(${i}, this.value)" class="input-sm"></td>
+            <td>
+                <button type="button" onclick="openEditModal(${i})" class="btn btn-sm">编辑</button>
+                <button type="button" onclick="removeRow(${i})" class="btn btn-sm btn-danger">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateQty(i, v) {
+    const num = parseFloat(v);
+    if (isNaN(num) || num <= 0) { alert('单件用量必须大于 0'); renderRows(); return; }
+    currentRows[i].qty_per_unit = num;
+}
+
+function updateRemark(i, v) { currentRows[i].remark = v; }
+
+function removeRow(i) { currentRows.splice(i, 1); renderRows(); }
+
+// ---- 更换物料弹窗 (按编码前 4 位过滤) ----
+let editingRowForReplace = -1;
+let selectedNewMaterialId = null;
+
+function openEditModal(rowIdx) {
+    const r = currentRows[rowIdx];
+    if (!r.code || r.code.length < 4) {
+        alert('当前物料编码不足 4 位，无法筛选');
+        return;
+    }
+    editingRowForReplace = rowIdx;
+    selectedNewMaterialId = null;
+    document.getElementById('edit-main-name').textContent = `${r.code} - ${r.name}`;
+
+    const prefix = r.code.substring(0, 4);
+    const usedIds = new Set(currentRows.map((x, i) => i === rowIdx ? null : x.material_id).filter(Boolean));
+    const rows = allMaterials
+        .filter(m => m.code && m.code.startsWith(prefix) && !usedIds.has(m.id))
+        .sort((a, b) => a.code.localeCompare(b.code));
+
+    const tbody = document.getElementById('edit-material-tbody');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;">同小类下无其他可选物料</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(m => `
+            <tr onclick="selectEditMaterial(${m.id}, this)" style="cursor:pointer;">
+                <td><input type="radio" name="edit-material-radio" data-id="${m.id}" onclick="event.stopPropagation(); selectEditMaterial(${m.id}, this.closest('tr'))"></td>
+                <td>${escapeHtml(m.code)}</td>
+                <td>${escapeHtml(m.name)}</td>
+                <td>${escapeHtml(m.manufacturer || '')}</td>
+                <td>${escapeHtml(m.spec || '')}</td>
+                <td>${escapeHtml(m.unit)}</td>
+            </tr>
+        `).join('');
+    }
+    document.getElementById('edit-material-modal').style.display = 'flex';
+}
+
+function selectEditMaterial(materialId, tr) {
+    selectedNewMaterialId = materialId;
+    document.querySelectorAll('#edit-material-tbody tr').forEach(r => r.style.background = '');
+    if (tr) tr.style.background = '#e3f2fd';
+    const radio = tr ? tr.querySelector('input[type=radio]') : null;
+    if (radio) radio.checked = true;
+}
+
+function closeEditModal() {
+    document.getElementById('edit-material-modal').style.display = 'none';
+    editingRowForReplace = -1;
+    selectedNewMaterialId = null;
+}
+
+function confirmEditMaterial() {
+    if (editingRowForReplace < 0) return;
+    if (!selectedNewMaterialId) {
+        alert('请先选择一个物料');
+        return;
+    }
+    const newMat = allMaterials.find(m => m.id === selectedNewMaterialId);
+    if (!newMat) { alert('物料不存在'); return; }
+    const r = currentRows[editingRowForReplace];
+    r.material_id = newMat.id;
+    r.code = newMat.code;
+    r.name = newMat.name;
+    r.spec = newMat.spec || '';
+    r.unit = newMat.unit;
+    r.manufacturer = newMat.manufacturer || '';
+    renderRows();
+    closeEditModal();
+}
+
+// ---- 物料选择弹窗 ----
+async function openMaterialModal() {
+    document.getElementById('material-modal').style.display = 'flex';
+    modalSelected.clear();
+    modalPage = 1;
+    await loadModalCategories();
+    await loadMaterialModal();
+}
+
+function closeMaterialModal() {
+    document.getElementById('material-modal').style.display = 'none';
+}
+
+async function loadModalCategories() {
+    const data = await apiRequest('/categories?per_page=200');
+    categoriesData = data || [];
+    const majorSelect = document.getElementById('modal-major-category');
+    majorSelect.innerHTML = '<option value="">全部大类</option>';
+    categoriesData.filter(c => c.level === 1).forEach(c => {
+        majorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
+    });
+    document.getElementById('modal-minor-category').innerHTML = '<option value="">全部小类</option>';
+}
+
+function onMajorCategoryChange() {
+    const majorCode = document.getElementById('modal-major-category').value;
+    const minorSelect = document.getElementById('modal-minor-category');
+    minorSelect.innerHTML = '<option value="">全部小类</option>';
+    if (majorCode) {
+        categoriesData.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(c => {
+            minorSelect.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.code)} - ${escapeHtml(c.name)}</option>`;
+        });
+    }
+}
+
+async function loadMaterialModal() {
+    const majorCategory = document.getElementById('modal-major-category').value;
+    const minorCategory = document.getElementById('modal-minor-category').value;
+    const keyword = document.getElementById('modal-keyword').value.trim();
+    const perPage = document.getElementById('modal-per-page').value;
+
+    const params = new URLSearchParams({ page: modalPage, per_page: perPage });
+    if (majorCategory) params.append('major_category', majorCategory);
+    if (minorCategory) params.append('minor_category', minorCategory);
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/materials?${params}`);
+    const tbody = document.getElementById('modal-material-tbody');
+    if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        document.getElementById('modal-pagination').innerHTML = '';
+        return;
+    }
+
+    tbody.innerHTML = data.items.map(item => {
+        const checked = modalSelected.has(item.id) ? 'checked' : '';
+        return `<tr onclick="toggleMaterialSelect(this.querySelector('input[type=checkbox]'))" style="cursor:pointer;">
+            <td><input type="checkbox" data-id="${escapeHtml(item.id)}" data-code="${escapeHtml(item.code)}" data-name="${escapeHtml(item.name)}" data-spec="${escapeHtml(item.spec || '')}" data-unit="${escapeHtml(item.unit)}" onclick="event.stopPropagation(); toggleMaterialSelect(this)" ${checked}></td>
+            <td>${escapeHtml(item.code)}</td>
+            <td>${escapeHtml(item.name)}</td>
+            <td>${escapeHtml(item.manufacturer || '')}</td>
+            <td>${escapeHtml(item.spec || '')}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.category_name || '')}</td>
+        </tr>`;
+    }).join('');
+
+    renderModalPagination(data.total, modalPage, perPage);
+}
+
+function renderModalPagination(total, page, perPage) {
+    const totalPages = Math.ceil(total / perPage);
+    const div = document.getElementById('modal-pagination');
+    if (totalPages <= 1) { div.innerHTML = ''; return; }
+    let html = '';
+    if (page > 1) html += `<button type="button" class="btn btn-sm" onclick="modalPage--; loadMaterialModal()">上一页</button>`;
+    html += `<span style="padding:4px 8px;">第 ${page} / ${totalPages} 页，共 ${total} 条</span>`;
+    if (page < totalPages) html += `<button type="button" class="btn btn-sm" onclick="modalPage++; loadMaterialModal()">下一页</button>`;
+    div.innerHTML = html;
+}
+
+function toggleMaterialSelect(cb) {
+    const id = parseInt(cb.dataset.id);
+    cb.checked = !cb.checked;
+    if (cb.checked) modalSelected.add(id);
+    else modalSelected.delete(id);
+}
+
+function confirmMaterialSelection() {
+    const existing = new Set(currentRows.map(r => r.material_id));
+    let added = 0, skipped = 0;
+    document.querySelectorAll('#modal-material-tbody input[type="checkbox"]:checked').forEach(cb => {
+        const id = parseInt(cb.dataset.id);
+        if (existing.has(id)) { skipped++; return; }
+        existing.add(id);
+        currentRows.push({
+            material_id: id,
+            code: cb.dataset.code,
+            name: cb.dataset.name,
+            spec: cb.dataset.spec,
+            unit: cb.dataset.unit,
+            qty_per_unit: 1,
+            remark: '',
+            substitutes: [],
+        });
+        added++;
+    });
+    renderRows();
+    closeMaterialModal();
+    if (added > 0 || skipped > 0) {
+        alert(`已添加 ${added} 个物料${skipped > 0 ? `，${skipped} 个已在 BOM 中已跳过` : ''}`);
+    }
+}
+
+// ---- 替代物料弹窗 ----
+let editingRowIndex = -1;
+function openSubModal(rowIdx) {
+    editingRowIndex = rowIdx;
+    const r = currentRows[rowIdx];
+    document.getElementById('sub-main-name').textContent = `${r.code} - ${r.name}`;
+    document.getElementById('sub-priority').value = '1';
+    const sel = document.getElementById('sub-material-select');
+    sel.innerHTML = '<option value="">-- 选择替代物料 --</option>';
+    const main = allMaterials.find(m => m.id === r.material_id);
+    const category = (main && main.category_code) ? String(main.category_code) : '';
+    allMaterials
+        .filter(m => m.id !== r.material_id && (!category || String(m.category_code) === category))
+        .forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${m.code} - ${m.name}${m.spec ? ' / ' + m.spec : ''}`;
+            opt.dataset.code = m.code;
+            opt.dataset.name = m.name;
+            opt.dataset.spec = m.spec || '';
+            opt.dataset.unit = m.unit;
+            sel.appendChild(opt);
+        });
+    renderSubRows();
+    document.getElementById('sub-modal').style.display = 'flex';
+}
+
+function closeSubModal() {
+    document.getElementById('sub-modal').style.display = 'none';
+    editingRowIndex = -1;
+}
+
+function renderSubRows() {
+    const r = currentRows[editingRowIndex];
+    const tbody = document.getElementById('sub-tbody');
+    if (r.substitutes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;">尚未配置替代物料</td></tr>';
+        return;
+    }
+    tbody.innerHTML = r.substitutes.map((s, j) => `
+        <tr>
+            <td>${escapeHtml(s.code)}</td>
+            <td>${escapeHtml(s.name)}</td>
+            <td>${escapeHtml(s.spec)}</td>
+            <td>${escapeHtml(s.unit)}</td>
+            <td>
+                <input type="number" min="1" step="1" value="${escapeHtml(String(s.priority))}"
+                       onchange="updateSubPriority(${j}, this.value)" class="input-sm" style="width: 70px;">
+            </td>
+            <td><button type="button" onclick="removeSubRow(${j})" class="btn btn-sm btn-danger">删除</button></td>
+        </tr>
+    `).join('');
+}
+
+function addSubRow() {
+    const sel = document.getElementById('sub-material-select');
+    const id = parseInt(sel.value);
+    if (!id) { alert('请先选择替代物料'); return; }
+    const r = currentRows[editingRowIndex];
+    if (id === r.material_id) { alert('替代物料不能与主物料相同'); return; }
+    if (r.substitutes.find(s => s.material_id === id)) {
+        alert('该物料已是替代物料'); sel.value = ''; return;
+    }
+    const opt = sel.options[sel.selectedIndex];
+    const pri = parseInt(document.getElementById('sub-priority').value) || 1;
+    r.substitutes.push({
+        material_id: id, code: opt.dataset.code, name: opt.dataset.name,
+        spec: opt.dataset.spec, unit: opt.dataset.unit, priority: pri,
+    });
+    sel.value = '';
+    document.getElementById('sub-priority').value = '1';
+    renderSubRows();
+    renderRows();
+}
+
+function updateSubPriority(j, v) {
+    const num = parseInt(v);
+    if (isNaN(num) || num < 1) { alert('优先级必须 ≥ 1'); renderSubRows(); return; }
+    currentRows[editingRowIndex].substitutes[j].priority = num;
+}
+
+function removeSubRow(j) {
+    currentRows[editingRowIndex].substitutes.splice(j, 1);
+    renderSubRows();
+    renderRows();
+}
+
+async function saveBOM() {
+    if (currentRows.length === 0) {
+        if (!confirm('BOM 为空，确认清空该产品的物料清单？')) return;
+    }
+    const items = currentRows.map(r => ({
+        material_id: r.material_id,
+        qty_per_unit: r.qty_per_unit,
+        remark: r.remark,
+        substitutes: r.substitutes.map(s => ({
+            material_id: s.material_id,
+            priority: s.priority,
+        })),
+    }));
+    await apiRequest(`/products/${productId}/bom`, {
+        method: 'PUT',
+        body: JSON.stringify({ items }),
+    });
+    alert('BOM 已保存');
+    loadBOM();
+}
+
+(async () => {
+    await loadProduct();
+    await loadMaterials();
+    await loadBOM();
+})();
+</script>
+
+<style>
+.input-sm { width: 100px; padding: 4px 8px; box-sizing: border-box; }
+input[type="number"].input-sm { width: 110px; }
+.info-bar { background: #f5f7fa; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; }
+.sub-badge { display: inline-block; background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-right: 6px; }
+</style>
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}BOM 缺料计算 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>BOM 缺料计算</h1>
+</div>
+
+<div class="tabs">
+    <button type="button" class="tab-btn active" onclick="switchTab('check')">按数量算缺料</button>
+    <button type="button" class="tab-btn" onclick="switchTab('max')">最大可生产数</button>
+</div>
+
+<div id="tab-check" class="tab-pane">
+    <h3>计算生产 N 件产品所需的物料，并与库存对比</h3>
+    <div class="data-table" style="margin-top: 12px;">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 60%;">产品</th>
+                    <th>生产数量 *</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="check-tbody"></tbody>
+        </table>
+    </div>
+    <div class="form-actions" style="margin-top: 12px;">
+        <select id="check-product-select" style="min-width: 360px;">
+            <option value="">-- 选择产品 --</option>
+        </select>
+        <button type="button" onclick="addCheckRow()" class="btn btn-primary">添加行</button>
+        <label style="margin-left: 16px;">
+            <input type="checkbox" id="check-exclude-expired"> 排除过期批次
+        </label>
+        <button type="button" onclick="runCheck()" class="btn btn-primary">计算</button>
+    </div>
+
+    <div id="check-result" style="margin-top: 24px; display: none;">
+        <h3>计算结果</h3>
+        <div id="check-summary" class="info-bar"></div>
+        <div class="data-table" style="margin-top: 12px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                        <th>需求总量</th>
+                        <th>主库存</th>
+                        <th>替代库存</th>
+                        <th>可用合计</th>
+                        <th>缺料量</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="check-result-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="tab-max" class="tab-pane" style="display: none;">
+    <h3>选一个产品，看当前库存最多能生产多少</h3>
+    <div class="form-actions" style="margin-top: 12px;">
+        <select id="max-product-select" style="min-width: 360px;">
+            <option value="">-- 选择产品 --</option>
+        </select>
+        <label style="margin-left: 16px;">
+            <input type="checkbox" id="max-exclude-expired"> 排除过期批次
+        </label>
+        <button type="button" onclick="runMax()" class="btn btn-primary">计算</button>
+    </div>
+
+    <div id="max-result" style="margin-top: 24px; display: none;">
+        <h3>计算结果</h3>
+        <div id="max-summary" class="info-bar"></div>
+        <div class="data-table" style="margin-top: 12px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>物料编码</th>
+                        <th>物料名称</th>
+                        <th>规格</th>
+                        <th>单位</th>
+                        <th>单件用量</th>
+                        <th>主库存</th>
+                        <th>替代库存</th>
+                        <th>可用合计</th>
+                        <th>可生产数</th>
+                    </tr>
+                </thead>
+                <tbody id="max-result-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allProducts = [];
+
+async function loadProducts() {
+    const data = await apiRequest('/products?per_page=1000');
+    allProducts = data.items;
+    const fillSelect = (sel) => {
+        data.items.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.code} - ${p.name}${p.spec ? ' / ' + p.spec : ''}`;
+            sel.appendChild(opt);
+        });
+    };
+    fillSelect(document.getElementById('check-product-select'));
+    fillSelect(document.getElementById('max-product-select'));
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0) === (name === 'check'));
+    });
+    document.getElementById('tab-check').style.display = name === 'check' ? '' : 'none';
+    document.getElementById('tab-max').style.display = name === 'max' ? '' : 'none';
+}
+
+function addCheckRow() {
+    const sel = document.getElementById('check-product-select');
+    const id = parseInt(sel.value);
+    if (!id) {
+        alert('请先选择产品');
+        return;
+    }
+    if (document.querySelector(`#check-tbody tr[data-pid="${id}"]`)) {
+        alert('该产品已添加');
+        sel.value = '';
+        return;
+    }
+    const opt = sel.options[sel.selectedIndex];
+    const tr = document.createElement('tr');
+    tr.dataset.pid = id;
+    tr.innerHTML = `
+        <td>${escapeHtml(opt.textContent)}</td>
+        <td><input type="number" step="1" min="1" value="1" class="input-qty"></td>
+        <td><button type="button" onclick="this.closest('tr').remove()" class="btn btn-sm btn-danger">删除</button></td>
+    `;
+    document.getElementById('check-tbody').appendChild(tr);
+    sel.value = '';
+}
+
+function getCheckItems() {
+    return Array.from(document.querySelectorAll('#check-tbody tr')).map(tr => ({
+        product_id: parseInt(tr.dataset.pid),
+        quantity: parseFloat(tr.querySelector('.input-qty').value),
+    })).filter(it => it.product_id && !isNaN(it.quantity) && it.quantity > 0);
+}
+
+async function runCheck() {
+    const items = getCheckItems();
+    if (items.length === 0) {
+        alert('请至少添加一行产品');
+        return;
+    }
+    const excludeExpired = document.getElementById('check-exclude-expired').checked;
+    const result = await apiRequest('/bom/check', {
+        method: 'POST',
+        body: JSON.stringify({ items, exclude_expired: excludeExpired }),
+    });
+    renderCheckResult(result);
+}
+
+function renderCheckResult(result) {
+    document.getElementById('check-result').style.display = '';
+    const productsDesc = result.products.map(p => `${escapeHtml(p.name)} × ${p.quantity}${escapeHtml(p.unit)}`).join('，');
+    const expiredNote = result.exclude_expired ? '（已排除过期批次）' : '（含过期批次）';
+    const status = result.has_shortage
+        ? '<span style="color:#c0392b;font-weight:bold;">存在缺料</span>'
+        : '<span style="color:#27ae60;font-weight:bold;">库存充足</span>';
+    document.getElementById('check-summary').innerHTML =
+        `生产: ${productsDesc} ${expiredNote}<br>合计物料行: ${result.rows.length}，${status}`;
+
+    const tbody = document.getElementById('check-result-tbody');
+    if (result.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">所选产品未配置 BOM</td></tr>';
+        return;
+    }
+    tbody.innerHTML = result.rows.map(r => `
+        <tr style="${r.shortage > 0 ? 'background:#fff5f5;' : ''}">
+            <td>${escapeHtml(r.code)}</td>
+            <td>${escapeHtml(r.name)}</td>
+            <td>${escapeHtml(r.spec)}</td>
+            <td>${escapeHtml(r.unit)}</td>
+            <td>${Number(r.required).toFixed(2)}</td>
+            <td>${Number(r.main_stock).toFixed(2)}</td>
+            <td>${Number(r.substitute_stock).toFixed(2)}${r.substitute_count > 0 ? ` <span class="sub-hint">(${r.substitute_count}个)</span>` : ''}</td>
+            <td><strong>${Number(r.available).toFixed(2)}</strong></td>
+            <td>${r.shortage > 0 ? '<strong style="color:#c0392b;">' + Number(r.shortage).toFixed(2) + '</strong>' : '-'}</td>
+            <td>${r.sufficient ? '<span style="color:#27ae60;">充足</span>' : '<span style="color:#c0392b;">缺料</span>'}</td>
+        </tr>
+    `).join('');
+}
+
+async function runMax() {
+    const sel = document.getElementById('max-product-select');
+    const productId = parseInt(sel.value);
+    if (!productId) {
+        alert('请先选择产品');
+        return;
+    }
+    const excludeExpired = document.getElementById('max-exclude-expired').checked;
+    const result = await apiRequest('/bom/max-producible', {
+        method: 'POST',
+        body: JSON.stringify({ product_id: productId, exclude_expired: excludeExpired }),
+    });
+    renderMaxResult(result);
+}
+
+function renderMaxResult(result) {
+    document.getElementById('max-result').style.display = '';
+    const expiredNote = result.exclude_expired ? '（已排除过期批次）' : '（含过期批次）';
+    const bottleneck = result.max_producible > 0
+        ? `瓶颈物料: <strong>${escapeHtml(result.bottleneck_material)}</strong>`
+        : '';
+    document.getElementById('max-summary').innerHTML =
+        `产品: <strong>${escapeHtml(result.product.name)}</strong> ${expiredNote}<br>当前库存最多可生产: <strong style="font-size:20px;color:#c0392b;">${result.max_producible}</strong> ${escapeHtml(result.product.unit)}<br>${bottleneck}`;
+
+    const tbody = document.getElementById('max-result-tbody');
+    tbody.innerHTML = result.breakdown.map(b => `
+        <tr>
+            <td>${escapeHtml(b.code)}</td>
+            <td>${escapeHtml(b.name)}</td>
+            <td>${escapeHtml(b.spec)}</td>
+            <td>${escapeHtml(b.unit)}</td>
+            <td>${Number(b.qty_per_unit).toFixed(4)}</td>
+            <td>${Number(b.main_stock).toFixed(2)}</td>
+            <td>${Number(b.substitute_stock).toFixed(2)}${b.substitute_count > 0 ? ` <span class="sub-hint">(${b.substitute_count}个)</span>` : ''}</td>
+            <td><strong>${Number(b.available).toFixed(2)}</strong></td>
+            <td>${b.max_units}</td>
+        </tr>
+    `).join('');
+}
+
+loadProducts();
+</script>
+
+<style>
+.tabs { display: flex; gap: 8px; border-bottom: 2px solid #e0e0e0; margin-bottom: 16px; }
+.tab-btn { padding: 8px 20px; border: 0; background: transparent; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -2px; color: #666; }
+.tab-btn.active { color: #1976d2; border-bottom-color: #1976d2; font-weight: 600; }
+.info-bar { background: #f5f7fa; padding: 12px 16px; border-radius: 4px; line-height: 1.8; }
+.input-qty { width: 100px; padding: 4px 8px; box-sizing: border-box; }
+.sub-hint { color: #888; font-size: 11px; }
+</style>
+{% endblock %}

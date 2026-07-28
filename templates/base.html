@@ -66,6 +66,15 @@
                 </div>
             </div>
             {% endif %}
+            {% if has_perm('product', 'view') %}
+            <div class="nav-dropdown">
+                <span class="nav-link">产品BOM ▾</span>
+                <div class="nav-dropdown-menu">
+                    <a href="/products">产品管理</a>
+                    <a href="/bom-calc">缺料计算</a>
+                </div>
+            </div>
+            {% endif %}
             {% if has_perm('report_inventory', 'view') or has_perm('report_stock_flow', 'view') or has_perm('report_in_detail', 'view') or has_perm('report_out_detail', 'view') or has_perm('report_summary', 'view') %}
             <div class="nav-dropdown">
                 <span class="nav-link">报表分析 ▾</span>

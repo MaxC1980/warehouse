@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product_id %}编辑产品{% else %}新增产品{% endif %} - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if product_id %}编辑产品{% else %}新增产品{% endif %}</h1>
+    <a href="/products" class="btn btn-secondary">返回</a>
+</div>
+
+<form id="product-form" class="form" onsubmit="handleSubmit(event)">
+    <div class="form-group">
+        <label>产品编码 *</label>
+        <input type="text" id="code" {% if product %}value="{{ product.code }}"{% endif %} {% if product_id %}readonly{% else %}required{% endif %}>
+    </div>
+    <div class="form-group">
+        <label>产品名称 *</label>
+        <input type="text" id="name" {% if product %}value="{{ product.name }}"{% endif %} required>
+    </div>
+    <div class="form-group">
+        <label>规格型号</label>
+        <input type="text" id="spec" {% if product %}value="{{ product.spec }}"{% endif %}>
+    </div>
+    <div class="form-group">
+        <label>单位</label>
+        <input type="text" id="unit" {% if product %}value="{{ product.unit }}"{% else %}value="个"{% endif %}>
+    </div>
+    <div class="form-group">
+        <label>备注</label>
+        <textarea id="remark" rows="3">{% if product %}{{ product.remark }}{% endif %}</textarea>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/products" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const isEdit = {% if product_id %}true{% else %}false{% endif %};
+const productId = {% if product_id %}{{ product_id }}{% else %}null{% endif %};
+
+async function loadIfEdit() {
+    if (!isEdit || !productId) return;
+    const p = await apiRequest(`/products/${productId}`);
+    document.getElementById('code').value = p.code;
+    document.getElementById('name').value = p.name || '';
+    document.getElementById('spec').value = p.spec || '';
+    document.getElementById('unit').value = p.unit || '个';
+    document.getElementById('remark').value = p.remark || '';
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const payload = {
+        code: document.getElementById('code').value.trim(),
+        name: document.getElementById('name').value.trim(),
+        spec: document.getElementById('spec').value.trim(),
+        unit: document.getElementById('unit').value.trim() || '个',
+        remark: document.getElementById('remark').value.trim(),
+    };
+    try {
+        if (isEdit) {
+            await apiRequest(`/products/${productId}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload),
+            });
+        } else {
+            await apiRequest('/products', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+        }
+        alert('保存成功');
+        location.href = '/products';
+    } catch (e) {
+        // apiRequest 已弹窗
+    }
+}
+
+loadIfEdit();
+</script>
+{% endblock %}
