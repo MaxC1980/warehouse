@@ -390,7 +390,7 @@ class ProductService:
             cursor.execute(
                 f"""
                 SELECT b.id AS bom_id, b.product_id, b.material_id, b.qty_per_unit,
-                       m.code, m.name, m.spec, m.unit
+                       m.code, m.name, m.spec, m.unit, m.manufacturer
                 FROM bom b JOIN material m ON b.material_id = m.id
                 WHERE b.product_id IN ({placeholders})
                 """,
@@ -404,7 +404,7 @@ class ProductService:
                 ph2 = ','.join('?' * len(bom_id_list))
                 cursor.execute(
                     f"""
-                    SELECT s.bom_id, s.material_id, m.code, m.name, m.spec, m.unit
+                    SELECT s.bom_id, s.material_id, m.code, m.name, m.spec, m.unit, m.manufacturer
                     FROM bom_substitute s JOIN material m ON s.material_id = m.id
                     WHERE s.bom_id IN ({ph2})
                     ORDER BY s.priority
@@ -426,6 +426,7 @@ class ProductService:
                     'name': br['name'],
                     'spec': br['spec'],
                     'unit': br['unit'],
+                    'manufacturer': br['manufacturer'],
                     'required': 0.0,
                     'substitutes': [],
                 }
@@ -459,6 +460,7 @@ class ProductService:
                 'name': info['name'],
                 'spec': info['spec'],
                 'unit': info['unit'],
+                'manufacturer': info['manufacturer'],
                 'required': req,
                 'main_stock': main_stock,
                 'substitute_stock': sub_stock,
@@ -502,7 +504,7 @@ class ProductService:
 
             cursor.execute(
                 """
-                SELECT b.id AS bom_id, b.material_id, b.qty_per_unit, m.code, m.name, m.spec, m.unit
+                SELECT b.id AS bom_id, b.material_id, b.qty_per_unit, m.code, m.name, m.spec, m.unit, m.manufacturer
                 FROM bom b JOIN material m ON b.material_id = m.id
                 WHERE b.product_id = ?
                 """,
@@ -522,7 +524,7 @@ class ProductService:
                 ph = ','.join('?' * len(bom_id_list))
                 cursor.execute(
                     f"""
-                    SELECT s.bom_id, s.material_id, m.code, m.name, m.spec, m.unit
+                    SELECT s.bom_id, s.material_id, m.code, m.name, m.spec, m.unit, m.manufacturer
                     FROM bom_substitute s JOIN material m ON s.material_id = m.id
                     WHERE s.bom_id IN ({ph})
                     ORDER BY s.priority
@@ -547,6 +549,7 @@ class ProductService:
                 'material_id': r['material_id'],
                 'code': r['code'],
                 'name': r['name'],
+                'manufacturer': r['manufacturer'] or '',
                 'unit': r['unit'],
                 'qty_per_unit': per,
                 'main_stock': round(main_stock, 2),

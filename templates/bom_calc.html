@@ -189,8 +189,7 @@ function renderCheckResult(result) {
     tbody.innerHTML = result.rows.map(r => `
         <tr style="${r.shortage > 0 ? 'background:#fff5f5;' : ''}">
             <td>${escapeHtml(r.code)}</td>
-            <td>${escapeHtml(r.name)}</td>
-            <td>${escapeHtml(r.spec)}</td>
+            <td>${escapeHtml(r.name)}${r.manufacturer ? ' / ' + escapeHtml(r.manufacturer) : ''}</td>            <td>${escapeHtml(r.spec)}</td>
             <td>${escapeHtml(r.unit)}</td>
             <td>${Number(r.required).toFixed(2)}</td>
             <td>${Number(r.main_stock).toFixed(2)}</td>
@@ -230,8 +229,7 @@ function renderMaxResult(result) {
     tbody.innerHTML = result.breakdown.map(b => `
         <tr>
             <td>${escapeHtml(b.code)}</td>
-            <td>${escapeHtml(b.name)}</td>
-            <td>${escapeHtml(b.spec)}</td>
+            <td>${escapeHtml(b.name)}${b.manufacturer ? ' / ' + escapeHtml(b.manufacturer) : ''}</td>            <td>${escapeHtml(b.spec)}</td>
             <td>${escapeHtml(b.unit)}</td>
             <td>${Number(b.qty_per_unit).toFixed(4)}</td>
             <td>${Number(b.main_stock).toFixed(2)}</td>
