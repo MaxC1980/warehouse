@@ -9,13 +9,12 @@
 </div>
 
 <form id="product-form" class="form" onsubmit="handleSubmit(event)">
+    {% if product_id %}
     <div class="form-group">
-        <label>产品编码 *</label>
-        <div style="display:flex; gap:8px; align-items:center;">
-            <input type="text" id="code" readonly style="flex:1;" {% if product %}value="{{ product.code }}"{% endif %}>
-            <button type="button" onclick="incCode()" class="btn btn-sm" style="white-space:nowrap;">+1</button>
-        </div>
+        <label>产品编码</label>
+        <input type="text" id="code" value="{{ product.code }}" readonly>
     </div>
+    {% endif %}
     <div class="form-group">
         <label>产品名称 *</label>
         <input type="text" id="name" {% if product %}value="{{ product.name }}"{% endif %} required>
@@ -54,33 +53,9 @@ async function loadIfEdit() {
     document.getElementById('remark').value = p.remark || '';
 }
 
-async function loadNewCode() {
-    if (isEdit) return;
-    const r = await apiRequest('/products/next-code');
-    document.getElementById('code').value = r.code;
-}
-
-async function incCode() {
-    const input = document.getElementById('code');
-    let code = input.value;
-    if (!code) { await loadNewCode(); return; }
-    // 找末尾连续数字 +1
-    const m = code.match(/^(.*?)(\d+)$/);
-    if (m) {
-        const prefix = m[1];
-        const num = parseInt(m[2], 10);
-        const digits = m[2].length;
-        input.value = prefix + String(num + 1).padStart(digits, '0');
-    } else {
-        // 末尾无数字，直接追加 1
-        input.value = code + '1';
-    }
-}
-
 async function handleSubmit(e) {
     e.preventDefault();
     const payload = {
-        code: document.getElementById('code').value.trim(),
         name: document.getElementById('name').value.trim(),
         spec: document.getElementById('spec').value.trim(),
         unit: document.getElementById('unit').value.trim() || '个',
@@ -88,6 +63,7 @@ async function handleSubmit(e) {
     };
     try {
         if (isEdit) {
+            payload.code = document.getElementById('code').value.trim();
             await apiRequest(`/products/${productId}`, {
                 method: 'PUT',
                 body: JSON.stringify(payload),
@@ -106,6 +82,5 @@ async function handleSubmit(e) {
 }
 
 loadIfEdit();
-loadNewCode();
 </script>
 {% endblock %}

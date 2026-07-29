@@ -184,37 +184,33 @@ class ProductService:
             return True, ProductService.get_product_by_id(new_id)
 
     @staticmethod
-    def get_next_code(prefix=None):
-        """自动生成下一个编码: 前缀 + 序号"""
+    def _next_code():
+        """自动生成下一条产品编码: 取最大数值 +1, 按8位填充"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            if prefix:
-                cursor.execute("SELECT code FROM product WHERE code LIKE ? ORDER BY code", (prefix + '%',))
-            else:
-                cursor.execute("SELECT code FROM product ORDER BY code DESC LIMIT 1")
-            rows = cursor.fetchall()
+            cursor.execute("SELECT code FROM product ORDER BY code DESC LIMIT 100")
             seq = 0
-            for row in rows:
-                suffix = row['code'][len(prefix):] if prefix else row['code']
+            for row in cursor.fetchall():
+                code = row['code']
                 try:
-                    s = int(suffix)
+                    s = int(code)
                 except ValueError:
-                    s = 0
+                    trimmed = ''.join(c for c in code if c.isdigit())
+                    s = int(trimmed) if trimmed else 0
                 if s > seq:
                     seq = s
-            if prefix and len(prefix) < 8:
-                digits = max(1, 8 - len(prefix))
-                return prefix + str(seq + 1).zfill(digits)
-            elif prefix:
-                return prefix + str(seq + 1)
-            return str(seq + 1).zfill(8)
+            return str(max(1, seq + 1)).zfill(8)
 
     @staticmethod
     def create_product(code=None, name=None, spec=None, unit='个', remark=None):
         if not name or not str(name).strip():
             raise ValueError('产品名称不能为空')
-        if not code or not str(code).strip():
-            code = ProductService.get_next_code()
+        if not code:
+            code = ProductService._next_code()
+        else:
+            code = str(code).strip()
+            if not code:
+                code = ProductService._next_code()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM product WHERE code = ?", (code,))
