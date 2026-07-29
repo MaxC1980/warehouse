@@ -4,7 +4,7 @@ from utils.sql import escape_like, build_like_clause
 
 class ReportService:
     @staticmethod
-    def get_inventory_report(page=1, per_page=100, keyword=None, major_category=None, minor_category=None):
+    def get_inventory_report(page=1, per_page=100, keyword=None, major_category=None, minor_category=None, status_filter=None):
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -28,16 +28,24 @@ class ReportService:
             if where_clauses:
                 where_sql = "WHERE " + " AND ".join(where_clauses)
 
-            # Get total count (distinct materials)
-            cursor.execute(
-                f"""
-                SELECT COUNT(DISTINCT m.id) as count
-                FROM material m
-                LEFT JOIN inventory i ON m.id = i.material_id
-                {where_sql}
-                """,
-                params
-            )
+            having_clause = ""
+            if status_filter == 'low':
+                having_clause = "HAVING COALESCE(SUM(i.quantity), 0) < COALESCE(m.safety_stock, 0)"
+            elif status_filter == 'normal':
+                having_clause = "HAVING COALESCE(SUM(i.quantity), 0) >= COALESCE(m.safety_stock, 0)"
+
+            # Get total count (distinct materials, respect status filter)
+            count_sql = f"""
+                SELECT COUNT(*) as count FROM (
+                    SELECT m.id
+                    FROM material m
+                    LEFT JOIN inventory i ON m.id = i.material_id
+                    {where_sql}
+                    GROUP BY m.id
+                    {having_clause}
+                )
+            """
+            cursor.execute(count_sql, params)
             total = cursor.fetchone()['count']
 
             # Get report data - aggregate by material
@@ -59,6 +67,7 @@ class ReportService:
                 LEFT JOIN inventory i ON m.id = i.material_id
                 {where_sql}
                 GROUP BY m.id
+                {having_clause}
                 ORDER BY m.code
                 {"LIMIT ? OFFSET ?" if per_page is not None else ""}
                 """,

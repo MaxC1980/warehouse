@@ -65,7 +65,12 @@ async function loadStats() {
 
     if (data.material) document.getElementById('material-count').textContent = data.material.total;
     if (data.summary) {
-        document.getElementById('low-stock-count').textContent = data.summary.low_stock_count || 0;
+        const lowCount = data.summary.low_stock_count || 0;
+        const lowEl = document.getElementById('low-stock-count');
+        lowEl.textContent = lowCount;
+        if (lowCount > 0) {
+            lowEl.innerHTML = `<a href="/reports/inventory?status=low">${lowCount}</a>`;
+        }
         document.getElementById('expired-count').textContent = data.summary.expired_count || 0;
     }
     if (data.inOrders) {

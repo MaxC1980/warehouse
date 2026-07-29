@@ -18,6 +18,11 @@
         <option value="">全部小类</option>
     </select>
     <input type="text" id="search-keyword" placeholder="搜索物料编码、名称、品牌、规格">
+    <select id="search-status" onchange="loadReport()" style="width:100px;">
+        <option value="">全部状态</option>
+        <option value="low">预警</option>
+        <option value="normal">正常</option>
+    </select>
     <select id="per-page-select" onchange="loadReport()" style="width:80px;">
         <option value="20" selected>20条</option>
         <option value="50">50条</option>
@@ -78,11 +83,13 @@ async function loadReport(page = 1) {
     const majorCategory = document.getElementById('search-major-category').value;
     const minorCategory = document.getElementById('search-minor-category').value;
     const perPage = document.getElementById('per-page-select').value;
+    const statusFilter = document.getElementById('search-status').value;
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (keyword) params.append('keyword', keyword);
     if (majorCategory) params.append('major_category', majorCategory);
     if (minorCategory) params.append('minor_category', minorCategory);
+    if (statusFilter) params.append('status', statusFilter);
 
     const data = await apiRequest(`/reports/inventory?${params}`);
     if (data) {
@@ -111,19 +118,25 @@ function renderReport(items) {
     `).join('');
 }
 
-
 function exportExcel() {
     const keyword = document.getElementById('search-keyword').value;
     const majorCategory = document.getElementById('search-major-category').value;
     const minorCategory = document.getElementById('search-minor-category').value;
+    const statusFilter = document.getElementById('search-status').value;
     const params = new URLSearchParams();
     if (keyword) params.append('keyword', keyword);
     if (majorCategory) params.append('major_category', majorCategory);
     if (minorCategory) params.append('minor_category', minorCategory);
+    if (statusFilter) params.append('status', statusFilter);
     window.location.href = '/api/reports/inventory/export?' + params.toString();
 }
 
 (async function() {
+    // 从 URL 参数设置状态筛选（从首页预警跳转过来时）
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('status')) {
+        document.getElementById('search-status').value = urlParams.get('status');
+    }
     await loadCategories();
     await loadReport();
 })();

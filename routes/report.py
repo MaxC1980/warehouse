@@ -15,13 +15,15 @@ def get_inventory_report():
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
+    status_filter = request.args.get('status')
 
     report_data, total = ReportService.get_inventory_report(
         page=page,
         per_page=per_page,
         keyword=keyword,
         major_category=major_category,
-        minor_category=minor_category
+        minor_category=minor_category,
+        status_filter=status_filter,
     )
     return jsonify({
         'items': report_data,
@@ -98,13 +100,15 @@ def export_inventory_report():
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
+    status_filter = request.args.get('status')
 
     report_data, _ = ReportService.get_inventory_report(
         page=1,
         per_page=None,
         keyword=keyword,
         major_category=major_category,
-        minor_category=minor_category
+        minor_category=minor_category,
+        status_filter=status_filter,
     )
 
     columns = ['物料编码', '物料名称', '规格型号', '单位', '当前库存', '安全库存', '状态']
