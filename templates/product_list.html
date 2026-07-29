@@ -30,6 +30,7 @@
                 <th>单位</th>
                 <th>BOM 物料数</th>
                 <th>备注</th>
+                <th>状态</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -59,7 +60,7 @@ async function loadProducts(page = 1) {
 function renderProducts(items) {
     const tbody = document.getElementById('products-tbody');
     if (items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(p => `
@@ -70,10 +71,12 @@ function renderProducts(items) {
             <td>${escapeHtml(p.unit)}</td>
             <td>${p.bom_count}</td>
             <td>${escapeHtml(p.remark)}</td>
+            <td>${p.disabled ? '<span style="color:#999;">已禁用</span>' : '<span style="color:#27ae60;">正常</span>'}</td>
             <td>
                 <a href="/products/${escapeHtml(p.id)}/bom" class="btn btn-sm">BOM</a>
                 ${hasPerm('product', 'edit') ? `<button type="button" onclick="duplicateProduct(${escapeHtml(p.id)})" class="btn btn-sm">复制</button>` : ''}
                 ${hasPerm('product', 'edit') ? `<a href="/products/${escapeHtml(p.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${hasPerm('product', 'edit') ? `<button onclick="toggleDisable(${escapeHtml(p.id)})" class="btn btn-sm ${p.disabled ? 'btn-success' : 'btn-secondary'}">${p.disabled ? '启用' : '禁用'}</button>` : ''}
                 ${hasPerm('product', 'edit') ? `<button onclick="deleteProduct(${escapeHtml(p.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
@@ -93,6 +96,11 @@ async function duplicateProduct(id) {
     } catch (e) {
         // apiRequest 已弹窗提示错误
     }
+}
+
+async function toggleDisable(id) {
+    await apiRequest(`/products/${id}/toggle-disable`, { method: 'POST' });
+    loadProducts(currentPage);
 }
 
 loadProducts();

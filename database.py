@@ -243,6 +243,7 @@ def _create_tables(cursor):
             name TEXT NOT NULL,
             spec TEXT,
             unit TEXT NOT NULL DEFAULT '个',
+            disabled INTEGER DEFAULT 0,
             remark TEXT,
             created_at DATETIME
         )
@@ -422,6 +423,14 @@ def _seed_permissions(cursor):
             cursor.execute("DELETE FROM permission WHERE id = ?", (row['id'],))
 
 
+def _migrate_product_disabled(cursor):
+    """迁移: 旧表加 disabled 列"""
+    cursor.execute("PRAGMA table_info(product)")
+    cols = {r[1] for r in cursor.fetchall()}
+    if 'disabled' not in cols:
+        cursor.execute("ALTER TABLE product ADD COLUMN disabled INTEGER DEFAULT 0")
+
+
 
 def _seed_roles(cursor):
     """种子: 3个默认角色"""
@@ -517,6 +526,7 @@ def init_db():
         _create_tables(cursor)
         _create_indexes(cursor)
         _migrate_iso_dates(cursor)
+        _migrate_product_disabled(cursor)
         _seed_permissions(cursor)
         _seed_roles(cursor)
         roles = _assign_role_permissions(cursor)

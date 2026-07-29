@@ -8,13 +8,13 @@ import math
 from database import get_db_connection
 from utils.sql import escape_like, build_like_clause, build_update_sql
 
-PRODUCT_UPDATE_FIELDS = ['name', 'spec', 'unit', 'remark']
+PRODUCT_UPDATE_FIELDS = ['name', 'spec', 'unit', 'remark', 'disabled']
 
 
 class ProductService:
 
     @staticmethod
-    def get_products(page=1, per_page=20, keyword=None):
+    def get_products(page=1, per_page=20, keyword=None, active_only=False):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             offset = (page - 1) * per_page
@@ -22,6 +22,8 @@ class ProductService:
             params = []
             if keyword:
                 where_clauses.append(build_like_clause(['p.code', 'p.name', 'p.spec'], keyword, params))
+            if active_only:
+                where_clauses.append("COALESCE(p.disabled, 0) = 0")
             where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
             cursor.execute(
@@ -32,7 +34,7 @@ class ProductService:
 
             cursor.execute(
                 f"""
-                SELECT p.id, p.code, p.name, p.spec, p.unit, p.remark, p.created_at,
+                SELECT p.id, p.code, p.name, p.spec, p.unit, p.remark, p.disabled, p.created_at,
                        (SELECT COUNT(*) FROM bom WHERE product_id = p.id) as bom_count
                 FROM product p
                 {where_sql}
@@ -45,11 +47,21 @@ class ProductService:
         return items, total
 
     @staticmethod
+    def get_active_products():
+        """获取未禁用的产品列表 (用于下拉)"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, code, name, spec, unit FROM product WHERE COALESCE(disabled, 0) = 0 ORDER BY code"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    @staticmethod
     def get_product_by_id(product_id):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, code, name, spec, unit, remark, created_at FROM product WHERE id = ?",
+                "SELECT id, code, name, spec, unit, disabled, remark, created_at FROM product WHERE id = ?",
                 (product_id,)
             )
             row = cursor.fetchone()

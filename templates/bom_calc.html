@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}BOM 缺料计算 - 仓库管理系统{% endblock %}
+{% block title %}BOM 用料计算 - 仓库管理系统{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>BOM 缺料计算</h1>
+    <h1>BOM 用料计算</h1>
 </div>
 
 <div class="tabs">
-    <button type="button" class="tab-btn active" onclick="switchTab('check')">按数量算缺料</button>
+    <button type="button" class="tab-btn active" onclick="switchTab('check')">按数量算用料</button>
     <button type="button" class="tab-btn" onclick="switchTab('max')">最大可生产数</button>
 </div>
 
@@ -104,7 +104,7 @@
 let allProducts = [];
 
 async function loadProducts() {
-    const data = await apiRequest('/products?per_page=1000');
+    const data = await apiRequest('/products/active');
     allProducts = data.items;
     const fillSelect = (sel) => {
         data.items.forEach(p => {

@@ -18,6 +18,26 @@ def list_products():
     return jsonify({'items': items, 'total': total, 'page': page, 'per_page': per_page})
 
 
+@product_bp.route('/products/active', methods=['GET'])
+@require_permission('product', 'view')
+@handle_service_errors
+def list_active_products():
+    items = ProductService.get_active_products()
+    return jsonify({'items': items})
+
+
+@product_bp.route('/products/<int:product_id>/toggle-disable', methods=['POST'])
+@require_permission('product', 'edit')
+@handle_service_errors
+def toggle_disable(product_id):
+    p = ProductService.get_product_by_id(product_id)
+    if not p:
+        return jsonify({'error': '产品不存在'}), 404
+    new_val = 0 if p.get('disabled') else 1
+    ProductService.update_product(product_id, {'disabled': new_val})
+    return jsonify({'disabled': bool(new_val)})
+
+
 @product_bp.route('/products/<int:product_id>', methods=['GET'])
 @require_permission('product', 'view')
 @handle_service_errors
