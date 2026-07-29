@@ -48,6 +48,15 @@ def get_product(product_id):
     return jsonify(product)
 
 
+@product_bp.route('/products/next-code', methods=['GET'])
+@require_permission('product', 'view')
+@handle_service_errors
+def next_code():
+    prefix = request.args.get('prefix')
+    code = ProductService.get_next_code(prefix=prefix)
+    return jsonify({'code': code})
+
+
 @product_bp.route('/products', methods=['POST'])
 @require_permission('product', 'edit')
 @handle_service_errors

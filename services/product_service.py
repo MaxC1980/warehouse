@@ -184,11 +184,37 @@ class ProductService:
             return True, ProductService.get_product_by_id(new_id)
 
     @staticmethod
-    def create_product(code, name, spec=None, unit='个', remark=None):
+    def get_next_code(prefix=None):
+        """自动生成下一个编码: 前缀 + 序号"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if prefix:
+                cursor.execute("SELECT code FROM product WHERE code LIKE ? ORDER BY code", (prefix + '%',))
+            else:
+                cursor.execute("SELECT code FROM product ORDER BY code DESC LIMIT 1")
+            rows = cursor.fetchall()
+            seq = 0
+            for row in rows:
+                suffix = row['code'][len(prefix):] if prefix else row['code']
+                try:
+                    s = int(suffix)
+                except ValueError:
+                    s = 0
+                if s > seq:
+                    seq = s
+            if prefix and len(prefix) < 8:
+                digits = max(1, 8 - len(prefix))
+                return prefix + str(seq + 1).zfill(digits)
+            elif prefix:
+                return prefix + str(seq + 1)
+            return str(seq + 1).zfill(8)
+
+    @staticmethod
+    def create_product(code=None, name=None, spec=None, unit='个', remark=None):
         if not name or not str(name).strip():
             raise ValueError('产品名称不能为空')
         if not code or not str(code).strip():
-            raise ValueError('产品编码不能为空')
+            code = ProductService.get_next_code()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM product WHERE code = ?", (code,))
