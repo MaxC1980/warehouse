@@ -79,7 +79,7 @@
         </thead>
         <tbody>
             {% for item in order['items'] %}
-            <tr data-item-id="{{ item.id }}" data-reusable="{{ 1 if item.material_is_reusable else 0 }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-actual-qty="{{ item.actual_quantity or 0 }}">
+            <tr data-item-id="{{ item.id }}" data-reusable="{{ 1 if item.material_is_reusable else 0 }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-actual-qty="{{ item.actual_quantity or 0 }}" data-initial-weight="{{ item.initial_gross_weight or 0 }}">
                 <td>{{ item.material_code }}</td>
                 <td>{{ item.material_name }}</td>
                 <td>{{ item.manufacturer or '' }}</td>
@@ -246,18 +246,27 @@ async function pickup() {
 
 async function submitReturn() {
     const items = [];
-    let hasError = false;
+    let errorMsg = '';
     document.querySelectorAll('.items-table tbody tr').forEach(tr => {
+        if (errorMsg) return;
         const itemId = tr.dataset.itemId;
         const isReusable = tr.dataset.reusable === '1';
         if (isReusable) {
             const w = tr.querySelector('.return-weight');
             if (w && w.value) {
+                const initialWeight = parseFloat(tr.dataset.initialWeight) || 0;
+                const returnWeight = parseFloat(w.value);
+                const netWeight = initialWeight - returnWeight;
+                if (returnWeight > initialWeight) {
+                    errorMsg = '退回毛重不能大于领用毛重';
+                    return;
+                }
                 items.push({
                     out_order_item_id: parseInt(itemId),
                     material_id: parseInt(tr.dataset.materialId),
                     batch_no: tr.dataset.batchNo,
-                    return_gross_weight: parseFloat(w.value)
+                    return_gross_weight: returnWeight,
+                    actual_net_weight: netWeight
                 });
             }
         } else {
@@ -266,7 +275,7 @@ async function submitReturn() {
                 const actualQty = parseFloat(tr.dataset.actualQty) || 0;
                 const retQty = parseFloat(q.value);
                 if (retQty > actualQty) {
-                    hasError = true;
+                    errorMsg = '退回数量不能大于实际用量';
                     return;
                 }
                 items.push({
@@ -279,8 +288,8 @@ async function submitReturn() {
         }
     });
 
-    if (hasError) {
-        alert('退回数量不能大于实际用量');
+    if (errorMsg) {
+        alert(errorMsg);
         return;
     }
 

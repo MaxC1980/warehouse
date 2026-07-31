@@ -1261,11 +1261,17 @@ class OrderService:
             out_item_row = cursor.fetchone()
             original_qty = out_item_row['actual_quantity'] if out_item_row else 0
 
-            remaining = original_qty - net_weight
-            if remaining < 0:
+            returned_qty = original_qty - net_weight
+            if returned_qty < 0:
                 raise ValueError('剩余库存不能为负数')
 
-            _upsert_inventory(cursor, material_id, batch_no, remaining)
+            # 退回数量写回明细
+            cursor.execute(
+                "UPDATE return_order_item SET quantity = ? WHERE id = ?",
+                (round(returned_qty, 2), item['id'])
+            )
+
+            _upsert_inventory(cursor, material_id, batch_no, returned_qty, add_mode=True)
         else:
             # --- 普通物料: 直接用 quantity 回加库存 ---
             qty = item.get('quantity', 0)
