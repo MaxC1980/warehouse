@@ -524,7 +524,7 @@ class TestReturnOrder(TestBase):
                     'return_gross_weight': 30
                 }]
             )
-        self.assertIn('已有审核通过的退库单', str(context.exception))
+        self.assertIn('此物料批次已审核通过退库', str(context.exception))
 
 
 if __name__ == '__main__':

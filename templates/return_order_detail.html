@@ -51,6 +51,7 @@
 
     <div class="items-table">
         <h3>退库明细</h3>
+        {% set has_reusable_item = order['items'] | selectattr('material_is_reusable', 'equalto', 1) | list | length > 0 %}
         <table>
             <thead>
                 <tr>
@@ -59,19 +60,24 @@
                     <th>规格</th>
                     <th>单位</th>
                     <th>批次号</th>
+                    {% if has_reusable_item %}
                     <th>领用毛重</th>
                     <th>退回毛重</th>
                     <th>实际用量</th>
+                    {% else %}
+                    <th>退回数量</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody id="items-tbody">
                 {% for item in order['items'] %}
-                <tr data-id="{{ item.id }}" data-out-order-item-id="{{ item.out_order_item_id }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-initial-weight="{{ item.initial_gross_weight or 0 }}">
+                <tr data-id="{{ item.id }}" data-out-order-item-id="{{ item.out_order_item_id }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-initial-weight="{{ item.initial_gross_weight or 0 }}" data-reusable="{{ 1 if item.material_is_reusable else 0 }}">
                     <td>{{ item.material_code }}</td>
                     <td>{{ item.material_name }}</td>
                     <td>{{ item.spec or '' }}</td>
                     <td>{{ item.unit }}</td>
                     <td>{{ item.batch_no or '' }}</td>
+                    {% if item.material_is_reusable %}
                     <td>{{ item.initial_gross_weight if item.initial_gross_weight else '-' }}</td>
                     <td>
                         {% if order.status == 'pending' %}
@@ -86,6 +92,15 @@
                         <input type="hidden" class="actual-net-weight-input" value="{{ item.actual_net_weight or 0 }}">
                         {% endif %}
                     </td>
+                    {% else %}
+                    <td>
+                        {% if order.status == 'pending' %}
+                        <input type="number" class="return-qty" step="0.01" value="{{ item.quantity or '' }}" min="0" style="width:80px;">
+                        {% else %}
+                        {{ item.quantity if item.quantity else '-' }}
+                        {% endif %}
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -189,16 +204,28 @@ document.getElementById('order-form').addEventListener('submit', async (e) => {
 
     const items = [];
     document.querySelectorAll('#items-tbody tr').forEach(row => {
-        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
-        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
-        items.push({
-            id: parseInt(row.dataset.id),
-            out_order_item_id: parseInt(row.dataset.outOrderItemId),
-            material_id: parseInt(row.dataset.materialId),
-            batch_no: row.dataset.batchNo || null,
-            return_gross_weight: returnGrossWeight,
-            actual_net_weight: actualNetWeight
-        });
+        const isReusable = row.dataset.reusable === '1';
+        if (isReusable) {
+            const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+            const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+            items.push({
+                id: parseInt(row.dataset.id),
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                material_id: parseInt(row.dataset.materialId),
+                batch_no: row.dataset.batchNo || null,
+                return_gross_weight: returnGrossWeight,
+                actual_net_weight: actualNetWeight
+            });
+        } else {
+            const qty = parseFloat(row.querySelector('.return-qty')?.value) || 0;
+            items.push({
+                id: parseInt(row.dataset.id),
+                out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                material_id: parseInt(row.dataset.materialId),
+                batch_no: row.dataset.batchNo || null,
+                quantity: qty
+            });
+        }
     });
 
     const data = {
@@ -225,22 +252,35 @@ async function approveOrder() {
     const weightData = [];
 
     document.querySelectorAll('#items-tbody tr').forEach(row => {
-        const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
-        const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
+        const isReusable = row.dataset.reusable === '1';
+        if (isReusable) {
+            const returnGrossWeight = parseFloat(row.querySelector('.return-gross-weight')?.value) || 0;
+            const actualNetWeight = parseFloat(row.querySelector('.actual-net-weight-input')?.value) || 0;
 
-        if (returnGrossWeight > 0) {
-            items.push({
-                out_order_item_id: parseInt(row.dataset.outOrderItemId),
-                material_id: parseInt(row.dataset.materialId),
-                batch_no: row.dataset.batchNo || null,
-                return_gross_weight: returnGrossWeight,
-                actual_net_weight: actualNetWeight
-            });
+            if (returnGrossWeight > 0) {
+                items.push({
+                    out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                    material_id: parseInt(row.dataset.materialId),
+                    batch_no: row.dataset.batchNo || null,
+                    return_gross_weight: returnGrossWeight,
+                    actual_net_weight: actualNetWeight
+                });
 
-            weightData.push({
-                out_order_item_id: parseInt(row.dataset.outOrderItemId),
-                return_gross_weight: returnGrossWeight
-            });
+                weightData.push({
+                    out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                    return_gross_weight: returnGrossWeight
+                });
+            }
+        } else {
+            const qty = parseFloat(row.querySelector('.return-qty')?.value) || 0;
+            if (qty > 0) {
+                items.push({
+                    out_order_item_id: parseInt(row.dataset.outOrderItemId),
+                    material_id: parseInt(row.dataset.materialId),
+                    batch_no: row.dataset.batchNo || null,
+                    quantity: qty
+                });
+            }
         }
     });
 

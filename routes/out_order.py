@@ -233,3 +233,31 @@ def get_weight_records():
         'page': page,
         'per_page': per_page
     })
+
+@out_order_bp.route('/out-orders/<int:order_id>/return', methods=['POST'])
+@require_permission('out_order', 'edit')
+@handle_service_errors
+def create_return_from_out_order(order_id):
+    """从出库单发起退库 (可回用走称重, 普通物料走数量)"""
+    data = request.get_json(silent=True) or {}
+    items = data.get('items', [])
+    if not items:
+        return jsonify({'error': '请至少选择一项退库明细'}), 400
+
+    # 校验出库单状态
+    order = OrderService.get_out_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': '出库单不存在'}), 404
+    if order.get('status') not in ('approved',):
+        return jsonify({'error': '仅已审核的出库单可退库'}), 400
+
+    return_order = OrderService.create_return_order(
+        related_out_order_id=order_id,
+        department=data.get('department') or order.get('department'),
+        receiver=data.get('receiver') or order.get('receiver'),
+        receiver_date=data.get('receiver_date') or order.get('receiver_date'),
+        operator_id=session.get('user_id'),
+        remark=data.get('remark'),
+        items=items
+    )
+    return jsonify(return_order), 201

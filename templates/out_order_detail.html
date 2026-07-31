@@ -8,6 +8,9 @@
     <div class="page-actions">
         <a href="/out-orders" class="btn btn-secondary">返回列表</a>
         <a href="/out-orders/{{ order.id }}/print" target="_blank" class="btn btn-secondary">打印</a>
+        {% if order.status == 'approved' and has_perm('out_order', 'edit') %}
+        <button type="button" onclick="submitReturn()" class="btn btn-primary" id="return-btn">退库</button>
+        {% endif %}
     </div>
 </div>
 
@@ -71,11 +74,12 @@
                 <th>实际用量</th>
                 <th>领用毛重</th>
                 <th>实发信息</th>
+                <th>退库</th>
             </tr>
         </thead>
         <tbody>
             {% for item in order['items'] %}
-            <tr data-item-id="{{ item.id }}">
+            <tr data-item-id="{{ item.id }}" data-reusable="{{ 1 if item.material_is_reusable else 0 }}" data-material-id="{{ item.material_id }}" data-batch-no="{{ item.batch_no or '' }}" data-actual-qty="{{ item.actual_quantity or 0 }}">
                 <td>{{ item.material_code }}</td>
                 <td>{{ item.material_name }}</td>
                 <td>{{ item.manufacturer or '' }}</td>
@@ -86,10 +90,17 @@
                 <td>{{ item.actual_quantity or 0 }}</td>
                 <td>{{ item.initial_gross_weight or '' }}</td>
                 <td>{{ item.shipment_info or '' }}</td>
+                <td>
+                    {% if order.status == 'approved' and item.material_is_reusable %}
+                    <input type="number" step="0.01" min="0" class="return-weight" placeholder="退回毛重" style="width:80px;">
+                    {% elif order.status == 'approved' %}
+                    <input type="number" step="0.01" min="0" max="{{ item.actual_quantity or 0 }}" class="return-qty" placeholder="退回数量" style="width:80px;">
+                    {% endif %}
+                </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="10">暂无明细数据</td>
+                <td colspan="11">暂无明细数据</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -106,18 +117,48 @@
                 <th>退库人</th>
                 <th>退库日期</th>
                 <th>状态</th>
+                <th>物料编码</th>
+                <th>物料名称</th>
+                <th>批次号</th>
+                <th>退回数量</th>
+                <th>退回毛重</th>
+                <th>实际净用量</th>
                 <th>操作</th>
             </tr>
         </thead>
         <tbody>
             {% for r in related_returns %}
+            {% set items = r.get('items') or [] %}
+            {% if items %}
+            {% for item in items %}
+            <tr>
+                {% if loop.first %}
+                <td rowspan="{{ items | length }}"><a href="/return-orders/{{ r.id }}/detail">{{ r.order_no }}</a></td>
+                <td rowspan="{{ items | length }}">{{ r.receiver }}</td>
+                <td rowspan="{{ items | length }}">{{ r.receiver_date }}</td>
+                <td rowspan="{{ items | length }}" class="status {{ r.status }}">{{ '待审核' if r.status == 'pending' else '已审核' if r.status == 'approved' else '已取消' }}</td>
+                {% endif %}
+                <td>{{ item.material_code }}</td>
+                <td>{{ item.material_name }}</td>
+                <td>{{ item.batch_no or '' }}</td>
+                <td>{{ item.quantity if item.quantity is not none else '-' }}</td>
+                <td>{{ item.return_gross_weight if item.return_gross_weight is not none else '-' }}</td>
+                <td>{{ item.actual_net_weight if item.actual_net_weight is not none else '-' }}</td>
+                {% if loop.first %}
+                <td rowspan="{{ items | length }}"><a href="/return-orders/{{ r.id }}/detail" class="btn btn-small">查看</a></td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            {% else %}
             <tr>
                 <td><a href="/return-orders/{{ r.id }}/detail">{{ r.order_no }}</a></td>
                 <td>{{ r.receiver }}</td>
                 <td>{{ r.receiver_date }}</td>
                 <td class="status {{ r.status }}">{{ '待审核' if r.status == 'pending' else '已审核' if r.status == 'approved' else '已取消' }}</td>
+                <td colspan="6"></td>
                 <td><a href="/return-orders/{{ r.id }}/detail" class="btn btn-small">查看</a></td>
             </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>
@@ -201,6 +242,65 @@ async function pickup() {
     const result = await apiRequest(`/out-orders/${orderId}/pickup`, { method: 'POST' });
     alert('已确认领用');
     location.reload();
+}
+
+async function submitReturn() {
+    const items = [];
+    let hasError = false;
+    document.querySelectorAll('.items-table tbody tr').forEach(tr => {
+        const itemId = tr.dataset.itemId;
+        const isReusable = tr.dataset.reusable === '1';
+        if (isReusable) {
+            const w = tr.querySelector('.return-weight');
+            if (w && w.value) {
+                items.push({
+                    out_order_item_id: parseInt(itemId),
+                    material_id: parseInt(tr.dataset.materialId),
+                    batch_no: tr.dataset.batchNo,
+                    return_gross_weight: parseFloat(w.value)
+                });
+            }
+        } else {
+            const q = tr.querySelector('.return-qty');
+            if (q && q.value) {
+                const actualQty = parseFloat(tr.dataset.actualQty) || 0;
+                const retQty = parseFloat(q.value);
+                if (retQty > actualQty) {
+                    hasError = true;
+                    return;
+                }
+                items.push({
+                    out_order_item_id: parseInt(itemId),
+                    material_id: parseInt(tr.dataset.materialId),
+                    batch_no: tr.dataset.batchNo,
+                    quantity: retQty
+                });
+            }
+        }
+    });
+
+    if (hasError) {
+        alert('退回数量不能大于实际用量');
+        return;
+    }
+
+    if (items.length === 0) {
+        alert('请填写至少一项退库数量或退回毛重');
+        return;
+    }
+
+    if (!confirm('确认创建退库单？')) return;
+
+    try {
+        const result = await apiRequest(`/out-orders/${orderId}/return`, {
+            method: 'POST',
+            body: JSON.stringify({ items })
+        });
+        alert(`退库单已创建: ${result.order_no}`);
+        location.href = `/return-orders/${result.id}/detail`;
+    } catch (e) {
+        // apiRequest 已弹窗
+    }
 }
 </script>
 {% endblock %}

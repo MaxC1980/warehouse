@@ -229,6 +229,7 @@ def _create_tables(cursor):
             remark TEXT,
             return_gross_weight DECIMAL(16,2),
             actual_net_weight DECIMAL(16,2),
+            quantity DECIMAL(16,2),
             FOREIGN KEY (return_order_id) REFERENCES return_order(id),
             FOREIGN KEY (out_order_item_id) REFERENCES out_order_item(id),
             FOREIGN KEY (material_id) REFERENCES material(id)
@@ -431,6 +432,14 @@ def _migrate_product_disabled(cursor):
         cursor.execute("ALTER TABLE product ADD COLUMN disabled INTEGER DEFAULT 0")
 
 
+def _migrate_return_qty(cursor):
+    """迁移: return_order_item 加 quantity 列"""
+    cursor.execute("PRAGMA table_info(return_order_item)")
+    cols = {r[1] for r in cursor.fetchall()}
+    if 'quantity' not in cols:
+        cursor.execute("ALTER TABLE return_order_item ADD COLUMN quantity DECIMAL(16,2)")
+
+
 
 def _seed_roles(cursor):
     """种子: 3个默认角色"""
@@ -527,6 +536,7 @@ def init_db():
         _create_indexes(cursor)
         _migrate_iso_dates(cursor)
         _migrate_product_disabled(cursor)
+        _migrate_return_qty(cursor)
         _seed_permissions(cursor)
         _seed_roles(cursor)
         roles = _assign_role_permissions(cursor)

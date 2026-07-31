@@ -11,6 +11,37 @@ OUT_ORDER_UPDATE_FIELDS = ['department', 'receiver', 'receiver_date', 'remark', 
 RETURN_ORDER_UPDATE_FIELDS = ['department', 'receiver', 'receiver_date', 'remark', 'related_out_order_id']
 
 
+def _upsert_inventory(cursor, material_id, batch_no, quantity, add_mode=False):
+    """库存 UPSERT: add_mode=True 追加, False 覆盖"""
+    cursor.execute(
+        "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
+        (material_id, batch_no)
+    )
+    inv = cursor.fetchone()
+    if inv:
+        new_qty = round(inv['quantity'] + quantity, 2) if add_mode else round(quantity, 2)
+        cursor.execute(
+            "UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+            (new_qty, inv['id'])
+        )
+    else:
+        cursor.execute(
+            """SELECT i.production_date, i.expiry_date
+               FROM in_order_item i
+               WHERE i.batch_no = ? AND i.material_id = ?
+               ORDER BY i.id DESC LIMIT 1""",
+            (batch_no, material_id)
+        )
+        orig = cursor.fetchone()
+        cursor.execute(
+            """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
+               VALUES (?, ?, ?, ?, ?)""",
+            (material_id, batch_no, round(quantity, 2),
+             orig['production_date'] if orig else None,
+             orig['expiry_date'] if orig else None)
+        )
+
+
 class OrderService:
     @staticmethod
     def _generate_order_no(prefix='RK'):
@@ -956,7 +987,7 @@ class OrderService:
                 f"""
                 SELECT
                     ri.id as ri_id, ri.return_order_id, ri.out_order_item_id, ri.material_id,
-                    ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight,
+                    ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight, ri.quantity,
                     m.code as material_code, m.name as material_name, m.manufacturer, m.spec, m.unit
                 FROM return_order_item ri
                 INNER JOIN return_order r ON ri.return_order_id = r.id
@@ -1041,10 +1072,12 @@ class OrderService:
                 SELECT
                     ri.id, ri.return_order_id, ri.out_order_item_id, ri.material_id,
                     ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight,
+                    ri.quantity,
                     m.code as material_code,
                     m.name as material_name,
                     m.spec,
                     m.unit,
+                    m.is_reusable as material_is_reusable,
                     rw.initial_gross_weight
                 FROM return_order_item ri
                 LEFT JOIN material m ON ri.material_id = m.id
@@ -1066,13 +1099,18 @@ class OrderService:
             cursor = conn.cursor()
 
             try:
-                if related_out_order_id:
-                    cursor.execute(
-                        "SELECT COUNT(*) as count FROM return_order WHERE related_out_order_id = ? AND status = 'approved'",
-                        (related_out_order_id,)
-                    )
-                    if cursor.fetchone()['count'] > 0:
-                        raise ValueError("该出库单已有审核通过的退库单，不允许再次退库")
+                if items:
+                    # 防重: 同一出库单内相同 (material_id, batch_no) 只能退一次
+                    for item in items:
+                        cursor.execute(
+                            """SELECT COUNT(*) as count FROM return_order_item ri
+                               JOIN return_order r ON ri.return_order_id = r.id
+                               WHERE r.related_out_order_id = ? AND r.status = 'approved'
+                                 AND ri.material_id = ? AND ri.batch_no = ?""",
+                            (related_out_order_id, item.get('material_id'), item.get('batch_no'))
+                        )
+                        if cursor.fetchone()['count'] > 0:
+                            raise ValueError("该出库单此物料批次已审核通过退库，不允许重复退库")
 
                 order_no = OrderService._generate_return_order_no()
 
@@ -1088,19 +1126,26 @@ class OrderService:
                 if items:
                     for item in items:
                         cursor.execute(
-                            "SELECT 1 FROM out_order_item WHERE id = ? AND order_id = ?",
+                            "SELECT actual_quantity FROM out_order_item WHERE id = ? AND order_id = ?",
                             (item['out_order_item_id'], related_out_order_id)
                         )
-                        if not cursor.fetchone():
+                        out_item = cursor.fetchone()
+                        if not out_item:
                             raise ValueError('出库单明细不属于该出库单')
+
+                        qty = item.get('quantity')
+                        if qty:
+                            if float(qty) > float(out_item['actual_quantity']):
+                                raise ValueError('退回数量不能大于实际用量')
 
                         cursor.execute(
                             """
-                            INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight, quantity)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (order_id, item['out_order_item_id'], item['material_id'],
-                             item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
+                             item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'),
+                             item.get('actual_net_weight'), item.get('quantity'))
                         )
 
                 conn.commit()
@@ -1129,13 +1174,23 @@ class OrderService:
                 if 'items' in data:
                     cursor.execute("DELETE FROM return_order_item WHERE return_order_id = ?", (order_id,))
                     for item in data['items']:
+                        qty = item.get('quantity')
+                        if qty:
+                            cursor.execute(
+                                "SELECT actual_quantity FROM out_order_item WHERE id = ?",
+                                (item['out_order_item_id'],)
+                            )
+                            out_item = cursor.fetchone()
+                            if out_item and float(qty) > float(out_item['actual_quantity']):
+                                raise ValueError('退回数量不能大于实际用量')
                         cursor.execute(
                             """
-                            INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO return_order_item (return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight, quantity)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (order_id, item['out_order_item_id'], item['material_id'],
-                             item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'), item.get('actual_net_weight'))
+                             item.get('batch_no'), item.get('remark'), item.get('return_gross_weight'),
+                             item.get('actual_net_weight'), item.get('quantity'))
                         )
 
                 conn.commit()
@@ -1163,88 +1218,60 @@ class OrderService:
 
     @staticmethod
     def _process_return_item(cursor, item, weight_map, approved_by):
-        """per-item 退库业务: 跳过非可回用, 计算净重, 写 reusable + 回写 inventory"""
+        """per-item 退库业务: 可回用走称重, 普通物料直接回加库存"""
         material_id = item['material_id']
         batch_no = item['batch_no']
 
         cursor.execute("SELECT is_reusable FROM material WHERE id = ?", (material_id,))
         mat = cursor.fetchone()
         is_reusable = mat and mat['is_reusable'] == 1
-        if not is_reusable:
-            return
 
-        return_weight = weight_map.get(item['out_order_item_id'])
-        if return_weight is None:
-            return_weight = item.get('return_gross_weight', 0) or 0
-        actual_net_weight = item.get('actual_net_weight', 0)
+        if is_reusable:
+            # --- 可回用: 现有称重逻辑 ---
+            return_weight = weight_map.get(item['out_order_item_id'])
+            if return_weight is None:
+                return_weight = item.get('return_gross_weight', 0) or 0
+            actual_net_weight = item.get('actual_net_weight', 0)
 
-        cursor.execute(
-            "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
-            (item['out_order_item_id'],)
-        )
-        weight_record = cursor.fetchone()
-        initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
+            cursor.execute(
+                "SELECT initial_gross_weight FROM reusable_material_weight WHERE out_order_item_id = ?",
+                (item['out_order_item_id'],)
+            )
+            weight_record = cursor.fetchone()
+            initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
 
-        if return_weight is not None and return_weight > 0:
-            net_weight = initial_weight - return_weight
+            if return_weight is not None and return_weight > 0:
+                net_weight = initial_weight - return_weight
+            else:
+                net_weight = actual_net_weight if actual_net_weight > 0 else 0
+                return_weight = initial_weight - net_weight
+
+            if net_weight < 0:
+                raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
+
+            cursor.execute(
+                """UPDATE reusable_material_weight
+                   SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
+                       return_operator_id = ?, actual_net_weight = ?, status = 'returned'
+                   WHERE out_order_item_id = ?""",
+                (return_weight, approved_by, net_weight, item['out_order_item_id'])
+            )
+
+            cursor.execute("SELECT actual_quantity FROM out_order_item WHERE id = ?", (item['out_order_item_id'],))
+            out_item_row = cursor.fetchone()
+            original_qty = out_item_row['actual_quantity'] if out_item_row else 0
+
+            remaining = original_qty - net_weight
+            if remaining < 0:
+                raise ValueError('剩余库存不能为负数')
+
+            _upsert_inventory(cursor, material_id, batch_no, remaining)
         else:
-            net_weight = actual_net_weight if actual_net_weight > 0 else 0
-            return_weight = initial_weight - net_weight
-
-        if net_weight < 0:
-            raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
-
-        cursor.execute(
-            """UPDATE reusable_material_weight
-               SET return_gross_weight = ?, return_weight_time = datetime('now', 'localtime'),
-                   return_operator_id = ?, actual_net_weight = ?, status = 'returned'
-               WHERE out_order_item_id = ?""",
-            (return_weight, approved_by, net_weight, item['out_order_item_id'])
-        )
-
-        cursor.execute("SELECT actual_quantity FROM out_order_item WHERE id = ?", (item['out_order_item_id'],))
-        out_item_row = cursor.fetchone()
-        original_qty = out_item_row['actual_quantity'] if out_item_row else 0
-
-        remaining = original_qty - net_weight
-        if remaining < 0:
-            raise ValueError('剩余库存不能为负数，请检查净用量是否超过出库数量')
-
-        cursor.execute(
-            "SELECT id, quantity FROM inventory WHERE material_id = ? AND batch_no = ?",
-            (material_id, batch_no)
-        )
-        inv = cursor.fetchone()
-
-        if inv:
-            cursor.execute(
-                "UPDATE inventory SET quantity = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-                (remaining, inv['id'])
-            )
-        else:
-            cursor.execute(
-                """SELECT i.production_date, i.expiry_date
-                   FROM in_order_item i
-                   WHERE i.batch_no = ? AND i.material_id = ?
-                   ORDER BY i.id DESC LIMIT 1""",
-                (batch_no, material_id)
-            )
-            orig = cursor.fetchone()
-            cursor.execute(
-                """INSERT INTO inventory (material_id, batch_no, quantity, production_date, expiry_date)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (material_id, batch_no, round(remaining, 2),
-                 orig['production_date'] if orig else None,
-                 orig['expiry_date'] if orig else None)
-            )
-
-    @staticmethod
-    def _mark_out_order_completed(cursor, related_out_order_id):
-        """原出库单标记完成"""
-        cursor.execute(
-            "UPDATE out_order SET status = 'completed' WHERE id = ?",
-            (related_out_order_id,)
-        )
+            # --- 普通物料: 直接用 quantity 回加库存 ---
+            qty = item.get('quantity', 0)
+            if not qty or qty <= 0:
+                return
+            _upsert_inventory(cursor, material_id, batch_no, qty, add_mode=True)
 
     @staticmethod
     def approve_return_order(order_id, approved_by, weight_data=None):
@@ -1260,27 +1287,38 @@ class OrderService:
                 if not order or order['status'] != 'pending':
                     return None
 
-                if order['related_out_order_id']:
-                    cursor.execute(
-                        "SELECT COUNT(*) FROM return_order WHERE related_out_order_id = ? AND status = 'approved' AND id != ?",
-                        (order['related_out_order_id'], order_id)
-                    )
-                    if cursor.fetchone()[0] > 0:
-                        return False
-
-                cursor.execute("SELECT id, return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight FROM return_order_item WHERE return_order_id = ?", (order_id,))
+                cursor.execute("SELECT id, return_order_id, out_order_item_id, material_id, batch_no, remark, return_gross_weight, actual_net_weight, quantity FROM return_order_item WHERE return_order_id = ?", (order_id,))
                 items = [dict(row) for row in cursor.fetchall()]
 
+                # 防重: 同一出库单内相同 (material_id, batch_no) 只能退一次
+                if order['related_out_order_id']:
+                    for item in items:
+                        cursor.execute(
+                            """SELECT COUNT(*) as count FROM return_order_item ri
+                               JOIN return_order r ON ri.return_order_id = r.id
+                               WHERE r.related_out_order_id = ? AND r.status = 'approved'
+                                 AND ri.material_id = ? AND ri.batch_no = ? AND r.id != ?""",
+                            (order['related_out_order_id'], item['material_id'], item['batch_no'], order_id)
+                        )
+                        if cursor.fetchone()[0] > 0:
+                            return False
+
                 for item in items:
+                    # 退回数量不能大于实际用量
+                    if item.get('quantity'):
+                        cursor.execute(
+                            "SELECT actual_quantity FROM out_order_item WHERE id = ?",
+                            (item['out_order_item_id'],)
+                        )
+                        out_item = cursor.fetchone()
+                        if out_item and float(item['quantity']) > float(out_item['actual_quantity']):
+                            raise ValueError('退回数量不能大于实际用量')
                     OrderService._process_return_item(cursor, item, weight_map, approved_by)
 
                 cursor.execute(
                     "UPDATE return_order SET status = 'approved', approved_at = datetime('now', 'localtime'), approved_by = ? WHERE id = ?",
                     (approved_by, order_id)
                 )
-
-                if order['related_out_order_id']:
-                    OrderService._mark_out_order_completed(cursor, order['related_out_order_id'])
 
                 conn.commit()
                 return OrderService.get_return_order_by_id(order_id)
@@ -1314,6 +1352,32 @@ class OrderService:
                 (out_order_id,)
             )
             orders = [dict(row) for row in cursor.fetchall()]
+
+            if orders:
+                order_ids = [o['id'] for o in orders]
+                placeholders = ','.join(['?'] * len(order_ids))
+                cursor.execute(
+                    f"""
+                    SELECT
+                        ri.id, ri.return_order_id, ri.out_order_item_id, ri.material_id,
+                        ri.batch_no, ri.remark, ri.return_gross_weight, ri.actual_net_weight, ri.quantity,
+                        m.code as material_code, m.name as material_name, m.spec, m.unit,
+                        m.is_reusable as material_is_reusable,
+                        rw.initial_gross_weight
+                    FROM return_order_item ri
+                    LEFT JOIN material m ON ri.material_id = m.id
+                    LEFT JOIN reusable_material_weight rw ON ri.out_order_item_id = rw.out_order_item_id
+                    WHERE ri.return_order_id IN ({placeholders})
+                    ORDER BY ri.id
+                    """,
+                    order_ids
+                )
+                items_by_order = {}
+                for row in cursor.fetchall():
+                    d = dict(row)
+                    items_by_order.setdefault(d['return_order_id'], []).append(d)
+                for o in orders:
+                    o['items'] = items_by_order.get(o['id'], [])
 
             return orders, len(orders)
 
