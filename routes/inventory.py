@@ -10,7 +10,11 @@ inventory_bp = Blueprint('inventory', __name__)
 @handle_service_errors
 def get_inventory():
     page = request.args.get('page', 1, type=int)
-    per_page = get_per_page()
+    # all=true 返回全量 (打印/盘点用), 绕过 per_page 上限
+    if request.args.get('all') == 'true':
+        per_page = 1000000
+    else:
+        per_page = get_per_page()
     keyword = request.args.get('keyword')
     summary = request.args.get('summary', type=bool, default=False)
     category_code = request.args.get('category_code')

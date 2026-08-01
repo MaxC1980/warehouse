@@ -56,8 +56,15 @@
     <button id="btn-expired" onclick="showExpired()" class="btn btn-secondary">查询过期</button>
     <button id="btn-month-expired" onclick="showMonthExpired()" class="btn btn-secondary">本月过期</button>
     <button id="btn-next-month-expired" onclick="showNextMonthExpired()" class="btn btn-secondary">下月过期</button>
+    <button onclick="printInventory()" class="btn btn-secondary" id="btn-print">打印</button>
     <span id="inventory-summary" style="margin-left: 24px;">当前库存合计：<strong id="total-qty">-</strong></span>
 </div>
+
+<div class="print-header" style="display:none;">
+    <h2>库存查询</h2>
+    <p id="print-meta"></p>
+</div>
+<div id="print-body" style="display:none;"></div>
 
 <div class="data-table">
     <table>
@@ -163,6 +170,7 @@ function setViewMode(mode) {
     document.getElementById('btn-expired').className = 'btn btn-secondary';
     document.getElementById('btn-month-expired').className = 'btn btn-secondary';
     document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-print').style.display = '';
     document.getElementById('status-filter').value = '';
     currentPage = 1;
     loadInventory(1);
@@ -175,6 +183,7 @@ function showExpired() {
     document.getElementById('btn-expired').className = 'btn btn-primary';
     document.getElementById('btn-month-expired').className = 'btn btn-secondary';
     document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-print').style.display = 'none';
     document.getElementById('status-filter').value = '过期';
     currentPage = 1;
     loadInventory(1);
@@ -187,6 +196,7 @@ function showMonthExpired() {
     document.getElementById('btn-expired').className = 'btn btn-secondary';
     document.getElementById('btn-month-expired').className = 'btn btn-primary';
     document.getElementById('btn-next-month-expired').className = 'btn btn-secondary';
+    document.getElementById('btn-print').style.display = 'none';
     document.getElementById('status-filter').value = '本月过期';
     currentPage = 1;
     loadInventory(1);
@@ -199,6 +209,7 @@ function showNextMonthExpired() {
     document.getElementById('btn-expired').className = 'btn btn-secondary';
     document.getElementById('btn-month-expired').className = 'btn btn-secondary';
     document.getElementById('btn-next-month-expired').className = 'btn btn-primary';
+    document.getElementById('btn-print').style.display = 'none';
     document.getElementById('status-filter').value = '下月过期';
     currentPage = 1;
     loadInventory(1);
@@ -207,6 +218,63 @@ function showNextMonthExpired() {
 function resetFilter() {
     sessionStorage.removeItem('inventoryFilter');
     window.location.href = '/inventory';
+}
+
+async function printInventory() {
+    const keyword = document.getElementById('search-keyword').value;
+    const majorCategory = document.getElementById('major-category').value;
+    const minorCategory = document.getElementById('minor-category').value;
+    const status = document.getElementById('status-filter').value;
+
+    const params = new URLSearchParams({ all: 'true', page: 1 });
+    if (keyword) params.append('keyword', keyword);
+    const categoryCode = minorCategory || majorCategory || '';
+    if (categoryCode) params.append('category_code', categoryCode);
+    if (currentMode === 'summary') params.append('summary', 'true');
+    if (status && currentMode === 'detail') params.append('status', status);
+
+    const data = await apiRequest(`/inventory?${params}`);
+
+    const meta = [];
+    if (majorCategory) meta.push(`大类:${document.getElementById('major-category').options[document.getElementById('major-category').selectedIndex].text}`);
+    if (minorCategory) meta.push(`小类:${document.getElementById('minor-category').options[document.getElementById('minor-category').selectedIndex].text}`);
+    if (status) meta.push(`状态:${status}`);
+    if (keyword) meta.push(`关键词:${keyword}`);
+    const mode = currentMode === 'detail' ? '查询详情' : '查询汇总';
+    document.getElementById('print-meta').textContent =
+        `${mode} · ${meta.length ? meta.join(' ') : '全部'} · 共 ${data.total} 条`;
+
+    const headers = currentMode === 'detail' ? detailHeaders : summaryHeaders;
+    const body = currentMode === 'detail'
+        ? data.items.map(item => `<tr>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${escapeHtml(item.batch_no) || '-'}</td>
+            <td>${escapeHtml(item.production_date) || '-'}</td>
+            <td>${escapeHtml(item.expiry_date) || '-'}</td>
+            <td>${Number(item.quantity).toFixed(2)}</td>
+            <td>${Number(item.pending_in || 0).toFixed(2)}</td>
+            <td>${Number(item.pending_out || 0).toFixed(2)}</td>
+            <td>${escapeHtml(item.status)}</td>
+        </tr>`).join('')
+        : data.items.map(item => `<tr>
+            <td>${escapeHtml(item.material_code)}</td>
+            <td>${escapeHtml(item.material_name)}</td>
+            <td>${escapeHtml(item.manufacturer)}</td>
+            <td>${escapeHtml(item.spec)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td>${Number(item.quantity).toFixed(2)}</td>
+            <td>${Number(item.pending_in || 0).toFixed(2)}</td>
+            <td>${Number(item.pending_out || 0).toFixed(2)}</td>
+        </tr>`).join('');
+
+    document.getElementById('print-body').innerHTML =
+        `<table class="print-table"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>`;
+
+    window.print();
 }
 
 async function loadInventory(page = 1) {
@@ -352,6 +420,19 @@ document.getElementById('import-form').addEventListener('submit', async function
 
 tr.expired-row {
     background-color: #fdeaea;
+}
+
+@media print {
+    nav, .filter-bar, .page-actions, .pagination, .data-table { display: none !important; }
+    .page-header { display: none !important; }
+    .print-header { display: block !important; text-align: center; margin-bottom: 12px; }
+    .print-header h2 { margin: 0 0 4px 0; }
+    .print-header p { margin: 0; color: #666; font-size: 13px; }
+    #print-body { display: block !important; }
+    body { margin: 0; }
+    .print-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .print-table th, .print-table td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+    .print-table th { background: #f0f0f0 !important; }
 }
 </style>
 {% endblock %}
