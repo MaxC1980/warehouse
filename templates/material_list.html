@@ -54,6 +54,7 @@
                 <th>单位</th>
                 <th>品牌</th>
                 <th>存储条件</th>
+                <th>可回用</th>
                 <th>保质期(天)</th>
                 <th>备注</th>
                 <th>操作</th>
@@ -160,7 +161,7 @@ async function loadMaterials(page = 1) {
 function renderMaterials(materials) {
     const tbody = document.getElementById('materials-tbody');
     if (materials.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = materials.map(m => `
@@ -172,6 +173,7 @@ function renderMaterials(materials) {
             <td>${escapeHtml(m.unit)}</td>
             <td>${escapeHtml(m.manufacturer)}</td>
             <td>${escapeHtml(m.storage_condition) || '常温'}</td>
+            <td>${m.is_reusable == 1 ? '<span style="color:#27ae60;">是</span>' : '<span style="color:#999;">否</span>'}</td>
             <td>${escapeHtml(m.shelf_life) || '-'}</td>
             <td>${escapeHtml(m.remark)}</td>
             <td>

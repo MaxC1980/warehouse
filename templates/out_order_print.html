@@ -161,7 +161,6 @@
                     <th style="width:6%;">实际用量</th>
                     <th style="width:8%;">领用毛重</th>
                     <th style="width:10%;">实发信息</th>
-                    <th style="width:9%;">备注</th>
                 </tr>
             </thead>
             <tbody>
@@ -177,7 +176,6 @@
                     <td class="right">{{ item.actual_quantity if item.actual_quantity else '-' }}</td>
                     <td>{{ item.initial_gross_weight or '' }}</td>
                     <td>{{ item.shipment_info or '' }}</td>
-                    <td>{{ item.remark or '' }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
