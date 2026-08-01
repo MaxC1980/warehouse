@@ -378,28 +378,16 @@ class ReportService:
                     GROUP BY ooi.material_id
                 ) po ON po.material_id = m.id
                 LEFT JOIN (
-                    SELECT roi.material_id, SUM(
-                        CASE
-                            WHEN roi.actual_net_weight IS NOT NULL THEN ooi2.actual_quantity - roi.actual_net_weight
-                            ELSE COALESCE(roi.quantity, 0)
-                        END
-                    ) as opening_return
+                    SELECT roi.material_id, SUM(COALESCE(roi.quantity, 0)) as opening_return
                     FROM return_order_item roi
                     JOIN return_order ro ON roi.return_order_id = ro.id
-                    JOIN out_order_item ooi2 ON roi.out_order_item_id = ooi2.id
                     WHERE ro.status = 'approved' AND ro.receiver_date < ?
                     GROUP BY roi.material_id
                 ) ro ON ro.material_id = m.id
                 LEFT JOIN (
-                    SELECT roi.material_id, SUM(
-                        CASE
-                            WHEN roi.actual_net_weight IS NOT NULL THEN ooi2.actual_quantity - roi.actual_net_weight
-                            ELSE COALESCE(roi.quantity, 0)
-                        END
-                    ) as period_return
+                    SELECT roi.material_id, SUM(COALESCE(roi.quantity, 0)) as period_return
                     FROM return_order_item roi
                     JOIN return_order ro ON roi.return_order_id = ro.id
-                    JOIN out_order_item ooi2 ON roi.out_order_item_id = ooi2.id
                     WHERE ro.status = 'approved' AND ro.receiver_date >= ? AND ro.receiver_date <= ?
                     GROUP BY roi.material_id
                 ) rp ON rp.material_id = m.id
