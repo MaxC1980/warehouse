@@ -70,6 +70,8 @@
 {% block scripts %}
 <script>
 let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
+let savedReceiverValue = null; // 领用人下拉异步加载后恢复
 
 async function loadOrders(page = 1) {
     currentPage = page;
@@ -79,6 +81,8 @@ async function loadOrders(page = 1) {
     const endDate = document.getElementById('end-date').value;
     const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
@@ -113,19 +117,64 @@ function exportExcel() {
     window.location.href = '/api/out-orders/detail/export?' + params.toString();
 }
 
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        status: document.getElementById('status-filter').value,
+        receiver: document.getElementById('receiver-filter').value,
+        startDate: document.getElementById('start-date').value,
+        endDate: document.getElementById('end-date').value,
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('outOrderDetailFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('outOrderDetailFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('status-filter').value = state.status || '';
+    document.getElementById('start-date').value = state.startDate || '';
+    document.getElementById('end-date').value = state.endDate || '';
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+    savedReceiverValue = state.receiver || '';
+
+    currentPage = state.currentPage || 1;
+    initialLoad = false;
+}
+
 initDateRange('start-date', 'end-date', loadOrders);
 
 async function loadReceivers() {
-    const data = await apiRequest('/employees');
-    if (data) {
-        const select = document.getElementById('receiver-filter');
-        data.items.forEach(e => {
-            select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
-        });
+    try {
+        const data = await apiRequest('/employees');
+        if (data) {
+            const select = document.getElementById('receiver-filter');
+            data.items.forEach(e => {
+                select.innerHTML += '<option value="' + escapeHtml(e.name) + '">' + escapeHtml(e.name) + '</option>';
+            });
+        }
+    } catch (e) {
+        // 领用人加载失败不阻断筛选恢复
+    }
+    if (savedReceiverValue !== null) {
+        document.getElementById('receiver-filter').value = savedReceiverValue;
+        savedReceiverValue = null;
+        loadOrders(currentPage);
     }
 }
 
 function resetFilter() {
+    sessionStorage.removeItem('outOrderDetailFilter');
     window.location.href = '/out-order-details';
 }
 
@@ -203,7 +252,12 @@ function getStatusText(status) {
     return map[status] || escapeHtml(status);
 }
 
-setThisMonth();
+if (sessionStorage.getItem('outOrderDetailFilter')) {
+    restoreFilterState();
+} else {
+    setThisMonth();
+    initialLoad = false;
+}
 loadReceivers();
 </script>
 {% endblock %}

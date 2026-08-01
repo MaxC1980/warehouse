@@ -66,10 +66,39 @@ let categories = [];
 let editingId = null;
 let currentPage = 1;
 let perPage = 15;
+let initialLoad = true; // 标记是否为首次加载
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('categoryMajorFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('categoryMajorFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('per-page').value = state.perPage || '15';
+    currentPage = state.currentPage || 1;
+    loadCategories(currentPage);
+    initialLoad = false;
+}
 
 async function loadCategories(page = 1) {
     currentPage = page;
     perPage = parseInt(document.getElementById('per-page').value);
+
+    saveFilterState();
+
     const data = await apiRequest('/categories');
     categories = data.filter(c => c.level === 1);
     renderCategories();
@@ -231,7 +260,9 @@ document.getElementById('import-form').addEventListener('submit', async function
     }
 });
 
-loadCategories();
+loadCategories().then(() => {
+    restoreFilterState();
+});
 </script>
 
 <style>

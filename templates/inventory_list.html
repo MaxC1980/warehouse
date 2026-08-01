@@ -78,6 +78,7 @@
 let currentPage = 1;
 let currentMode = 'detail'; // 'detail' or 'summary'
 let categories = []; // all categories for filtering
+let initialLoad = true; // 标记是否为首次加载
 
 async function loadCategories() {
     categories = await apiRequest('/categories');
@@ -86,6 +87,52 @@ async function loadCategories() {
     categories.filter(c => c.level === 1).forEach(cat => {
         majorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
     });
+    initialLoad = false; // 关闭首次加载标记，之后可以保存状态
+    restoreFilterState();
+}
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        majorCategory: document.getElementById('major-category').value,
+        minorCategory: document.getElementById('minor-category').value,
+        status: document.getElementById('status-filter').value,
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('inventoryFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('inventoryFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('major-category').value = state.majorCategory || '';
+    document.getElementById('status-filter').value = state.status || '';
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+
+    // Restore minor category options first
+    if (state.majorCategory && categories.length > 0) {
+        const majorCode = state.majorCategory;
+        const minorSelect = document.getElementById('minor-category');
+        minorSelect.innerHTML = '<option value="">全部小类</option>';
+        categories.filter(c => c.level === 2 && c.parent_code === majorCode).forEach(cat => {
+            minorSelect.innerHTML += `<option value="${escapeHtml(cat.code)}">${escapeHtml(cat.name)}</option>`;
+        });
+        minorSelect.value = state.minorCategory || '';
+    }
+
+    currentPage = state.currentPage || 1;
+    loadInventory(currentPage);
+    initialLoad = false;
 }
 
 function onMajorCategoryChange() {
@@ -158,6 +205,7 @@ function showNextMonthExpired() {
 }
 
 function resetFilter() {
+    sessionStorage.removeItem('inventoryFilter');
     window.location.href = '/inventory';
 }
 
@@ -176,6 +224,8 @@ async function loadInventory(page = 1) {
     if (currentMode === 'summary') params.append('summary', 'true');
     const statusFilter = document.getElementById('status-filter').value;
     if (statusFilter && currentMode === 'detail') params.append('status', statusFilter);
+
+    saveFilterState();
 
     const data = await apiRequest(`/inventory?${params}`);
     renderTableHeader();

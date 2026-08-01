@@ -58,6 +58,7 @@
 {% block scripts %}
 <script>
 let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
 
 async function loadOrders(page = 1) {
     currentPage = page;
@@ -67,6 +68,8 @@ async function loadOrders(page = 1) {
     const outOrderNo = document.getElementById('out-order-no').value.trim();
     const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
@@ -144,11 +147,53 @@ function getStatusText(status) {
     return map[status] || escapeHtml(status);
 }
 
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        status: document.getElementById('status-filter').value,
+        startDate: document.getElementById('start-date').value,
+        endDate: document.getElementById('end-date').value,
+        outOrderNo: document.getElementById('out-order-no').value,
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('returnOrderDetailFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('returnOrderDetailFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('status-filter').value = state.status || '';
+    document.getElementById('start-date').value = state.startDate || '';
+    document.getElementById('end-date').value = state.endDate || '';
+    document.getElementById('out-order-no').value = state.outOrderNo || '';
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+
+    currentPage = state.currentPage || 1;
+    loadOrders(currentPage);
+    initialLoad = false;
+}
+
 initDateRange('start-date', 'end-date', loadOrders);
-setThisMonth();
-loadOrders();
+if (sessionStorage.getItem('returnOrderDetailFilter')) {
+    restoreFilterState();
+} else {
+    setThisMonth();
+    loadOrders();
+    initialLoad = false;
+}
 
 function resetFilter() {
+    sessionStorage.removeItem('returnOrderDetailFilter');
     window.location.href = '/return-order-details';
 }
 </script>

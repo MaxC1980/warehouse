@@ -54,6 +54,39 @@
 {% block scripts %}
 <script>
 let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        status: document.getElementById('status-filter').value,
+        startDate: document.getElementById('start-date').value,
+        endDate: document.getElementById('end-date').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('outOrderFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('outOrderFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('status-filter').value = state.status || '';
+    document.getElementById('start-date').value = state.startDate || '';
+    document.getElementById('end-date').value = state.endDate || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+
+    currentPage = state.currentPage || 1;
+    loadOrders(currentPage);
+    initialLoad = false;
+}
 
 async function loadOrders(page = 1) {
     currentPage = page;
@@ -61,6 +94,8 @@ async function loadOrders(page = 1) {
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
     const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
 
     const params = new URLSearchParams({ page, per_page: perPage });
     if (status) params.append('status', status);
@@ -131,6 +166,11 @@ async function deleteOrder(id) {
 }
 
 initDateRange('start-date', 'end-date', loadOrders);
-setThisMonth();
+if (sessionStorage.getItem('outOrderFilter')) {
+    restoreFilterState();
+} else {
+    setThisMonth();
+    initialLoad = false;
+}
 </script>
 {% endblock %}

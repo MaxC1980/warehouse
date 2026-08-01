@@ -44,11 +44,42 @@
 {% block scripts %}
 <script>
 let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('productFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('productFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+    currentPage = state.currentPage || 1;
+    loadProducts(currentPage);
+    initialLoad = false;
+}
 
 async function loadProducts(page = 1) {
     currentPage = page;
     const keyword = document.getElementById('search-keyword').value;
     const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
+
     const params = new URLSearchParams({ page, per_page: perPage });
     if (keyword) params.append('keyword', keyword);
 
@@ -103,6 +134,8 @@ async function toggleDisable(id) {
     loadProducts(currentPage);
 }
 
-loadProducts();
+loadProducts().then(() => {
+    restoreFilterState();
+});
 </script>
 {% endblock %}

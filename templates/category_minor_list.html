@@ -76,6 +76,34 @@ let minorCategories = [];
 let editingId = null;
 let currentPage = 1;
 let perPage = 15;
+let initialLoad = true; // 标记是否为首次加载
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        majorCategory: document.getElementById('major-category-filter').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('categoryMinorFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('categoryMinorFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('major-category-filter').value = state.majorCategory || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+    currentPage = state.currentPage || 1;
+    loadCategories(currentPage);
+    initialLoad = false;
+}
 
 async function loadMajorCategories() {
     const data = await apiRequest('/categories');
@@ -93,12 +121,16 @@ async function loadMajorCategories() {
     });
 
     loadCategories();
+    initialLoad = false; // 关闭首次加载标记，之后可以保存状态
+    restoreFilterState();
 }
 
 function loadCategories(page = 1) {
     currentPage = page;
     const majorCode = document.getElementById('major-category-filter').value;
     perPage = parseInt(document.getElementById('per-page').value);
+
+    saveFilterState();
 
     if (majorCode) {
         minorCategories = allCategories.filter(c => c.level === 2 && c.parent_code === majorCode);

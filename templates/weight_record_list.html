@@ -54,11 +54,14 @@
 {% block scripts %}
 <script>
 let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
 
 async function loadData() {
     const status = document.getElementById('status-filter').value;
     const keyword = document.getElementById('search-keyword').value.trim();
     const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
 
     const params = new URLSearchParams({
         page: currentPage,
@@ -111,6 +114,36 @@ function goToPage(page) {
     loadData();
 }
 
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        status: document.getElementById('status-filter').value,
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('weightRecordFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('weightRecordFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('status-filter').value = state.status || '';
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+
+    currentPage = state.currentPage || 1;
+    loadData();
+    initialLoad = false;
+}
+
 function resetFilters() {
     document.getElementById('status-filter').value = '';
     document.getElementById('search-keyword').value = '';
@@ -118,7 +151,12 @@ function resetFilters() {
     loadData();
 }
 
-loadData();
+if (sessionStorage.getItem('weightRecordFilter')) {
+    restoreFilterState();
+} else {
+    loadData();
+    initialLoad = false;
+}
 </script>
 {% endblock %}
 
