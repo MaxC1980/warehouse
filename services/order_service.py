@@ -798,6 +798,8 @@ class OrderService:
             clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
         if has_reusable:
             clauses.append("m.is_reusable = 1")
+            # 可回用退库需有称重记录, 排除历史普通出库单 (物料后改可回用但无称重)
+            clauses.append("EXISTS (SELECT 1 FROM reusable_material_weight rw WHERE rw.out_order_item_id = i.id)")
         return clauses, params
 
     @staticmethod

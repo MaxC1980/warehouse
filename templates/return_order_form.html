@@ -167,13 +167,12 @@ async function loadOutOrderItems() {
             }
         }
 
-        // Filter to only reusable materials and attach weight info
+        // Filter to only reusable materials WITH weight records
         const reusableItems = data.items.filter(item => {
-            if (weightMap[item.id]) {
-                item.initial_gross_weight = weightMap[item.id].initial_gross_weight;
-                return true;
-            }
-            return item.material_is_reusable === 1;
+            if (item.material_is_reusable !== 1) return false;
+            if (!weightMap[item.id]) return false; // 无称重记录的可回用明细不显示
+            item.initial_gross_weight = weightMap[item.id].initial_gross_weight;
+            return true;
         });
 
         renderItems(reusableItems, null);
