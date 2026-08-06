@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from flask import Blueprint, request, jsonify, session, make_response
 from services.order_service import OrderService
 from utils.excel_utils import export_to_excel
@@ -255,7 +256,7 @@ def create_return_from_out_order(order_id):
         related_out_order_id=order_id,
         department=data.get('department') or order.get('department'),
         receiver=data.get('receiver') or order.get('receiver'),
-        receiver_date=data.get('receiver_date') or order.get('receiver_date'),
+        receiver_date=data.get('receiver_date') or datetime.now().strftime('%Y-%m-%d'),
         operator_id=session.get('user_id'),
         remark=data.get('remark'),
         items=items
