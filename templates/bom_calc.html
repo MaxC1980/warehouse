@@ -240,7 +240,19 @@ function renderMaxResult(result) {
     `).join('');
 }
 
-loadProducts();
+(async () => {
+    await loadProducts();
+    const urlParams = new URLSearchParams(window.location.search);
+    const productId = urlParams.get('product_id');
+    if (productId) {
+        const sel = document.getElementById('check-product-select');
+        sel.value = productId;
+        if (parseInt(sel.value) === parseInt(productId)) {
+            switchTab('check');
+            addCheckRow(); // 默认生产数量 1, 不触发计算
+        }
+    }
+})();
 </script>
 
 <style>

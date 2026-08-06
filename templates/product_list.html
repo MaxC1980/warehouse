@@ -109,6 +109,7 @@ function renderProducts(items) {
                 ${hasPerm('product', 'edit') ? `<a href="/products/${escapeHtml(p.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
                 ${hasPerm('product', 'edit') ? `<button onclick="toggleDisable(${escapeHtml(p.id)})" class="btn btn-sm ${p.disabled ? 'btn-success' : 'btn-secondary'}">${p.disabled ? '启用' : '禁用'}</button>` : ''}
                 ${hasPerm('product', 'edit') ? `<button onclick="deleteProduct(${escapeHtml(p.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+                ${hasPerm('product', 'view') && !p.disabled ? `<a href="/bom-calc?product_id=${escapeHtml(p.id)}" class="btn btn-sm">用量计算</a>` : ''}
             </td>
         </tr>
     `).join('');
