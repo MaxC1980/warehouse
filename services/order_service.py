@@ -1137,7 +1137,7 @@ class OrderService:
 
                         qty = item.get('quantity')
                         if qty:
-                            if float(qty) > float(out_item['actual_quantity']):
+                            if round(float(qty), 2) > round(float(out_item['actual_quantity']), 2):
                                 raise ValueError('退回数量不能大于实际用量')
 
                         cursor.execute(
@@ -1183,7 +1183,7 @@ class OrderService:
                                 (item['out_order_item_id'],)
                             )
                             out_item = cursor.fetchone()
-                            if out_item and float(qty) > float(out_item['actual_quantity']):
+                            if out_item and round(float(qty), 2) > round(float(out_item['actual_quantity']), 2):
                                 raise ValueError('退回数量不能大于实际用量')
                         cursor.execute(
                             """
@@ -1243,10 +1243,10 @@ class OrderService:
             initial_weight = weight_record['initial_gross_weight'] if weight_record else 0
 
             if return_weight is not None and return_weight > 0:
-                net_weight = initial_weight - return_weight
+                net_weight = round(initial_weight - return_weight, 2)
             else:
-                net_weight = actual_net_weight if actual_net_weight > 0 else 0
-                return_weight = initial_weight - net_weight
+                net_weight = round(actual_net_weight, 2) if actual_net_weight > 0 else 0
+                return_weight = round(initial_weight - net_weight, 2)
 
             if net_weight < 0:
                 raise ValueError('净用量不能为负数，请检查退库毛重是否大于初始毛重')
@@ -1263,7 +1263,7 @@ class OrderService:
             out_item_row = cursor.fetchone()
             original_qty = out_item_row['actual_quantity'] if out_item_row else 0
 
-            returned_qty = original_qty - net_weight
+            returned_qty = round(original_qty - net_weight, 2)
             if returned_qty < 0:
                 raise ValueError('剩余库存不能为负数')
 
@@ -1319,7 +1319,7 @@ class OrderService:
                             (item['out_order_item_id'],)
                         )
                         out_item = cursor.fetchone()
-                        if out_item and float(item['quantity']) > float(out_item['actual_quantity']):
+                        if out_item and round(float(item['quantity']), 2) > round(float(out_item['actual_quantity']), 2):
                             raise ValueError('退回数量不能大于实际用量')
                     OrderService._process_return_item(cursor, item, weight_map, approved_by)
 
@@ -1434,7 +1434,7 @@ class OrderService:
                     return None
 
                 initial_weight = record['initial_gross_weight'] or 0
-                net_weight = initial_weight - return_gross_weight
+                net_weight = round(initial_weight - return_gross_weight, 2)
 
                 cursor.execute(
                     """

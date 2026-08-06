@@ -498,7 +498,7 @@ class InventoryService:
                     cursor.execute(
                         """UPDATE inventory
                            SET quantity = ROUND(quantity - ?, 2), updated_at = datetime('now', 'localtime')
-                           WHERE material_id = ? AND batch_no = ? AND quantity >= ?""",
+                           WHERE material_id = ? AND batch_no = ? AND ROUND(quantity, 2) >= ?""",
                         (quantity, material_id, batch_no, quantity)
                     )
                     if cursor.rowcount == 0:
@@ -512,7 +512,7 @@ class InventoryService:
                         (material_id,)
                     )
                     batch = cursor.fetchone()
-                    if not batch or batch['quantity'] < quantity:
+                    if not batch or round(batch['quantity'], 2) < round(quantity, 2):
                         raise ValueError(f"库存不足: 物料ID {material_id}")
 
                     cursor.execute(
