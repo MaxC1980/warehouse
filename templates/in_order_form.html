@@ -235,7 +235,7 @@ function disableForm() {
 let materialsData = [];
 
 async function loadMaterials() {
-    const data = await apiRequest('/materials?per_page=1000');
+    const data = await apiRequest('/materials?per_page=1000&active_only=true');
     materialsData = data.items;
     document.querySelectorAll('.material-select').forEach(select => {
         materialsData.forEach(m => {
@@ -289,7 +289,7 @@ async function loadMaterialsForNewRow(row) {
             row.querySelector('.material-select').innerHTML += '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.code) + ' - ' + escapeHtml(m.name) + '</option>';
         });
     } else {
-        const data = await apiRequest('/materials?per_page=1000');
+        const data = await apiRequest('/materials?per_page=1000&active_only=true');
         materialsData = data.items;
         row.querySelector('.material-select').innerHTML = '<option value="">请选择</option>';
         materialsData.forEach(m => {
@@ -445,7 +445,7 @@ async function loadMaterialModal() {
     const keyword = document.getElementById('modal-keyword').value.trim();
     const perPage = document.getElementById('modal-per-page').value;
 
-    const params = new URLSearchParams({ page: modalPage, per_page: perPage });
+    const params = new URLSearchParams({ page: modalPage, per_page: perPage, active_only: 'true' });
     if (majorCategory) params.append('major_category', majorCategory);
     if (minorCategory) params.append('minor_category', minorCategory);
     if (keyword) params.append('keyword', keyword);

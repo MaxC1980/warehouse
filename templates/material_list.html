@@ -57,6 +57,7 @@
                 <th>可回用</th>
                 <th>保质期(天)</th>
                 <th>备注</th>
+                <th>状态</th>
                 <th>操作</th>
             </tr>
         </thead>
@@ -161,7 +162,7 @@ async function loadMaterials(page = 1) {
 function renderMaterials(materials) {
     const tbody = document.getElementById('materials-tbody');
     if (materials.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = materials.map(m => `
@@ -176,12 +177,19 @@ function renderMaterials(materials) {
             <td>${m.is_reusable == 1 ? '<span style="color:#27ae60;">是</span>' : '<span style="color:#999;">否</span>'}</td>
             <td>${escapeHtml(m.shelf_life) || '-'}</td>
             <td>${escapeHtml(m.remark)}</td>
+            <td>${m.disabled ? '<span style="color:#999;">已禁用</span>' : '<span style="color:#27ae60;">正常</span>'}</td>
             <td>
                 ${hasPerm('material', 'edit') ? `<a href="/materials/${escapeHtml(m.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${hasPerm('material', 'edit') ? `<button onclick="toggleDisable(${escapeHtml(m.id)})" class="btn btn-sm ${m.disabled ? 'btn-success' : 'btn-secondary'}">${m.disabled ? '启用' : '禁用'}</button>` : ''}
                 ${hasPerm('material', 'edit') ? `<button onclick="deleteMaterial(${escapeHtml(m.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
             </td>
         </tr>
     `).join('');
+}
+
+async function toggleDisable(id) {
+    await apiRequest(`/materials/${id}/toggle-disable`, { method: 'POST' });
+    loadMaterials(currentPage);
 }
 
 async function deleteMaterial(id) {

@@ -3,7 +3,7 @@ from utils.sql import escape_like, build_update_sql, build_like_clause
 
 MATERIAL_UPDATE_FIELDS = [
     'name', 'spec', 'unit', 'category_code', 'manufacturer',
-    'storage_condition', 'shelf_life', 'remark', 'is_reusable', 'safety_stock',
+    'storage_condition', 'shelf_life', 'remark', 'is_reusable', 'safety_stock', 'disabled',
 ]
 
 class MaterialService:
@@ -138,7 +138,7 @@ class MaterialService:
 
     @staticmethod
     def get_materials(page=1, per_page=20, category_code=None, keyword=None,
-                      major_category=None, minor_category=None):
+                      major_category=None, minor_category=None, active_only=False):
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
@@ -166,6 +166,9 @@ class MaterialService:
             if keyword:
                 where_clauses.append(build_like_clause(['m.code', 'm.name', 'm.spec', 'm.manufacturer'], keyword, params))
 
+            if active_only:
+                where_clauses.append("COALESCE(m.disabled, 0) = 0")
+
             where_sql = ""
             if where_clauses:
                 where_sql = "WHERE " + " AND ".join(where_clauses)
@@ -178,7 +181,7 @@ class MaterialService:
 
             cursor.execute(
                 f"""
-                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
+                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.disabled, m.created_at, c.name as category_name
                 FROM material m
                 LEFT JOIN material_category c ON m.category_code = c.code
                 {where_sql}
@@ -197,7 +200,7 @@ class MaterialService:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.created_at, c.name as category_name
+                SELECT m.id, m.code, m.name, m.spec, m.unit, m.category_code, m.manufacturer, m.storage_condition, m.shelf_life, m.remark, m.is_reusable, m.safety_stock, m.disabled, m.created_at, c.name as category_name
                 FROM material m
                 LEFT JOIN material_category c ON m.category_code = c.code
                 WHERE m.id = ?

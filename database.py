@@ -66,6 +66,7 @@ def _create_tables(cursor):
             remark TEXT,
             is_reusable INTEGER DEFAULT 0,
             safety_stock DECIMAL(16,2) DEFAULT 0,
+            disabled INTEGER DEFAULT 0,
             created_at DATETIME
         )
     ''')
@@ -447,6 +448,14 @@ def _migrate_product_disabled(cursor):
         cursor.execute("ALTER TABLE product ADD COLUMN disabled INTEGER DEFAULT 0")
 
 
+def _migrate_material_disabled(cursor):
+    """迁移: material 表加 disabled 列"""
+    cursor.execute("PRAGMA table_info(material)")
+    cols = {r[1] for r in cursor.fetchall()}
+    if 'disabled' not in cols:
+        cursor.execute("ALTER TABLE material ADD COLUMN disabled INTEGER DEFAULT 0")
+
+
 def _migrate_return_qty(cursor):
     """迁移: return_order_item 加 quantity 列"""
     cursor.execute("PRAGMA table_info(return_order_item)")
@@ -551,6 +560,7 @@ def init_db():
         _create_indexes(cursor)
         _migrate_iso_dates(cursor)
         _migrate_product_disabled(cursor)
+        _migrate_material_disabled(cursor)
         _migrate_return_qty(cursor)
         _seed_permissions(cursor)
         _seed_roles(cursor)

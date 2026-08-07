@@ -606,7 +606,7 @@ class InventoryService:
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            where_clauses = ["i.quantity > 0"]
+            where_clauses = ["i.quantity > 0", "COALESCE(m.disabled, 0) = 0"]
             params = []
 
             if category_code:

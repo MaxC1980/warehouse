@@ -184,6 +184,25 @@ class OrderService:
             return result
 
     @staticmethod
+    def _validate_materials_active(cursor, items):
+        """校验明细物料存在且未禁用 (禁用物料不能出入库)"""
+        if not items:
+            return
+        material_ids = [it['material_id'] for it in items]
+        placeholders = ','.join('?' * len(material_ids))
+        cursor.execute(
+            f"SELECT id, code, name, disabled FROM material WHERE id IN ({placeholders})",
+            material_ids
+        )
+        mats = {row['id']: row for row in cursor.fetchall()}
+        for it in items:
+            m = mats.get(it['material_id'])
+            if not m:
+                raise ValueError(f'物料不存在: id={it["material_id"]}')
+            if m['disabled']:
+                raise ValueError(f'物料 {m["code"]} {m["name"]} 已禁用，不能出入库')
+
+    @staticmethod
     def create_in_order(supplier_id, operator_id, remark=None, receiver=None, purpose=None, receiver_date=None, items=None):
         """创建入库单, 含 items; 返回完整入库单"""
         with get_db_connection() as conn:
@@ -200,6 +219,8 @@ class OrderService:
                     (order_no, supplier_id, operator_id, remark, receiver, purpose, receiver_date)
                 )
                 order_id = cursor.lastrowid
+
+                OrderService._validate_materials_active(cursor, items)
 
                 if items:
                     for item in items:
@@ -240,6 +261,7 @@ class OrderService:
                     cursor.execute(sql, params)
 
                 if 'items' in data:
+                    OrderService._validate_materials_active(cursor, data['items'])
                     cursor.execute("DELETE FROM in_order_item WHERE order_id = ?", (order_id,))
                     for item in data['items']:
                         batch_no = item['batch_no'] if item.get('batch_no') else f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -459,6 +481,8 @@ class OrderService:
                 )
                 order_id = cursor.lastrowid
 
+                OrderService._validate_materials_active(cursor, items)
+
                 if items:
                     for item in items:
                         actual_qty = item.get('actual_quantity', 0) or 0
@@ -496,6 +520,7 @@ class OrderService:
                     cursor.execute(sql, params)
 
                 if 'items' in data:
+                    OrderService._validate_materials_active(cursor, data['items'])
                     cursor.execute("DELETE FROM out_order_item WHERE order_id = ?", (order_id,))
                     for item in data['items']:
                         actual_qty = item.get('actual_quantity', 0) or 0

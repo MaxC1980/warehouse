@@ -65,6 +65,7 @@ def get_materials():
     keyword = request.args.get('keyword')
     major_category = request.args.get('major_category')
     minor_category = request.args.get('minor_category')
+    active_only = request.args.get('active_only') == 'true'
 
     materials, total = MaterialService.get_materials(
         page=page,
@@ -72,7 +73,8 @@ def get_materials():
         category_code=category_code,
         keyword=keyword,
         major_category=major_category,
-        minor_category=minor_category
+        minor_category=minor_category,
+        active_only=active_only
     )
     return jsonify({
         'items': materials,
@@ -127,3 +129,14 @@ def delete_material(material_id):
     if result[0]:
         return jsonify({'message': result[1]})
     return jsonify({'error': result[1]}), 400
+
+@material_bp.route('/materials/<int:material_id>/toggle-disable', methods=['POST'])
+@require_permission('material', 'edit')
+@handle_service_errors
+def toggle_disable(material_id):
+    material = MaterialService.get_material_by_id(material_id)
+    if not material:
+        return jsonify({'error': '物料不存在'}), 404
+    new_val = 0 if material.get('disabled') else 1
+    MaterialService.update_material(material_id, {'disabled': new_val})
+    return jsonify({'disabled': bool(new_val)})
