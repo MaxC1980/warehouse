@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ '编辑' if customer_id else '新增' }}客户 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ '编辑' if customer_id else '新增' }}客户</h1>
+</div>
+
+<form id="customer-form" onsubmit="handleSubmit(event)">
+    <div class="form-grid">
+        <div class="form-group">
+            <label>客户名称 *</label>
+            <input type="text" name="name" required>
+        </div>
+        <div class="form-group">
+            <label>简称</label>
+            <input type="text" name="short_name">
+        </div>
+        <div class="form-group">
+            <label>联系人</label>
+            <input type="text" name="contact">
+        </div>
+        <div class="form-group">
+            <label>电话</label>
+            <input type="text" name="phone">
+        </div>
+        <div class="form-group">
+            <label>地址</label>
+            <input type="text" name="address">
+        </div>
+        <div class="form-group">
+            <label>备注</label>
+            <input type="text" name="remark">
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="/customers" class="btn btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const customerId = {{ customer_id | default(none) | tojson }};
+
+async function loadCustomer() {
+    if (!customerId) return;
+    const customer = await apiRequest(`/customers/${customerId}`);
+    const form = document.getElementById('customer-form');
+    form.name.value = customer.name;
+    form.short_name.value = customer.short_name || '';
+    form.contact.value = customer.contact || '';
+    form.phone.value = customer.phone || '';
+    form.address.value = customer.address || '';
+    form.remark.value = customer.remark || '';
+}
+
+async function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        name: form.name.value,
+        short_name: form.short_name.value || null,
+        contact: form.contact.value || null,
+        phone: form.phone.value || null,
+        address: form.address.value || null,
+        remark: form.remark.value || null
+    };
+
+    const url = customerId ? `/customers/${customerId}` : '/customers';
+    const method = customerId ? 'PUT' : 'POST';
+
+    await apiRequest(url, { method, body: JSON.stringify(data) });
+    window.location.href = '/customers';
+}
+
+loadCustomer();
+</script>
+{% endblock %}

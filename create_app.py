@@ -28,6 +28,7 @@ def create_app(config_class):
     from routes.excel_import import import_bp
     from routes.return_order import return_order_bp
     from routes.employee import employee_bp
+    from routes.customer import customer_bp
     from routes.admin import admin_bp, admin_page_bp
     from routes.pages import pages_bp
     from routes.product import product_bp
@@ -44,6 +45,7 @@ def create_app(config_class):
     app.register_blueprint(import_bp, url_prefix='/api')
     app.register_blueprint(return_order_bp, url_prefix='/api')
     app.register_blueprint(employee_bp, url_prefix='/api')
+    app.register_blueprint(customer_bp, url_prefix='/api')
     app.register_blueprint(product_bp, url_prefix='/api')
     app.register_blueprint(pages_bp)
 

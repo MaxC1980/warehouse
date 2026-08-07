@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}客户管理 - 仓库管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>客户管理</h1>
+    <div class="page-actions">
+        {% if has_perm('customer', 'edit') %}<a href="/customers/new" class="btn btn-primary" id="add-btn">新增客户</a>{% endif %}
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="search-keyword" placeholder="搜索客户名称、简称、联系人、电话">
+    <select id="per-page" onchange="loadCustomers()">
+        <option value="15">15条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+    <button onclick="loadCustomers()" class="btn btn-secondary">搜索</button>
+</div>
+
+<div class="data-table">
+    <table>
+        <thead>
+            <tr>
+                <th>客户名称</th>
+                <th>简称</th>
+                <th>联系人</th>
+                <th>电话</th>
+                <th>地址</th>
+                <th>备注</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="customers-tbody"></tbody>
+    </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let initialLoad = true; // 标记是否为首次加载
+
+function saveFilterState() {
+    // 首次加载时不保存（避免保存空过滤条件）
+    if (initialLoad) return;
+
+    const state = {
+        keyword: document.getElementById('search-keyword').value,
+        perPage: document.getElementById('per-page').value,
+        currentPage: currentPage
+    };
+    sessionStorage.setItem('customerFilter', JSON.stringify(state));
+}
+
+function restoreFilterState() {
+    const saved = sessionStorage.getItem('customerFilter');
+    if (!saved) {
+        initialLoad = false;
+        return;
+    }
+
+    const state = JSON.parse(saved);
+    document.getElementById('search-keyword').value = state.keyword || '';
+    document.getElementById('per-page').value = state.perPage || '15';
+    currentPage = state.currentPage || 1;
+    loadCustomers(currentPage);
+    initialLoad = false;
+}
+
+async function loadCustomers(page = 1) {
+    currentPage = page;
+    const keyword = document.getElementById('search-keyword').value;
+    const perPage = document.getElementById('per-page').value;
+
+    saveFilterState();
+
+    const params = new URLSearchParams({ page, per_page: perPage });
+    if (keyword) params.append('keyword', keyword);
+
+    const data = await apiRequest(`/customers?${params}`);
+    renderCustomers(data.items);
+    renderPagination('pagination', data.total, data.page, perPage, loadCustomers);
+}
+
+function renderCustomers(customers) {
+    const tbody = document.getElementById('customers-tbody');
+    if (customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = customers.map(c => `
+        <tr>
+            <td>${escapeHtml(c.name)}</td>
+            <td>${escapeHtml(c.short_name)}</td>
+            <td>${escapeHtml(c.contact)}</td>
+            <td>${escapeHtml(c.phone)}</td>
+            <td>${escapeHtml(c.address)}</td>
+            <td>${escapeHtml(c.remark)}</td>
+            <td>
+                ${hasPerm('customer', 'edit') ? `<a href="/customers/${escapeHtml(c.id)}/edit" class="btn btn-sm">编辑</a>` : ''}
+                ${hasPerm('customer', 'edit') ? `<button onclick="deleteCustomer(${escapeHtml(c.id)})" class="btn btn-sm btn-danger">删除</button>` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function deleteCustomer(id) {
+    if (!hasPerm('customer', 'edit')) {
+        alert('无删除权限');
+        return;
+    }
+    if (!confirm('确定要删除该客户吗？')) return;
+    await apiRequest(`/customers/${id}`, { method: 'DELETE' });
+    loadCustomers(currentPage);
+}
+
+loadCustomers().then(() => {
+    restoreFilterState();
+});
+</script>
+{% endblock %}

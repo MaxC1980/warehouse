@@ -82,6 +82,20 @@ def _create_tables(cursor):
         )
     ''')
 
+    # Customer (客户)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS customer (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            short_name TEXT,
+            contact TEXT,
+            phone TEXT,
+            address TEXT,
+            remark TEXT,
+            created_at DATETIME
+        )
+    ''')
+
     # In order (入库单主表)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS in_order (
@@ -381,8 +395,8 @@ def _migrate_iso_dates(cursor):
 
 
 def _seed_permissions(cursor):
-    """种子: 31条权限 + 清理废弃"""
-    # Seed permissions (31 records)
+    """种子: 33条权限 + 清理废弃"""
+    # Seed permissions (33 records)
     permissions = [
         ('dashboard', 'view', '首页-查看'),
         ('category_major', 'view', '大类管理-查看'), ('category_major', 'edit', '大类管理-编辑'),
@@ -390,6 +404,7 @@ def _seed_permissions(cursor):
         ('material', 'view', '物料管理-查看'), ('material', 'edit', '物料管理-编辑'),
         ('supplier', 'view', '供应商-查看'), ('supplier', 'edit', '供应商-编辑'),
         ('employee', 'view', '员工管理-查看'), ('employee', 'edit', '员工管理-编辑'),
+        ('customer', 'view', '客户管理-查看'), ('customer', 'edit', '客户管理-编辑'),
         ('in_order', 'view', '入库单-查看'), ('in_order', 'edit', '入库单-编辑'), ('in_order', 'approve', '入库单-审核'),
         ('out_order', 'view', '出库单-查看'), ('out_order', 'edit', '出库单-编辑'), ('out_order', 'approve', '出库单-审核'),
         ('return_order', 'view', '退库单-查看'), ('return_order', 'edit', '退库单-编辑'), ('return_order', 'approve', '退库单-审核'),
@@ -488,7 +503,7 @@ def _assign_role_permissions(cursor):
 
 def _create_triggers(cursor):
     """建触发器: created_at / updated_at"""
-    for t in ('user', 'material', 'supplier', 'in_order', 'out_order', 'return_order', 'product'):
+    for t in ('user', 'material', 'supplier', 'in_order', 'out_order', 'return_order', 'product', 'customer'):
         cursor.execute(f'''
             CREATE TRIGGER IF NOT EXISTS {t}_created_at AFTER INSERT ON {t}
             WHEN NEW.created_at IS NULL

@@ -23,6 +23,7 @@
                     {% if has_perm('category_minor', 'view') %}<a href="/category-minor">小类管理</a>{% endif %}
                     {% if has_perm('material', 'view') %}<a href="/materials">物料管理</a>{% endif %}
                     {% if has_perm('supplier', 'view') %}<a href="/suppliers">供应商</a>{% endif %}
+                    {% if has_perm('customer', 'view') %}<a href="/customers">客户管理</a>{% endif %}
                     {% if has_perm('employee', 'view') %}<a href="/employees">员工管理</a>{% endif %}
                 </div>
             </div>

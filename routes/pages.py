@@ -168,6 +168,23 @@ def employee_edit(employee_id):
     return render_template('employee_form.html', employee_id=employee_id)
 
 
+# 客户
+@pages_bp.route('/customers')
+@login_required
+def customers():
+    return render_template('customer_list.html')
+
+@pages_bp.route('/customers/new')
+@login_required
+def customer_new():
+    return render_template('customer_form.html')
+
+@pages_bp.route('/customers/<int:customer_id>/edit')
+@login_required
+def customer_edit(customer_id):
+    return render_template('customer_form.html', customer_id=customer_id)
+
+
 # 报表
 @pages_bp.route('/reports/inventory')
 @login_required
