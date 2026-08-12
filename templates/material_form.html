@@ -37,7 +37,19 @@
         </div>
         <div class="form-group">
             <label>单位 *</label>
-            <input type="text" name="unit" value="个" required>
+            <input type="text" name="unit" value="PCS" list="unit-list" required>
+            <datalist id="unit-list">
+                <option value="PCS"></option>
+                <option value="m"></option>
+                <option value="g"></option>
+                <option value="支"></option>
+                <option value="套"></option>
+                <option value="瓶"></option>
+                <option value="条"></option>
+                <option value="卷"></option>
+                <option value="张"></option>
+                <option value="个"></option>
+            </datalist>
         </div>
         <div class="form-group">
             <label>品牌</label>
