@@ -11,7 +11,8 @@
     <div class="form-grid">
         <div class="form-group">
             <label>供应商 *</label>
-            <select name="supplier_id" id="supplier-select" required>
+            <input type="text" id="supplier-search" placeholder="搜索供应商名称 / 联系人 / 电话" oninput="filterSuppliers()" autocomplete="off">
+            <select name="supplier_id" id="supplier-select" required onchange="clearSupplierSearch()">
                 <option value="">请选择</option>
             </select>
         </div>
@@ -136,12 +137,41 @@ let isModified = false;
 function markModified() { isModified = true; }
 function onlyInteger(e) { return (e.key>='0' && e.key<='9') || ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key); }
 
+let allSuppliers = [];
+
 async function loadSuppliers() {
     const data = await apiRequest('/suppliers?per_page=1000');
+    allSuppliers = data.items;
+    allSuppliers.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh'));
+    renderSuppliers('');
+}
+
+function renderSuppliers(keyword) {
+    const kw = keyword.trim().toLowerCase();
     const select = document.getElementById('supplier-select');
-    data.items.forEach(s => {
+    const current = select.value;
+    select.innerHTML = '<option value="">请选择</option>';
+    allSuppliers.forEach(s => {
+        if (kw && !String(s.name).toLowerCase().includes(kw) &&
+            !String(s.contact || '').toLowerCase().includes(kw) &&
+            !String(s.phone || '').toLowerCase().includes(kw)) {
+            return;
+        }
         select.innerHTML += '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
     });
+    // 保留已选中项，避免编辑时选中项被过滤掉
+    if (current && Array.from(select.options).every(o => o.value !== current)) {
+        const s = allSuppliers.find(x => String(x.id) === current);
+        if (s) select.innerHTML += '<option value="' + escapeHtml(s.id) + '" selected>' + escapeHtml(s.name) + '</option>';
+    }
+}
+
+function filterSuppliers() {
+    renderSuppliers(document.getElementById('supplier-search').value);
+}
+
+function clearSupplierSearch() {
+    document.getElementById('supplier-search').value = '';
 }
 
 async function loadOrder() {
