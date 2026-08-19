@@ -4,13 +4,13 @@ Flask + SQLite 实现的仓库管理后台，支持入库、出库、退库、�
 
 ## 快速开始
 
-**默认账号：** `admin` / `K~EUJA.V2}&;i3N`
+**默认账号：** `admin` / `admin12345`
 
 ```bash
-# 开发环境（端口 5001）  
-python run.py  
-  
-# 生产环境（端口 5000，waitress）  
+# 开发环境（端口 5001）    
+python run.py    
+    
+# 生产环境（端口 5000，waitress）    
 python app.py
 ```
 
