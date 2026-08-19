@@ -11,10 +11,13 @@
     <div class="form-grid">
         <div class="form-group">
             <label>供应商 *</label>
-            <input type="text" id="supplier-search" placeholder="搜索供应商名称 / 联系人 / 电话" oninput="filterSuppliers()" autocomplete="off">
-            <select name="supplier_id" id="supplier-select" required onchange="clearSupplierSearch()">
-                <option value="">请选择</option>
-            </select>
+            <div class="combobox" id="supplier-combobox">
+                <input type="text" id="supplier-search" placeholder="输入供应商名称/联系人/电话搜索" oninput="filterSuppliers()" onfocus="filterSuppliers()" autocomplete="off">
+                <select name="supplier_id" id="supplier-select" style="display:none;">
+                    <option value="">请选择</option>
+                </select>
+                <ul id="supplier-list" class="combobox-list" style="display:none;"></ul>
+            </div>
         </div>
         <div class="form-group">
             <label>经手人 *</label>
@@ -148,31 +151,55 @@ async function loadSuppliers() {
 
 function renderSuppliers(keyword) {
     const kw = keyword.trim().toLowerCase();
-    const select = document.getElementById('supplier-select');
-    const current = select.value;
-    select.innerHTML = '<option value="">请选择</option>';
-    allSuppliers.forEach(s => {
-        if (kw && !String(s.name).toLowerCase().includes(kw) &&
-            !String(s.contact || '').toLowerCase().includes(kw) &&
-            !String(s.phone || '').toLowerCase().includes(kw)) {
-            return;
-        }
-        select.innerHTML += '<option value="' + escapeHtml(s.id) + '">' + escapeHtml(s.name) + '</option>';
-    });
-    // 保留已选中项，避免编辑时选中项被过滤掉
-    if (current && Array.from(select.options).every(o => o.value !== current)) {
-        const s = allSuppliers.find(x => String(x.id) === current);
-        if (s) select.innerHTML += '<option value="' + escapeHtml(s.id) + '" selected>' + escapeHtml(s.name) + '</option>';
+    const list = document.getElementById('supplier-list');
+    const filtered = allSuppliers.filter(s =>
+        !kw ||
+        String(s.name).toLowerCase().includes(kw) ||
+        String(s.contact || '').toLowerCase().includes(kw) ||
+        String(s.phone || '').toLowerCase().includes(kw)
+    );
+    if (filtered.length === 0) {
+        list.innerHTML = '<li class="combobox-empty">无匹配供应商</li>';
+    } else {
+        list.innerHTML = filtered.map(s => {
+            const extra = [s.contact, s.phone].filter(Boolean).join(' / ');
+            return '<li data-id="' + escapeHtml(s.id) + '" onclick="selectSupplier(this)">' +
+                '<span>' + escapeHtml(s.name) + '</span>' +
+                (extra ? '<span class="combobox-sub">' + escapeHtml(extra) + '</span>' : '') +
+                '</li>';
+        }).join('');
     }
+    list.style.display = 'block';
 }
 
 function filterSuppliers() {
     renderSuppliers(document.getElementById('supplier-search').value);
 }
 
-function clearSupplierSearch() {
-    document.getElementById('supplier-search').value = '';
+function selectSupplier(li) {
+    const s = allSuppliers.find(x => String(x.id) === String(li.dataset.id));
+    if (!s) return;
+    document.getElementById('supplier-search').value = s.name;
+    const select = document.getElementById('supplier-select');
+    let opt = Array.from(select.options).find(o => o.value === String(s.id));
+    if (!opt) {
+        opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        select.appendChild(opt);
+    }
+    opt.selected = true;
+    document.getElementById('supplier-list').style.display = 'none';
 }
+
+// 点击外部时关闭下拉
+document.addEventListener('click', function(e) {
+    const box = document.getElementById('supplier-combobox');
+    const list = document.getElementById('supplier-list');
+    if (box && list && !box.contains(e.target)) {
+        list.style.display = 'none';
+    }
+});
 
 async function loadOrder() {
     if (!orderId) return;
@@ -184,6 +211,10 @@ async function loadOrder() {
     document.getElementById('page-title').textContent = '编辑入库单 - ' + order.order_no;
     const form = document.getElementById('order-form');
     form.supplier_id.value = order.supplier_id || '';
+    if (order.supplier_id) {
+        const s = allSuppliers.find(x => String(x.id) === String(order.supplier_id));
+        document.getElementById('supplier-search').value = s ? s.name : '';
+    }
     form.receiver.value = order.receiver || '';
     form.purpose.value = order.purpose || '';
     form.remark.value = order.remark || '';
@@ -352,6 +383,11 @@ function copyRow(btn) {
 async function handleSubmit(e) {
     e.preventDefault();
     const form = e.target;
+    if (!document.getElementById('supplier-select').value) {
+        alert('请选择供应商');
+        document.getElementById('supplier-search').focus();
+        return;
+    }
     const items = [];
     const seenKeys = new Set();
     const rows = document.querySelectorAll('#items-tbody tr');
@@ -605,5 +641,19 @@ function confirmMaterialSelection() {
 .modal-footer { text-align: right; margin-top: 10px; }
 #modal-material-table td, #modal-material-table th { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
 #modal-material-table tbody tr:hover { background-color: #f5f5f5; }
+.combobox { position: relative; }
+.combobox-list {
+    position: absolute; top: 100%; left: 0; right: 0;
+    margin: 4px 0 0; padding: 4px 0;
+    background: #fff; border: 1px solid #d9d9d9; border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    max-height: 240px; overflow: auto; list-style: none;
+    z-index: 1000;
+}
+.combobox-list li { padding: 6px 12px; cursor: pointer; font-size: 14px; }
+.combobox-list li:hover { background: #f5f5f5; }
+.combobox-list .combobox-sub { color: #999; margin-left: 8px; font-size: 12px; }
+.combobox-list .combobox-empty { color: #999; cursor: default; }
+.combobox-list .combobox-empty:hover { background: #fff; }
 </style>
 {% endblock %}
