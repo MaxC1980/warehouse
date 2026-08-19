@@ -25,7 +25,8 @@
         </div>
         <div class="form-group">
             <label>用途 *</label>
-            <input type="text" name="purpose" id="purpose" required>
+            <input type="text" name="purpose" id="purpose" list="purpose-list" required>
+            <datalist id="purpose-list"></datalist>
         </div>
         <div class="form-group">
             <label>备注</label>
@@ -497,6 +498,16 @@ async function loadEmployees() {
     });
 }
 
+// 用途可编辑下拉: 数据源 = 状态正常产品的 名称+规格
+async function loadPurposeOptions() {
+    const data = await apiRequest('/products/active');
+    const list = document.getElementById('purpose-list');
+    list.innerHTML = (data.items || []).map(p => {
+        const label = [p.name, p.spec].filter(Boolean).join(' ');
+        return '<option value="' + escapeHtml(label) + '"></option>';
+    }).join('');
+}
+
 function onReceiverChange() {
     const selectedName = document.getElementById('receiver-select').value;
     const emp = employeesData.find(e => e.name === selectedName);
@@ -512,6 +523,7 @@ let currentUsername = '';
     currentUsername = user.username || '';
 
     await loadEmployees();
+    await loadPurposeOptions();
     if (!orderId) {
         const pad = n => n < 10 ? '0' + n : n;
         const d = new Date();
