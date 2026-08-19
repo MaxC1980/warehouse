@@ -231,7 +231,7 @@ function addItemRow(data) {
             : (escapeHtml(data.shipment_info) || '-');
     } else {
         // 普通物料：毛重和实发信息显示"-"
-        col7 = `<input type="number" class="requested-quantity" step="0.01" value="${escapeHtml(data.requested_quantity)}" ${disabledAttr} style="width:80px;">`;
+        col7 = `<input type="number" class="requested-quantity" step="0.01" value="${escapeHtml(data.requested_quantity)}" ${disabledAttr} oninput="syncActual(this)" style="width:80px;">`;
         col8 = `<input type="number" class="actual-quantity" step="0.01" value="${escapeHtml(data.actual_quantity)}" ${disabledAttr} style="width:80px;">`;
         col9 = '<span style="color:#999;">-</span><input type="hidden" class="initial-weight" value="">';
         col10 = '<span style="color:#999;">-</span><input type="hidden" class="shipment-info" value="">';
@@ -256,6 +256,14 @@ function addItemRow(data) {
 function removeRow(btn) {
     const tr = btn.closest('tr');
     tr.remove();
+}
+
+// 申请用量变化时，实际用量自动跟随
+function syncActual(input) {
+    const actualInput = input.closest('tr').querySelector('.actual-quantity');
+    if (actualInput && !actualInput.readOnly) {
+        actualInput.value = input.value;
+    }
 }
 
 // ---- 库存选择弹窗 ----

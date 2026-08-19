@@ -414,7 +414,7 @@ class TestReturnOrder(TestBase):
         self.assertEqual(inv['quantity'], 90)
 
     def test_approve_out_order_insufficient_inventory(self):
-        """出库审核时库存不足应报错"""
+        """出库保存时实际用量超库存应拦截; 并发多单时审核兜底拦截"""
         from services.order_service import OrderService
         from services.material_service import MaterialService
         from services.supplier_service import SupplierService
@@ -436,8 +436,24 @@ class TestReturnOrder(TestBase):
         )
         OrderService.approve_in_order(in_order['id'], approved_by=1)
 
-        # 创建出库单，要出100个（库存只有50）
-        out_order = OrderService.create_out_order(
+        # 保存时实际用量100 > 库存50 → 立即拦截
+        with self.assertRaises(ValueError) as context:
+            OrderService.create_out_order(
+                department='部门C',
+                receiver='王五',
+                receiver_date='2026-04-14',
+                operator_id=1,
+                items=[{
+                    'material_id': material['id'],
+                    'batch_no': 'BATCH-C001',
+                    'actual_quantity': 100,  # 超过库存
+                    'requested_quantity': 100
+                }]
+            )
+        self.assertIn('超过库存', str(context.exception))
+
+        # 并发多单: 两张单保存时库存都够, 审核第一张扣库存后, 第二张审核兜底拦截
+        order_a = OrderService.create_out_order(
             department='部门C',
             receiver='王五',
             receiver_date='2026-04-14',
@@ -445,14 +461,27 @@ class TestReturnOrder(TestBase):
             items=[{
                 'material_id': material['id'],
                 'batch_no': 'BATCH-C001',
-                'actual_quantity': 100,  # 超过库存
-                'requested_quantity': 100
+                'actual_quantity': 30,
+                'requested_quantity': 30
             }]
         )
+        order_b = OrderService.create_out_order(
+            department='部门C',
+            receiver='王五',
+            receiver_date='2026-04-14',
+            operator_id=1,
+            items=[{
+                'material_id': material['id'],
+                'batch_no': 'BATCH-C001',
+                'actual_quantity': 30,
+                'requested_quantity': 30
+            }]
+        )
+        OrderService.approve_out_order(order_a['id'], approved_by=1)
 
-        # 审核应失败并抛出异常
+        # 第二张审核时应失败并抛出异常
         with self.assertRaises(Exception) as context:
-            OrderService.approve_out_order(out_order['id'], approved_by=1)
+            OrderService.approve_out_order(order_b['id'], approved_by=1)
         self.assertIn('库存不足', str(context.exception))
 
     def test_approve_return_order_duplicate_prevention(self):

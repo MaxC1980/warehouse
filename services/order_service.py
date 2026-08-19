@@ -203,6 +203,28 @@ class OrderService:
                 raise ValueError(f'物料 {m["code"]} {m["name"]} 已禁用，不能出入库')
 
     @staticmethod
+    def _validate_out_stock(cursor, items):
+        """校验出库实际用量不超过可用库存 (口径与审核扣减一致)"""
+        if not items:
+            return
+        for item in items:
+            qty = item.get('actual_quantity', 0) or 0
+            if round(float(qty), 2) <= 0:
+                continue
+            cursor.execute(
+                """SELECT quantity FROM inventory
+                   WHERE material_id = ? AND batch_no = ?""",
+                (item['material_id'], item.get('batch_no'))
+            )
+            row = cursor.fetchone()
+            stock = row['quantity'] if row else 0
+            if round(float(stock), 2) < round(float(qty), 2):
+                cursor.execute("SELECT code, name FROM material WHERE id = ?", (item['material_id'],))
+                m = cursor.fetchone()
+                label = f"{m['code']} {m['name']}" if m else f"物料ID {item['material_id']}"
+                raise ValueError(f'{label} 实际用量 {qty} 超过库存 {stock}')
+
+    @staticmethod
     def create_in_order(supplier_id, operator_id, remark=None, receiver=None, purpose=None, receiver_date=None, items=None):
         """创建入库单, 含 items; 返回完整入库单"""
         with get_db_connection() as conn:
@@ -482,6 +504,7 @@ class OrderService:
                 order_id = cursor.lastrowid
 
                 OrderService._validate_materials_active(cursor, items)
+                OrderService._validate_out_stock(cursor, items)
 
                 if items:
                     for item in items:
@@ -521,6 +544,7 @@ class OrderService:
 
                 if 'items' in data:
                     OrderService._validate_materials_active(cursor, data['items'])
+                    OrderService._validate_out_stock(cursor, data['items'])
                     cursor.execute("DELETE FROM out_order_item WHERE order_id = ?", (order_id,))
                     for item in data['items']:
                         actual_qty = item.get('actual_quantity', 0) or 0
