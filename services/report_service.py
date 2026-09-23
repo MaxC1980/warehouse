@@ -434,3 +434,57 @@ class ReportService:
                 report_data.append(item)
 
         return report_data, total
+
+    @staticmethod
+    def get_stock_flow_detail(material_id=None, date_from=None, date_to=None):
+        """某物料在日期区间内的出入退库流水明细。
+
+        条件与 get_stock_flow_report 的区间口径一致:
+        入库/出库/退库均为 status = approved (出库含历史 completed)。
+        """
+        if not material_id:
+            raise ValueError('material_id 不能为空')
+        if not date_from or not date_to:
+            raise ValueError('date_from 和 date_to 不能为空')
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT o.receiver_date as date, '入库' as type, o.order_no as order_no,
+                       COALESCE(o.receiver, '') as person, i.batch_no as batch_no,
+                       i.quantity as quantity
+                FROM in_order_item i
+                JOIN in_order o ON i.order_id = o.id
+                WHERE o.status = 'approved' AND o.receiver_date >= ? AND o.receiver_date <= ?
+                  AND i.material_id = ?
+                UNION ALL
+                SELECT o.receiver_date, '出库', o.order_no,
+                       COALESCE(o.receiver, ''), i.batch_no,
+                       COALESCE(i.actual_quantity, 0)
+                FROM out_order_item i
+                JOIN out_order o ON i.order_id = o.id
+                WHERE o.status IN ('approved', 'completed') AND o.receiver_date >= ? AND o.receiver_date <= ?
+                  AND i.material_id = ?
+                UNION ALL
+                SELECT r.receiver_date, '退库', r.order_no,
+                       COALESCE(r.receiver, ''), i.batch_no,
+                       COALESCE(i.quantity, 0)
+                FROM return_order_item i
+                JOIN return_order r ON i.return_order_id = r.id
+                WHERE r.status = 'approved' AND r.receiver_date >= ? AND r.receiver_date <= ?
+                  AND i.material_id = ?
+                ORDER BY date DESC, order_no
+                """,
+                [date_from, date_to, material_id] * 3
+            )
+            rows = cursor.fetchall()
+
+        return [{
+            'date': row['date'],
+            'type': row['type'],
+            'order_no': row['order_no'],
+            'person': row['person'],
+            'batch_no': row['batch_no'],
+            'quantity': round(row['quantity'] or 0, 2),
+        } for row in rows]

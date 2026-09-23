@@ -238,6 +238,21 @@ def get_stock_flow_report():
         'per_page': per_page
     })
 
+@report_bp.route('/reports/stock-flow/detail', methods=['GET'])
+@require_permission('report_stock_flow', 'view')
+@handle_service_errors
+def get_stock_flow_detail():
+    material_id = request.args.get('material_id', type=int)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    items = ReportService.get_stock_flow_detail(
+        material_id=material_id,
+        date_from=date_from,
+        date_to=date_to
+    )
+    return jsonify({'items': items})
+
 @report_bp.route('/reports/stock-flow/export', methods=['GET'])
 @require_permission('report_stock_flow', 'view')
 @handle_service_errors

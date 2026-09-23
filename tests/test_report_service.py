@@ -113,6 +113,24 @@ class TestReportService(unittest.TestCase):
         )
         self.assertIsInstance(items, list)
 
+    # --- get_stock_flow_detail ---
+
+    def test_stock_flow_detail_empty(self):
+        items = ReportService.get_stock_flow_detail(
+            material_id=1, date_from='2026-01-01', date_to='2026-12-31',
+        )
+        self.assertEqual(items, [])
+
+    def test_stock_flow_detail_requires_material_id(self):
+        with self.assertRaises(ValueError):
+            ReportService.get_stock_flow_detail(
+                material_id=None, date_from='2026-01-01', date_to='2026-12-31',
+            )
+
+    def test_stock_flow_detail_requires_dates(self):
+        with self.assertRaises(ValueError):
+            ReportService.get_stock_flow_detail(material_id=1)
+
 
 if __name__ == '__main__':
     unittest.main()

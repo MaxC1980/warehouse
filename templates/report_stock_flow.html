@@ -59,12 +59,37 @@
 </div>
 
 <div class="pagination" id="pagination"></div>
+
+<div id="flow-detail-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3 id="flow-detail-title">出入退库明细</h3>
+        <div class="data-table" style="max-height:60vh; overflow-y:auto; margin-top:12px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>类型</th>
+                        <th>单据号</th>
+                        <th>经手人/领用人/退库人</th>
+                        <th>批次号</th>
+                        <th>数量</th>
+                    </tr>
+                </thead>
+                <tbody id="flow-detail-tbody"></tbody>
+            </table>
+        </div>
+        <div class="form-actions" style="margin-top:16px;">
+            <button onclick="closeFlowDetail()" class="btn btn-secondary">关闭</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let currentPage = 1;
 let categoriesData = [];
+let currentItems = [];
 
 async function loadCategories() {
     const data = await apiRequest('/categories?per_page=200');
@@ -132,13 +157,14 @@ async function loadReport(page = 1) {
 
 function renderReport(items) {
     const tbody = document.getElementById('report-tbody');
+    currentItems = items;
     if (items.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = items.map(item => `
         <tr class="${item.closing_qty < 0 ? 'warning-row' : ''}">
-            <td>${escapeHtml(item.material_code)}</td>
+            <td><a href="javascript:void(0)" style="color:#1890ff;" onclick="showFlowDetail(${Number(item.id)})">${escapeHtml(item.material_code)}</a></td>
             <td>${escapeHtml(item.material_name)}</td>
             <td>${escapeHtml(item.manufacturer)}</td>
             <td>${escapeHtml(item.spec)}</td>
@@ -152,6 +178,43 @@ function renderReport(items) {
     `).join('');
 }
 
+
+async function showFlowDetail(materialId) {
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    if (!dateFrom || !dateTo) {
+        alert('请选择日期范围');
+        return;
+    }
+
+    const material = currentItems.find(i => i.id === materialId);
+    document.getElementById('flow-detail-title').textContent =
+        `出入退库明细 - ${material ? material.material_code + ' ' + material.material_name : ''}`;
+
+    const params = new URLSearchParams({ material_id: materialId, date_from: dateFrom, date_to: dateTo });
+    const data = await apiRequest(`/reports/stock-flow/detail?${params}`);
+
+    const rows = data.items || [];
+    const tbody = document.getElementById('flow-detail-tbody');
+    tbody.innerHTML = rows.length === 0
+        ? '<tr><td colspan="6">暂无数据</td></tr>'
+        : rows.map(r => `
+            <tr>
+                <td>${escapeHtml(r.date || '')}</td>
+                <td>${escapeHtml(r.type || '')}</td>
+                <td>${escapeHtml(r.order_no || '')}</td>
+                <td>${escapeHtml(r.person || '')}</td>
+                <td>${escapeHtml(r.batch_no || '')}</td>
+                <td>${Number(r.quantity).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+    document.getElementById('flow-detail-modal').style.display = 'flex';
+}
+
+function closeFlowDetail() {
+    document.getElementById('flow-detail-modal').style.display = 'none';
+}
 
 function exportExcel() {
     const dateFrom = document.getElementById('date-from').value;
