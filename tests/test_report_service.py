@@ -131,13 +131,84 @@ class TestReportService(unittest.TestCase):
         with self.assertRaises(ValueError):
             ReportService.get_stock_flow_detail(material_id=1)
 
-    def test_stock_flow_detail_returns_current_stock(self):
-        """明细行携带批次实时库存字段"""
-        items = ReportService.get_stock_flow_detail(
-            material_id=1, date_from='2020-01-01', date_to='2030-12-31',
-        )
-        for item in items:
-            self.assertIn('current_stock', item)
+    def test_stock_flow_detail_running_balance(self):
+        """实时库存 = 该物料操作当时的库存, 跨批次累计。
+
+        同一入库单内 B1 入库 100 + B2 入库 50 (合并为一行 150)
+        → 出库 30 → 退库 5, 每行实时库存依次 150 / 120 / 125。
+        """
+        from database import get_db_connection
+        import time
+        suffix = str(int(time.time() * 1000) % 1000000)
+
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute(
+                "INSERT INTO material (code, name, unit) VALUES (?, ?, ?)",
+                (f'FLOW{suffix}', 'flow test', 'kg')
+            )
+            mid = c.lastrowid
+
+            c.execute(
+                "INSERT INTO in_order (order_no, status, receiver, receiver_date, created_at)"
+                " VALUES (?, 'approved', '张三', '2099-03-01', '2099-03-01 09:00:00')",
+                (f'RK-T{suffix}',)
+            )
+            in_order_id = c.lastrowid
+            c.execute(
+                "INSERT INTO in_order_item (order_id, material_id, batch_no, quantity)"
+                " VALUES (?, ?, 'B1', 100)", (in_order_id, mid)
+            )
+            c.execute(
+                "INSERT INTO in_order_item (order_id, material_id, batch_no, quantity)"
+                " VALUES (?, ?, 'B2', 50)", (in_order_id, mid)
+            )
+
+            c.execute(
+                "INSERT INTO out_order (order_no, status, receiver, receiver_date, created_at)"
+                " VALUES (?, 'approved', '李四', '2099-03-02', '2099-03-02 09:00:00')",
+                (f'CK-T{suffix}',)
+            )
+            out_order_id = c.lastrowid
+            c.execute(
+                "INSERT INTO out_order_item (order_id, material_id, batch_no, actual_quantity)"
+                " VALUES (?, ?, 'B1', 30)", (out_order_id, mid)
+            )
+            out_item_id = c.lastrowid
+
+            c.execute(
+                "INSERT INTO return_order (order_no, status, receiver, receiver_date, created_at)"
+                " VALUES (?, 'approved', '王五', '2099-03-03', '2099-03-03 09:00:00')",
+                (f'TK-T{suffix}',)
+            )
+            return_order_id = c.lastrowid
+            c.execute(
+                "INSERT INTO return_order_item"
+                " (return_order_id, out_order_item_id, material_id, batch_no, quantity)"
+                " VALUES (?, ?, ?, 'B1', 5)", (return_order_id, out_item_id, mid)
+            )
+            conn.commit()
+
+        try:
+            items = ReportService.get_stock_flow_detail(
+                material_id=mid, date_from='2099-03-01', date_to='2099-03-31',
+            )
+
+            self.assertEqual([i['type'] for i in items], ['退库', '出库', '入库'])
+            self.assertEqual([i['quantity'] for i in items], [5, 30, 150])
+            self.assertEqual([i['current_stock'] for i in items], [125, 120, 150])
+            self.assertNotIn('batch_no', items[0])
+        finally:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                c.execute("DELETE FROM return_order_item WHERE return_order_id = ?", (return_order_id,))
+                c.execute("DELETE FROM return_order WHERE id = ?", (return_order_id,))
+                c.execute("DELETE FROM out_order_item WHERE id = ?", (out_item_id,))
+                c.execute("DELETE FROM out_order WHERE id = ?", (out_order_id,))
+                c.execute("DELETE FROM in_order_item WHERE material_id = ?", (mid,))
+                c.execute("DELETE FROM in_order WHERE order_no LIKE ?", (f'%-T{suffix}',))
+                c.execute("DELETE FROM material WHERE id = ?", (mid,))
+                conn.commit()
 
 
 if __name__ == '__main__':

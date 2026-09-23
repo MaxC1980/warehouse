@@ -71,7 +71,6 @@
                         <th>类型</th>
                         <th>单据号</th>
                         <th>经手人/领用人/退库人</th>
-                        <th>批次号</th>
                         <th>数量</th>
                         <th>实时库存</th>
                     </tr>
@@ -198,14 +197,13 @@ async function showFlowDetail(materialId) {
     const rows = data.items || [];
     const tbody = document.getElementById('flow-detail-tbody');
     tbody.innerHTML = rows.length === 0
-        ? '<tr><td colspan="7">暂无数据</td></tr>'
+        ? '<tr><td colspan="6">暂无数据</td></tr>'
         : rows.map(r => `
             <tr>
                 <td>${escapeHtml(r.date || '')}</td>
                 <td>${escapeHtml(r.type || '')}</td>
                 <td>${escapeHtml(r.order_no || '')}</td>
                 <td>${escapeHtml(r.person || '')}</td>
-                <td>${escapeHtml(r.batch_no || '')}</td>
                 <td>${Number(r.quantity).toFixed(2)}</td>
                 <td>${Number(r.current_stock).toFixed(2)}</td>
             </tr>

@@ -441,6 +441,10 @@ class ReportService:
 
         条件与 get_stock_flow_report 的区间口径一致:
         入库/出库/退库均为 status = approved (出库含历史 completed)。
+
+        一行 = 一张单据 (同一单据内多批次合并), 不展示批次号。
+        `current_stock` 是该物料**操作当时**的库存 (含本行, 跨批次累计该物料全部出入退:
+        入库 +、出库 -、退库 +), 不是此刻的库存。累计时不过滤日期, 只过滤展示行。
         """
         if not material_id:
             raise ValueError('material_id 不能为空')
@@ -451,38 +455,48 @@ class ReportService:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT o.receiver_date as date, '入库' as type, o.order_no as order_no,
-                       COALESCE(o.receiver, '') as person, i.batch_no as batch_no,
-                       i.quantity as quantity,
-                       COALESCE(inv.quantity, 0) as current_stock
-                FROM in_order_item i
-                JOIN in_order o ON i.order_id = o.id
-                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
-                WHERE o.status = 'approved' AND o.receiver_date >= ? AND o.receiver_date <= ?
-                  AND i.material_id = ?
-                UNION ALL
-                SELECT o.receiver_date, '出库', o.order_no,
-                       COALESCE(o.receiver, ''), i.batch_no,
-                       COALESCE(i.actual_quantity, 0),
-                       COALESCE(inv.quantity, 0)
-                FROM out_order_item i
-                JOIN out_order o ON i.order_id = o.id
-                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
-                WHERE o.status IN ('approved', 'completed') AND o.receiver_date >= ? AND o.receiver_date <= ?
-                  AND i.material_id = ?
-                UNION ALL
-                SELECT r.receiver_date, '退库', r.order_no,
-                       COALESCE(r.receiver, ''), i.batch_no,
-                       COALESCE(i.quantity, 0),
-                       COALESCE(inv.quantity, 0)
-                FROM return_order_item i
-                JOIN return_order r ON i.return_order_id = r.id
-                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
-                WHERE r.status = 'approved' AND r.receiver_date >= ? AND r.receiver_date <= ?
-                  AND i.material_id = ?
-                ORDER BY date DESC, order_no
+                WITH tx AS (
+                    SELECT o.receiver_date AS date, COALESCE(o.created_at, '') AS ts,
+                           '入库' AS type, o.order_no AS order_no,
+                           COALESCE(o.receiver, '') AS person,
+                           i.quantity AS quantity, i.quantity AS delta
+                    FROM in_order_item i
+                    JOIN in_order o ON i.order_id = o.id
+                    WHERE o.status = 'approved' AND i.material_id = ?
+                    UNION ALL
+                    SELECT o.receiver_date, COALESCE(o.created_at, ''), '出库', o.order_no,
+                           COALESCE(o.receiver, ''),
+                           COALESCE(i.actual_quantity, 0), -COALESCE(i.actual_quantity, 0)
+                    FROM out_order_item i
+                    JOIN out_order o ON i.order_id = o.id
+                    WHERE o.status IN ('approved', 'completed') AND i.material_id = ?
+                    UNION ALL
+                    SELECT r.receiver_date, COALESCE(r.created_at, ''), '退库', r.order_no,
+                           COALESCE(r.receiver, ''),
+                           COALESCE(i.quantity, 0), COALESCE(i.quantity, 0)
+                    FROM return_order_item i
+                    JOIN return_order r ON i.return_order_id = r.id
+                    WHERE r.status = 'approved' AND i.material_id = ?
+                )
+                SELECT date, type, order_no, person, quantity, stock_at_time
+                FROM (
+                    SELECT date, type, order_no, person, quantity, ts,
+                           SUM(delta) OVER (
+                               ORDER BY date, ts, type, order_no
+                               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                           ) AS stock_at_time
+                    FROM (
+                        -- 同一单据内多个批次合并为一行 (明细不展示批次号)
+                        SELECT date, ts, type, order_no, person,
+                               SUM(quantity) AS quantity, SUM(delta) AS delta
+                        FROM tx
+                        GROUP BY date, ts, type, order_no, person
+                    )
+                )
+                WHERE date >= ? AND date <= ?
+                ORDER BY date DESC, ts DESC, type DESC, order_no DESC
                 """,
-                [date_from, date_to, material_id] * 3
+                [material_id] * 3 + [date_from, date_to]
             )
             rows = cursor.fetchall()
 
@@ -491,7 +505,7 @@ class ReportService:
             'type': row['type'],
             'order_no': row['order_no'],
             'person': row['person'],
-            'batch_no': row['batch_no'],
-            'quantity': round(row['quantity'] or 0, 2),
-            'current_stock': round(row['current_stock'] or 0, 2),
+            # `or 0` 顺带把 -0.0 归一为 0
+            'quantity': round(row['quantity'] or 0, 2) or 0,
+            'current_stock': round(row['stock_at_time'] or 0, 2) or 0,
         } for row in rows]
