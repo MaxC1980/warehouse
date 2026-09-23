@@ -131,6 +131,14 @@ class TestReportService(unittest.TestCase):
         with self.assertRaises(ValueError):
             ReportService.get_stock_flow_detail(material_id=1)
 
+    def test_stock_flow_detail_returns_current_stock(self):
+        """明细行携带批次实时库存字段"""
+        items = ReportService.get_stock_flow_detail(
+            material_id=1, date_from='2020-01-01', date_to='2030-12-31',
+        )
+        for item in items:
+            self.assertIn('current_stock', item)
+
 
 if __name__ == '__main__':
     unittest.main()

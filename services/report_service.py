@@ -453,25 +453,31 @@ class ReportService:
                 """
                 SELECT o.receiver_date as date, '入库' as type, o.order_no as order_no,
                        COALESCE(o.receiver, '') as person, i.batch_no as batch_no,
-                       i.quantity as quantity
+                       i.quantity as quantity,
+                       COALESCE(inv.quantity, 0) as current_stock
                 FROM in_order_item i
                 JOIN in_order o ON i.order_id = o.id
+                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
                 WHERE o.status = 'approved' AND o.receiver_date >= ? AND o.receiver_date <= ?
                   AND i.material_id = ?
                 UNION ALL
                 SELECT o.receiver_date, '出库', o.order_no,
                        COALESCE(o.receiver, ''), i.batch_no,
-                       COALESCE(i.actual_quantity, 0)
+                       COALESCE(i.actual_quantity, 0),
+                       COALESCE(inv.quantity, 0)
                 FROM out_order_item i
                 JOIN out_order o ON i.order_id = o.id
+                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
                 WHERE o.status IN ('approved', 'completed') AND o.receiver_date >= ? AND o.receiver_date <= ?
                   AND i.material_id = ?
                 UNION ALL
                 SELECT r.receiver_date, '退库', r.order_no,
                        COALESCE(r.receiver, ''), i.batch_no,
-                       COALESCE(i.quantity, 0)
+                       COALESCE(i.quantity, 0),
+                       COALESCE(inv.quantity, 0)
                 FROM return_order_item i
                 JOIN return_order r ON i.return_order_id = r.id
+                LEFT JOIN inventory inv ON inv.material_id = i.material_id AND inv.batch_no = i.batch_no
                 WHERE r.status = 'approved' AND r.receiver_date >= ? AND r.receiver_date <= ?
                   AND i.material_id = ?
                 ORDER BY date DESC, order_no
@@ -487,4 +493,5 @@ class ReportService:
             'person': row['person'],
             'batch_no': row['batch_no'],
             'quantity': round(row['quantity'] or 0, 2),
+            'current_stock': round(row['current_stock'] or 0, 2),
         } for row in rows]
