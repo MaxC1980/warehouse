@@ -111,10 +111,11 @@ def export_inventory_report():
         status_filter=status_filter,
     )
 
-    columns = ['物料编码', '物料名称', '规格型号', '单位', '当前库存', '安全库存', '状态']
+    columns = ['物料编码', '物料名称', '品牌', '规格型号', '单位', '当前库存', '安全库存', '状态']
     data = [[
         r['material_code'],
         r['material_name'],
+        r['manufacturer'],
         r['spec'],
         r['unit'],
         r['quantity'],
@@ -145,13 +146,15 @@ def export_in_detail_report():
         material_id=material_id
     )
 
-    columns = ['入库单号', '入库日期', '供应商', '物料编码', '物料名称', '批次号', '数量', '单价', '金额', '操作员']
+    columns = ['入库单号', '入库日期', '供应商', '物料编码', '物料名称', '品牌', '规格', '批次号', '数量', '单价', '金额', '操作员']
     data = [[
         r['order_no'],
         r['created_at'],
         r['supplier_name'],
         r['material_code'],
         r['material_name'],
+        r['manufacturer'],
+        r['spec'],
         r['batch_no'],
         r['quantity'],
         r['unit_price'],
@@ -182,12 +185,15 @@ def export_out_detail_report():
         material_id=material_id
     )
 
-    columns = ['出库单号', '出库日期', '物料编码', '物料名称', '批次号', '数量', '单价', '金额', '操作员']
+    columns = ['出库单号', '出库日期', '部门', '物料编码', '物料名称', '品牌', '规格', '批次号', '数量', '单价', '金额', '操作员']
     data = [[
         r['order_no'],
         r['created_at'],
+        r['department'],
         r['material_code'],
         r['material_name'],
+        r['manufacturer'],
+        r['spec'],
         r['batch_no'],
         r['actual_quantity'],
         r['unit_price'],
