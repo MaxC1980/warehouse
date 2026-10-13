@@ -2,6 +2,7 @@ import logging
 from database import get_db_connection
 from datetime import datetime
 from services.inventory_service import InventoryService
+from services.attachment_service import AttachmentService
 from utils.sql import escape_like, build_update_sql, build_like_clause
 
 logger = logging.getLogger(__name__)
@@ -166,6 +167,7 @@ class OrderService:
                 SELECT
                     i.id, i.order_id, i.material_id, i.batch_no,
                     i.production_date, i.expiry_date, i.quantity, i.unit_price, i.remark,
+                    i.row_key,
                     m.code as material_code,
                     m.name as material_name,
                     m.manufacturer,
@@ -179,9 +181,10 @@ class OrderService:
             )
             items = [dict(row) for row in cursor.fetchall()]
 
-            result = dict(order)
-            result['items'] = items
-            return result
+        result = dict(order)
+        result['items'] = items
+        result['attachments'] = AttachmentService.get_attachments('in_order', order_id)
+        return result
 
     @staticmethod
     def _validate_materials_active(cursor, items):
@@ -253,10 +256,10 @@ class OrderService:
                         remark = item['remark'] if 'remark' in item.keys() else None
                         cursor.execute(
                             """
-                            INSERT INTO in_order_item (order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO in_order_item (order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark, row_key)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (order_id, item['material_id'], batch_no, production_date, expiry_date, item['quantity'], unit_price, remark)
+                            (order_id, item['material_id'], batch_no, production_date, expiry_date, item['quantity'], unit_price, remark, item.get('row_key'))
                         )
 
                 conn.commit()
@@ -293,18 +296,24 @@ class OrderService:
                         remark = item.get('remark')
                         cursor.execute(
                             """
-                            INSERT INTO in_order_item (order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO in_order_item (order_id, material_id, batch_no, production_date, expiry_date, quantity, unit_price, remark, row_key)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (order_id, item['material_id'], batch_no, production_date, expiry_date, item['quantity'], unit_price, remark)
+                            (order_id, item['material_id'], batch_no, production_date, expiry_date, item['quantity'], unit_price, remark, item.get('row_key'))
                         )
 
                 conn.commit()
-                return OrderService.get_in_order_by_id(order_id)
             except Exception:
                 logger.exception('操作失败')
                 conn.rollback()
                 raise
+
+        # 明细重建后, 清理已删除行的附件 (事务已提交, 再删文件避免回滚后文件已丢)
+        if 'items' in data:
+            keep_row_keys = {it.get('row_key') for it in data['items'] if it.get('row_key')}
+            AttachmentService.delete_by_row_keys('in_order', order_id, keep_row_keys)
+
+        return OrderService.get_in_order_by_id(order_id)
 
     @staticmethod
     def delete_in_order(order_id):
@@ -320,7 +329,9 @@ class OrderService:
             cursor.execute("DELETE FROM in_order_item WHERE order_id = ?", (order_id,))
             cursor.execute("DELETE FROM in_order WHERE id = ?", (order_id,))
             conn.commit()
-            return True
+
+        AttachmentService.delete_by_biz('in_order', order_id)
+        return True
 
     @staticmethod
     def _upsert_inventory_for_in_item(cursor, item, batch_no):

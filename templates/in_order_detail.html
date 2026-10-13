@@ -52,6 +52,17 @@
 </div>
 
 <div class="items-table">
+    <h3>单据附件</h3>
+    <ul class="attach-links">
+        {% for att in order['attachments'] if not att.row_key %}
+        <li><a href="/api/in-orders/attachments/{{ att.id }}" target="_blank" rel="noopener">{{ att.file_name }}</a></li>
+        {% else %}
+        <li class="attach-none">无</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="items-table">
     <h3>入库明细</h3>
     <table>
         <thead>
@@ -67,6 +78,7 @@
                 <th>数量</th>
                 <th>单价</th>
                 <th>备注</th>
+                <th>附件</th>
             </tr>
         </thead>
         <tbody>
@@ -83,10 +95,15 @@
                 <td>{{ item.quantity }}</td>
                 <td>{{ item.unit_price }}</td>
                 <td>{{ item.remark or '' }}</td>
+                <td>
+                    {% for att in order['attachments'] if att.row_key and att.row_key == item.row_key %}
+                    <a href="/api/in-orders/attachments/{{ att.id }}" target="_blank" rel="noopener">{{ att.file_name }}</a><br>
+                    {% endfor %}
+                </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="11">暂无明细数据</td>
+                <td colspan="12">暂无明细数据</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -94,6 +111,9 @@
 </div>
 
 <style>
+.attach-links { list-style: none; padding: 0; margin: 0; }
+.attach-links li { padding: 4px 0; font-size: 14px; }
+.attach-links .attach-none { color: #999; }
 .order-info {
     background: white;
     padding: 16px;

@@ -1,6 +1,9 @@
 import logging
-from flask import Blueprint, request, jsonify, session
+import os
+from flask import Blueprint, request, jsonify, session, send_file, make_response
+from config import Config
 from services.order_service import OrderService
+from services.attachment_service import AttachmentService
 from utils.pagination import get_per_page
 from utils.decorators import require_permission, handle_service_errors
 
@@ -106,6 +109,65 @@ def approve_in_order(order_id):
     if result:
         return jsonify(result)
     return jsonify({'error': '入库单不存在或无法审核'}), 400
+
+
+@in_order_bp.route('/in-orders/<int:order_id>/attachments', methods=['POST'])
+@require_permission('in_order', 'edit')
+@handle_service_errors
+def upload_in_order_attachment(order_id):
+    """上传单据附件 (主表 row_key 为空, 明细行带 row_key); 仅 pending 可传"""
+    order = OrderService.get_in_order_by_id(order_id)
+    if not order:
+        return jsonify({'error': '入库单不存在'}), 404
+    if order['status'] != 'pending':
+        return jsonify({'error': '已审核单据不能上传附件'}), 400
+
+    row_key = request.form.get('row_key') or None
+    if row_key and row_key not in {it['row_key'] for it in order['items']}:
+        return jsonify({'error': '明细行不存在, 请先保存单据'}), 400
+
+    result = AttachmentService.save_attachment(
+        'in_order', order_id, request.files.get('file'),
+        row_key=row_key, uploaded_by=session.get('user_id')
+    )
+    return jsonify(result), 201
+
+
+@in_order_bp.route('/in-orders/attachments/<int:attachment_id>', methods=['GET'])
+@require_permission('in_order', 'view')
+@handle_service_errors
+def download_in_order_attachment(attachment_id):
+    """查看/下载附件 (图片、PDF 浏览器内联打开)"""
+    attachment = AttachmentService.get_attachment(attachment_id)
+    if not attachment or attachment['biz_type'] != 'in_order':
+        return jsonify({'error': '附件不存在'}), 404
+
+    path = os.path.join(Config.ATTACHMENT_FOLDER, attachment['stored_name'])
+    if not os.path.exists(path):
+        return jsonify({'error': '附件文件已丢失'}), 404
+
+    response = make_response(send_file(
+        path, mimetype=attachment['mime_type'], download_name=attachment['file_name']
+    ))
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+@in_order_bp.route('/in-orders/attachments/<int:attachment_id>', methods=['DELETE'])
+@require_permission('in_order', 'edit')
+@handle_service_errors
+def delete_in_order_attachment(attachment_id):
+    """删除附件; 仅 pending 可删"""
+    attachment = AttachmentService.get_attachment(attachment_id)
+    if not attachment or attachment['biz_type'] != 'in_order':
+        return jsonify({'error': '附件不存在'}), 404
+
+    order = OrderService.get_in_order_by_id(attachment['biz_id'])
+    if not order or order['status'] != 'pending':
+        return jsonify({'error': '已审核单据不能删除附件'}), 400
+
+    AttachmentService.delete_attachment(attachment_id)
+    return jsonify({'message': '附件已删除'})
 
 
 @in_order_bp.route('/in-orders/detail', methods=['GET'])

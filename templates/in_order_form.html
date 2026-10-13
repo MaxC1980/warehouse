@@ -39,6 +39,19 @@
         </div>
     </div>
 
+    <div class="items-table" id="order-attachment-section">
+        <h3>单据附件</h3>
+        <p style="color:#666; font-size:13px; margin:0 0 8px;">
+            支持图片（jpg / png / gif / bmp / webp）和 PDF，单个不超过 5MB，最多 10 个。
+        </p>
+        <ul id="order-attach-list" class="attach-list"></ul>
+        <label class="btn btn-secondary" id="order-attach-add" style="display:inline-block;">
+            添加附件
+            <input type="file" id="order-file-input" multiple style="display:none;"
+                   accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf">
+        </label>
+    </div>
+
     <div class="items-table">
         <h3>入库明细</h3>
         <table>
@@ -53,11 +66,12 @@
                     <th>有效日期</th>
                     <th style="width:100px;">数量</th>
                     <th style="width:110px;">单价</th>
+                    <th style="width:110px;">附件</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody id="items-tbody">
-                <tr>
+                <tr data-row-key="">
                     <td>
                         <select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)">
                             <option value="">请选择</option>
@@ -71,12 +85,13 @@
                     <td><input type="date" name="expiry_date" class="expiry-date"></td>
                     <td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>
                     <td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>
+                    <td class="item-attach"></td>
                     <td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>
                 </tr>
             </tbody>
         </table>
-        <button type="button" onclick="addRow()" class="btn btn-secondary">添加明细</button>
-        <button type="button" onclick="openMaterialModal()" class="btn btn-secondary">物料选择（可多选）</button>
+        <button type="button" onclick="addRow()" class="btn btn-secondary" id="add-row-btn">添加明细</button>
+        <button type="button" onclick="openMaterialModal()" class="btn btn-secondary" id="material-modal-btn">物料选择（可多选）</button>
     </div>
 
     <!-- 物料选择弹窗 -->
@@ -124,6 +139,25 @@
         </div>
     </div>
 
+    <!-- 明细行附件弹窗 -->
+    <div id="attach-modal" class="modal" style="display:none;">
+        <div class="modal-content" style="width:700px !important; max-width:none !important;">
+            <div class="modal-header">
+                <h3 id="attach-modal-title">明细附件</h3>
+                <button type="button" onclick="closeAttachModal()" class="btn btn-sm">关闭</button>
+            </div>
+            <ul id="attach-modal-list" class="attach-list"></ul>
+            <label class="btn btn-secondary" id="attach-modal-add" style="display:inline-block;">
+                添加附件
+                <input type="file" id="attach-modal-input" multiple style="display:none;"
+                       accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf">
+            </label>
+            <div class="modal-footer">
+                <button type="button" onclick="closeAttachModal()" class="btn btn-primary">完成</button>
+            </div>
+        </div>
+    </div>
+
     <div class="form-actions" id="form-actions">
         <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
         <button type="button" id="approve-btn" class="btn btn-success" onclick="approveOrder()" style="display:none;">审核</button>
@@ -139,6 +173,153 @@ let isModified = false;
 
 function markModified() { isModified = true; }
 function onlyInteger(e) { return (e.key>='0' && e.key<='9') || ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key); }
+
+// ---- 附件 (主表 row_key 为空, 明细行带 row_key) ----
+const ATTACH_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf'];
+const ATTACH_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+const ATTACH_MAX_SIZE = 5 * 1024 * 1024;
+const ATTACH_MAX_PER_ORDER = 10;
+const ATTACH_MAX_PER_ITEM = 5;
+
+let canEdit = true;
+let savedAttachments = [];      // 已入库
+let pendingAttachments = [];    // 待上传 {tempId, file, rowKey}
+let attachTargetRowKey = null;  // 弹窗当前目标行 (null = 主表)
+let attachTempSeq = 0;
+
+function genRowKey() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'rk-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function fileExt(name) {
+    return (String(name).split('.').pop() || '').toLowerCase();
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+}
+
+function attachCount(rowKey) {
+    const key = rowKey || null;
+    const saved = savedAttachments.filter(a => (a.row_key || null) === key).length;
+    const pending = pendingAttachments.filter(a => a.rowKey === key).length;
+    return saved + pending;
+}
+
+function addPendingFiles(files, rowKey) {
+    const key = rowKey || null;
+    const limit = key ? ATTACH_MAX_PER_ITEM : ATTACH_MAX_PER_ORDER;
+    for (const file of files) {
+        const ext = fileExt(file.name);
+        if (!ATTACH_EXTS.includes(ext)) {
+            alert(file.name + '：只允许上传图片(jpg/png/gif/bmp/webp)或 PDF');
+            continue;
+        }
+        if (file.size === 0) { alert(file.name + '：文件内容为空'); continue; }
+        if (file.size > ATTACH_MAX_SIZE) { alert(file.name + '：单个文件不能超过 5MB'); continue; }
+        if (attachCount(key) >= limit) { alert(`附件数量已达上限（${limit} 个）`); break; }
+        pendingAttachments.push({ tempId: ++attachTempSeq, file: file, rowKey: key });
+    }
+    refreshAttachUI();
+}
+
+function removePending(tempId) {
+    pendingAttachments = pendingAttachments.filter(a => a.tempId !== tempId);
+    refreshAttachUI();
+}
+
+async function deleteSavedAttachment(id) {
+    if (!confirm('确定删除该附件？')) return;
+    try {
+        await apiRequest('/in-orders/attachments/' + id, { method: 'DELETE' });
+    } catch (e) { return; }
+    savedAttachments = savedAttachments.filter(a => a.id !== id);
+    refreshAttachUI();
+}
+
+function renderAttachList(ulId, rowKey) {
+    const key = rowKey || null;
+    const ul = document.getElementById(ulId);
+    if (!ul) return;
+    const items = savedAttachments
+        .filter(a => (a.row_key || null) === key)
+        .map(a => ({ kind: 'saved', id: a.id, name: a.file_name, size: a.file_size }))
+        .concat(pendingAttachments
+            .filter(a => a.rowKey === key)
+            .map(a => ({ kind: 'pending', id: a.tempId, name: a.file.name, size: a.file.size })));
+
+    if (items.length === 0) {
+        ul.innerHTML = '<li class="attach-empty">暂无附件</li>';
+        return;
+    }
+    ul.innerHTML = items.map(it => {
+        const ext = fileExt(it.name);
+        const thumb = (it.kind === 'saved' && ATTACH_IMAGE_EXTS.includes(ext))
+            ? `<img class="attach-thumb" src="/api/in-orders/attachments/${it.id}" alt="">`
+            : `<span class="attach-icon">${it.kind === 'saved' ? escapeHtml(ext.toUpperCase()) : '待传'}</span>`;
+        const name = (it.kind === 'saved')
+            ? `<a class="attach-name" href="/api/in-orders/attachments/${it.id}" target="_blank" rel="noopener">${escapeHtml(it.name)}</a>`
+            : `<span class="attach-name attach-pending">${escapeHtml(it.name)}（待上传）</span>`;
+        const del = !canEdit ? '' : (it.kind === 'saved'
+            ? `<button type="button" class="btn btn-sm btn-danger" onclick="deleteSavedAttachment(${Number(it.id)})">删除</button>`
+            : `<button type="button" class="btn btn-sm btn-danger" onclick="removePending(${Number(it.id)})">删除</button>`);
+        return `<li>${thumb}${name}<span class="attach-size">${formatSize(it.size)}</span>${del}</li>`;
+    }).join('');
+}
+
+function refreshAttachUI() {
+    ['order-attach-add', 'attach-modal-add'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = canEdit ? 'inline-block' : 'none';
+    });
+    renderAttachList('order-attach-list', null);
+    document.querySelectorAll('#items-tbody tr').forEach(tr => {
+        const cell = tr.querySelector('.item-attach');
+        if (!cell) return;
+        const n = attachCount(tr.dataset.rowKey);
+        if (!canEdit) {
+            cell.innerHTML = `<span class="att-badge${n ? '' : ' zero'}">${n}</span>`;
+            return;
+        }
+        cell.innerHTML = `<button type="button" class="btn btn-sm btn-secondary" onclick="openAttachModal(this)">附件<span class="att-badge${n ? '' : ' zero'}">${n}</span></button>`;
+    });
+    const modal = document.getElementById('attach-modal');
+    if (modal && modal.style.display === 'flex') {
+        renderAttachList('attach-modal-list', attachTargetRowKey);
+    }
+}
+
+function openAttachModal(btn) {
+    const tr = btn.closest('tr');
+    attachTargetRowKey = tr.dataset.rowKey;
+    const select = tr.querySelector('.material-select');
+    const label = select && select.selectedIndex >= 0 ? select.options[select.selectedIndex].text : '';
+    document.getElementById('attach-modal-title').textContent = '明细附件 - ' + label;
+    renderAttachList('attach-modal-list', attachTargetRowKey);
+    document.getElementById('attach-modal').style.display = 'flex';
+}
+
+function closeAttachModal() {
+    document.getElementById('attach-modal').style.display = 'none';
+}
+
+async function uploadPendingAttachments(orderIdValue) {
+    let failed = 0;
+    for (const pa of pendingAttachments) {
+        const fd = new FormData();
+        fd.append('file', pa.file);
+        if (pa.rowKey) fd.append('row_key', pa.rowKey);
+        try {
+            await apiRequest('/in-orders/' + orderIdValue + '/attachments', { method: 'POST', body: fd });
+        } catch (e) {
+            failed++;
+        }
+    }
+    return failed;
+}
 
 let allSuppliers = [];
 
@@ -209,6 +390,8 @@ async function loadOrder() {
     }
     const order = await apiRequest('/in-orders/' + orderId);
     document.getElementById('page-title').textContent = '编辑入库单 - ' + order.order_no;
+    savedAttachments = order.attachments || [];
+    canEdit = order.status === 'pending' && hasPerm('in_order', 'edit');
     const form = document.getElementById('order-form');
     form.supplier_id.value = order.supplier_id || '';
     if (order.supplier_id) {
@@ -229,6 +412,7 @@ async function loadOrder() {
         const dis = isEditable ? '' : 'disabled';
         order.items.forEach(item => {
             const tr = document.createElement('tr');
+            tr.dataset.rowKey = item.row_key || genRowKey();
             tr.innerHTML = '<td><select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)" ' + dis + '><option value="">请选择</option></select></td>' +
                 '<td><span class="material-brand"></span></td>' +
                 '<td><span class="material-spec"></span></td>' +
@@ -238,6 +422,7 @@ async function loadOrder() {
                 '<td><input type="date" name="expiry_date" class="expiry-date" value="' + escapeHtml(item.expiry_date) + '" ' + dis + '></td>' +
                 '<td><input type="number" name="quantity" class="quantity" step="1" min="1" value="' + escapeHtml(item.quantity) + '" ' + dis + ' onkeypress="return onlyInteger(event)"></td>' +
                 '<td><input type="number" name="unit_price" class="unit-price" step="0.01" value="' + escapeHtml(item.unit_price) + '" ' + dis + '></td>' +
+                '<td class="item-attach"></td>' +
                 '<td>' + (isEditable ? '<button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button>' : '') + '</td>';
             tbody.appendChild(tr);
             const select = tr.querySelector('.material-select');
@@ -287,10 +472,12 @@ function disableForm() {
         el.disabled = true;
     });
     form.querySelector('button[type="submit"]').style.display = 'none';
-    document.querySelector('.items-table .btn').style.display = 'none';
+    document.getElementById('add-row-btn').style.display = 'none';
+    document.getElementById('material-modal-btn').style.display = 'none';
     document.querySelectorAll('#items-tbody tr td:last-child').forEach(td => {
         td.innerHTML = '';
     });
+    refreshAttachUI();
 }
 
 let materialsData = [];
@@ -329,6 +516,7 @@ function updateMaterialInfo(select) {
 function addRow() {
     const tbody = document.getElementById('items-tbody');
     const tr = document.createElement('tr');
+    tr.dataset.rowKey = genRowKey();
     tr.innerHTML = '<td><select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)"><option value="">请选择</option></select></td>' +
         '<td><span class="material-brand"></span></td>' +
         '<td><span class="material-spec"></span></td>' +
@@ -338,8 +526,10 @@ function addRow() {
         '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
         '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
         '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
+        '<td class="item-attach"></td>' +
         '<td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
     tbody.appendChild(tr);
+    refreshAttachUI();
     loadMaterialsForNewRow(tr);
 }
 
@@ -362,13 +552,17 @@ async function loadMaterialsForNewRow(row) {
 function removeRow(btn) {
     const tr = btn.closest('tr');
     if (document.querySelectorAll('#items-tbody tr').length > 1) {
+        pendingAttachments = pendingAttachments.filter(a => a.rowKey !== tr.dataset.rowKey);
         tr.remove();
+        refreshAttachUI();
     }
 }
 
 function copyRow(btn) {
     const tr = btn.closest('tr');
     const newTr = tr.cloneNode(true);
+    // 克隆行必须换新 row_key, 否则与源行共用附件
+    newTr.dataset.rowKey = genRowKey();
     // 修复：克隆后重新设置select的选项（cloneNode会把原select的option移走）
     const oldSelect = tr.querySelector('.material-select');
     const newSelect = newTr.querySelector('.material-select');
@@ -378,6 +572,7 @@ function copyRow(btn) {
     newSelect.value = selectedValue;
     const tbody = document.getElementById('items-tbody');
     tbody.appendChild(newTr);
+    refreshAttachUI();
 }
 
 async function handleSubmit(e) {
@@ -405,6 +600,7 @@ async function handleSubmit(e) {
             seenKeys.add(key);
             items.push({
                 material_id: mid,
+                row_key: row.dataset.rowKey || null,
                 batch_no: batch_no,
                 production_date: row.querySelector('.production-date').value || null,
                 expiry_date: row.querySelector('.expiry-date').value || null,
@@ -431,8 +627,22 @@ async function handleSubmit(e) {
     const url = orderId ? '/in-orders/' + orderId : '/in-orders';
     const method = orderId ? 'PUT' : 'POST';
 
-    await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    // 附件依赖单据 id, 只能先存单据再逐个上传
+    const saved = await apiRequest(url, { method: method, body: JSON.stringify(data) });
+    const savedOrderId = orderId || (saved && saved.id);
+
+    let failed = 0;
+    if (savedOrderId && pendingAttachments.length > 0) {
+        const btn = document.getElementById('save-btn');
+        btn.disabled = true;
+        btn.textContent = '上传附件中…';
+        failed = await uploadPendingAttachments(savedOrderId);
+    }
+
     isModified = false;
+    if (failed > 0) {
+        alert(`单据已保存，但 ${failed} 个附件上传失败，请重新编辑上传`);
+    }
     window.location.href = '/in-orders';
 }
 
@@ -444,7 +654,20 @@ async function loadEmployees() {
     });
 }
 
+document.getElementById('order-file-input').addEventListener('change', function() {
+    addPendingFiles(this.files, null);
+    this.value = '';
+});
+
+document.getElementById('attach-modal-input').addEventListener('change', function() {
+    addPendingFiles(this.files, attachTargetRowKey);
+    this.value = '';
+});
+
 (async function() {
+    const initialRow = document.querySelector('#items-tbody tr');
+    if (initialRow) initialRow.dataset.rowKey = genRowKey();
+
     await loadSuppliers();
     await loadEmployees();
     await loadMaterials();
@@ -463,6 +686,7 @@ async function loadEmployees() {
             disableForm();
         }
     }
+    refreshAttachUI();
 })();
 
 // ---- 物料选择弹窗 ----
@@ -579,6 +803,7 @@ function confirmMaterialSelection() {
 
         const tbody = document.getElementById('items-tbody');
         const tr = document.createElement('tr');
+        tr.dataset.rowKey = genRowKey();
         tr.innerHTML = '<td><select name="material_id" class="material-select" required onchange="updateMaterialInfo(this)"><option value="">请选择</option></select></td>' +
             '<td><span class="material-brand"></span></td>' +
             '<td><span class="material-spec"></span></td>' +
@@ -588,8 +813,10 @@ function confirmMaterialSelection() {
             '<td><input type="date" name="expiry_date" class="expiry-date"></td>' +
             '<td><input type="number" name="quantity" class="quantity" step="1" min="1" required onkeypress="return onlyInteger(event)"></td>' +
             '<td><input type="number" name="unit_price" class="unit-price" step="0.01"></td>' +
+            '<td class="item-attach"></td>' +
             '<td><button type="button" onclick="copyRow(this)" class="btn btn-sm btn-secondary">复制</button> <button type="button" onclick="removeRow(this)" class="btn btn-sm btn-danger">删除</button></td>';
         tbody.appendChild(tr);
+        refreshAttachUI();
 
         const select = tr.querySelector('.material-select');
         // Add all materials to select
@@ -655,5 +882,28 @@ function confirmMaterialSelection() {
 .combobox-list .combobox-sub { color: #999; margin-left: 8px; font-size: 12px; }
 .combobox-list .combobox-empty { color: #999; cursor: default; }
 .combobox-list .combobox-empty:hover { background: #fff; }
+
+.attach-list { list-style: none; padding: 0; margin: 0 0 8px; }
+.attach-list li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border: 1px solid #e8e8e8; border-radius: 4px;
+    margin-bottom: 6px; font-size: 13px; background: #fafafa;
+}
+.attach-list img.attach-thumb {
+    width: 36px; height: 36px; object-fit: cover; border-radius: 3px; border: 1px solid #ddd;
+}
+.attach-list .attach-icon {
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; background: #ffe9e9; color: #d4380d; font-size: 11px; font-weight: bold;
+}
+.attach-list .attach-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-list .attach-size { color: #999; }
+.attach-list .attach-pending { color: #d46b08; }
+.attach-list .attach-empty { color: #999; border: none; background: none; }
+.item-attach .att-badge {
+    display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 2px;
+    background: #1890ff; color: #fff; border-radius: 8px; font-size: 11px; line-height: 16px;
+}
+.item-attach .att-badge.zero { background: #ccc; }
 </style>
 {% endblock %}

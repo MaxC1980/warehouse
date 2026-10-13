@@ -251,6 +251,23 @@ def _create_tables(cursor):
         )
     ''')
 
+    # Attachment (单据附件: 图片/PDF)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS attachment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            biz_type TEXT NOT NULL,
+            biz_id INTEGER NOT NULL,
+            row_key TEXT,
+            file_name TEXT NOT NULL,
+            stored_name TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            mime_type TEXT,
+            uploaded_by INTEGER,
+            created_at DATETIME,
+            FOREIGN KEY (uploaded_by) REFERENCES user(id)
+        )
+    ''')
+
     # Product (产品/成品)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS product (
@@ -371,6 +388,8 @@ def _create_indexes(cursor):
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_role_user ON user_role(user_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_role_role ON user_role(role_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_role_permission_role ON role_permission(role_id)')
+    # 单据附件 (按单据查/级联删)
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_attachment_biz ON attachment(biz_type, biz_id)')
 
 
 
@@ -462,6 +481,14 @@ def _migrate_return_qty(cursor):
     cols = {r[1] for r in cursor.fetchall()}
     if 'quantity' not in cols:
         cursor.execute("ALTER TABLE return_order_item ADD COLUMN quantity DECIMAL(16,2)")
+
+
+def _migrate_in_order_item_row_key(cursor):
+    """迁移: in_order_item 加 row_key 列 (附件按行关联, 编辑重建明细后仍能对上)"""
+    cursor.execute("PRAGMA table_info(in_order_item)")
+    cols = {r[1] for r in cursor.fetchall()}
+    if 'row_key' not in cols:
+        cursor.execute("ALTER TABLE in_order_item ADD COLUMN row_key TEXT")
 
 
 
@@ -562,6 +589,7 @@ def init_db():
         _migrate_product_disabled(cursor)
         _migrate_material_disabled(cursor)
         _migrate_return_qty(cursor)
+        _migrate_in_order_item_row_key(cursor)
         _seed_permissions(cursor)
         _seed_roles(cursor)
         roles = _assign_role_permissions(cursor)
